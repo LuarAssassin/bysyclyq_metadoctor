@@ -225,6 +225,16 @@ export interface SSEErrorEvent {
 
 export type SSEEvent = SSEStartEvent | SSEDeltaEvent | SSEDoneEvent | SSEErrorEvent
 
+// Element Plus Upload types
+export interface UploadFile {
+  name: string
+  raw?: File
+  uid: number
+  size?: number
+  status?: 'ready' | 'uploading' | 'success' | 'error'
+  response?: unknown
+}
+
 export interface FeedbackForm {
   comment: string
   edited_markdown: string

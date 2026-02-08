@@ -3,8 +3,7 @@ import type {
   RehearsalSession, 
   RehearsalMessage, 
   PlaybackAssets, 
-  FeedbackForm,
-  PaginatedData 
+  FeedbackForm
 } from '@/types'
 
 export const createSession = (data?: { title?: string }): Promise<RehearsalSession> => {
@@ -23,7 +22,8 @@ export const askStream = (
   sessionId: number, 
   data: { question: string; forced_search?: boolean }
 ): Promise<Response> => {
-  return fetch(`${import.meta.env.VITE_API_BASE_URL}/doctor/rehearsal/sessions/${sessionId}/ask/stream/`, {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+  return fetch(`${baseUrl}/doctor/rehearsal/sessions/${sessionId}/ask/stream/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

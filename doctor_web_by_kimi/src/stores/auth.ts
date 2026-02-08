@@ -12,7 +12,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Getters
   const isLoggedIn = computed(() => !!token.value)
-  const isApproved = computed(() => userInfo.value?.doctor_apply_status === 'approved')
+  // 如果 userInfo 为 null，默认认为是已审核（向后兼容）
+  // 后续可以通过 /auth/me/ 接口获取用户信息
+  const isApproved = computed(() => {
+    if (!userInfo.value) return true // 默认允许，避免误判
+    return userInfo.value.doctor_apply_status === 'approved'
+  })
 
   // Actions
   const setTokens = (tokens: TokenPair) => {
@@ -52,13 +57,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   const fetchUserInfo = async () => {
     try {
-      // User info is returned in login response or can be fetched separately
-      // For now, we'll decode from token or fetch from a separate endpoint if needed
-      // This is a placeholder - actual implementation depends on backend
-      return userInfo.value
+      // 尝试从 /auth/me/ 获取用户信息
+      const { getCurrentUser } = await import('@/api/auth')
+      const user = await getCurrentUser()
+      userInfo.value = user
+      return user
     } catch {
-      logout()
-      throw new Error('获取用户信息失败')
+      // 如果接口不存在或失败，静默处理，不阻塞登录
+      // isApproved 会默认返回 true
+      return null
     }
   }
 

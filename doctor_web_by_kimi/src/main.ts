@@ -1,5 +1,26 @@
 import { createApp } from 'vue'
-import './style.css'
-import App from './App.vue'
+import { createPinia } from 'pinia'
+import ElementPlus from 'element-plus'
+import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 
-createApp(App).mount('#app')
+import App from './App.vue'
+import router from './router'
+
+// Global styles
+import './assets/styles/global.scss'
+import './assets/styles/tailwind.css'
+
+const app = createApp(App)
+
+// Register all Element Plus icons
+for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+  app.component(key, component)
+}
+
+app.use(createPinia())
+app.use(router)
+app.use(ElementPlus, { size: 'default', zIndex: 3000 })
+
+app.mount('#app')

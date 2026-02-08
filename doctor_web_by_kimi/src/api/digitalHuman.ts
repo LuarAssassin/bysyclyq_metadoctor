@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { VoiceAsset, VideoAsset, PaginatedData } from '@/types'
+import type { VoiceAsset, VideoAsset } from '@/types'
 
 // Voice APIs
 export const uploadVoice = (file: File, options?: { name?: string; preferred_name?: string; set_active?: boolean }): Promise<VoiceAsset> => {
