@@ -373,3 +373,344 @@ class DoctorAvatarVideo(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.doctor.username} - {self.image_file_name}"
+
+
+class DoctorNarrativeKernel(SoftDeleteModel):
+    """医生叙事底座（菜单3+4合并）"""
+
+    doctor = models.OneToOneField(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="narrative_kernel",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    schema_version = models.CharField(
+        max_length=20, default="1.0", verbose_name="DSL 版本"
+    )
+    kernel_name = models.CharField(
+        max_length=100, default="doctor_narrative_kernel", verbose_name="底座名称"
+    )
+    revision = models.PositiveIntegerField(default=1, verbose_name="修订版本")
+    payload = models.JSONField(default=dict, verbose_name="结构化底座数据")
+    compiled_prompt = models.TextField(default="", verbose_name="编译后的DSL文本")
+    last_annotation_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="最近批注时间"
+    )
+    notes = models.TextField(null=True, blank=True, verbose_name="备注")
+
+    class Meta:
+        verbose_name = "医生叙事底座"
+        verbose_name_plural = "医生叙事底座"
+        ordering = ["-updated_at"]
+
+    def clean(self):
+        super().clean()
+        if self.doctor_id and not self.doctor.is_doctor:
+            raise ValidationError({"doctor": "仅医生用户可绑定叙事底座"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.doctor.username} - v{self.revision}"
+
+
+class DoctorNarrativeAnnotation(SoftDeleteModel):
+    """医生演练批注记录（用于驱动底座更新）"""
+
+    SOURCE_CHOICES = [
+        ("rehearsal", "演练批注"),
+        ("manual", "手工批注"),
+    ]
+
+    kernel = models.ForeignKey(
+        DoctorNarrativeKernel,
+        on_delete=models.CASCADE,
+        related_name="annotations",
+        verbose_name="叙事底座",
+    )
+    doctor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="narrative_annotations",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default="rehearsal",
+        db_index=True,
+        verbose_name="来源",
+    )
+    question = models.TextField(null=True, blank=True, verbose_name="患者问题")
+    answer = models.TextField(null=True, blank=True, verbose_name="AI回答")
+    comment = models.TextField(verbose_name="医生批注")
+    delta = models.JSONField(default=dict, blank=True, verbose_name="结构化改动")
+    llm_applied = models.BooleanField(default=False, verbose_name="是否应用LLM抽取")
+    llm_delta = models.JSONField(default=dict, blank=True, verbose_name="LLM抽取增量")
+    llm_raw_output = models.TextField(
+        null=True, blank=True, verbose_name="LLM原始输出"
+    )
+    llm_error = models.TextField(
+        null=True, blank=True, verbose_name="LLM抽取错误"
+    )
+    revision_after = models.PositiveIntegerField(default=1, verbose_name="修改后版本号")
+
+    class Meta:
+        verbose_name = "医生叙事批注"
+        verbose_name_plural = "医生叙事批注"
+        ordering = ["-created_at"]
+
+    def clean(self):
+        super().clean()
+        if self.doctor_id and not self.doctor.is_doctor:
+            raise ValidationError({"doctor": "仅医生用户可提交叙事批注"})
+        if self.kernel_id and self.doctor_id and self.kernel.doctor_id != self.doctor_id:
+            raise ValidationError({"doctor": "批注医生与底座归属不一致"})
+        if self.comment:
+            self.comment = self.comment.strip()
+        if not self.comment:
+            raise ValidationError({"comment": "批注内容不能为空"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.doctor.username} - {self.source} - v{self.revision_after}"
+
+
+class DoctorRehearsalSession(SoftDeleteModel):
+    """医生 AI 问诊演练会话"""
+
+    STATUS_CHOICES = [
+        ("active", "进行中"),
+        ("archived", "已归档"),
+    ]
+
+    doctor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="rehearsal_sessions",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    title = models.CharField(max_length=200, verbose_name="会话标题")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="active",
+        db_index=True,
+        verbose_name="会话状态",
+    )
+    summary = models.TextField(null=True, blank=True, verbose_name="会话摘要")
+    last_message_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name="最近消息时间"
+    )
+
+    class Meta:
+        verbose_name = "医生问诊演练会话"
+        verbose_name_plural = "医生问诊演练会话"
+        ordering = ["-last_message_at", "-updated_at"]
+
+    def clean(self):
+        super().clean()
+        if self.doctor_id and not self.doctor.is_doctor:
+            raise ValidationError({"doctor": "仅医生用户可创建演练会话"})
+        if self.title:
+            self.title = self.title.strip()
+        if not self.title:
+            raise ValidationError({"title": "会话标题不能为空"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.doctor.username} - {self.title}"
+
+
+class DoctorRehearsalMessage(SoftDeleteModel):
+    """医生 AI 问诊演练消息"""
+
+    ROLE_CHOICES = [
+        ("user", "医生提问"),
+        ("assistant", "模型回答"),
+    ]
+    STATUS_CHOICES = [
+        ("generating", "生成中"),
+        ("succeeded", "生成成功"),
+        ("failed", "生成失败"),
+    ]
+
+    session = models.ForeignKey(
+        DoctorRehearsalSession,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        verbose_name="演练会话",
+    )
+    doctor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="rehearsal_messages",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        db_index=True,
+        verbose_name="消息角色",
+    )
+    turn_index = models.PositiveIntegerField(default=1, db_index=True, verbose_name="轮次")
+    generation_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="succeeded",
+        db_index=True,
+        verbose_name="生成状态",
+    )
+    reply_to = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="follow_replies",
+        verbose_name="对应提问",
+    )
+
+    content = models.TextField(verbose_name="消息正文")
+    content_markdown = models.TextField(
+        null=True, blank=True, verbose_name="Markdown 内容"
+    )
+    edited_markdown = models.TextField(
+        null=True, blank=True, verbose_name="医生编辑后的 Markdown"
+    )
+    edited_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="编辑时间"
+    )
+    model_name = models.CharField(
+        max_length=100, null=True, blank=True, verbose_name="回答模型"
+    )
+
+    selected_file_ids = models.JSONField(
+        default=list, blank=True, verbose_name="选中的知识文件ID列表"
+    )
+    selected_file_meta = models.JSONField(
+        default=list, blank=True, verbose_name="选中的知识文件元数据"
+    )
+    grounding_answer = models.TextField(
+        null=True, blank=True, verbose_name="qwen-long 知识回答"
+    )
+    grounding_sources = models.JSONField(
+        default=list, blank=True, verbose_name="qwen-long 出处"
+    )
+    search_sources = models.JSONField(
+        default=list, blank=True, verbose_name="联网搜索出处"
+    )
+
+    input_tokens = models.IntegerField(
+        null=True, blank=True, verbose_name="输入 token"
+    )
+    output_tokens = models.IntegerField(
+        null=True, blank=True, verbose_name="输出 token"
+    )
+    total_tokens = models.IntegerField(
+        null=True, blank=True, verbose_name="总 token"
+    )
+    error_message = models.TextField(null=True, blank=True, verbose_name="错误信息")
+    meta = models.JSONField(default=dict, blank=True, verbose_name="扩展元数据")
+
+    class Meta:
+        verbose_name = "医生问诊演练消息"
+        verbose_name_plural = "医生问诊演练消息"
+        ordering = ["created_at"]
+
+    def clean(self):
+        super().clean()
+        if self.doctor_id and not self.doctor.is_doctor:
+            raise ValidationError({"doctor": "仅医生用户可使用问诊演练"})
+        if self.session_id and self.doctor_id and self.session.doctor_id != self.doctor_id:
+            raise ValidationError({"doctor": "消息归属医生与会话不一致"})
+        if self.role == "assistant" and self.reply_to_id and self.reply_to.role != "user":
+            raise ValidationError({"reply_to": "assistant 消息仅可关联用户问题"})
+        if self.content is None:
+            self.content = ""
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.session_id} - {self.role} - turn {self.turn_index}"
+
+
+class DoctorRehearsalFeedback(SoftDeleteModel):
+    """医生对演练回答的批复记录"""
+
+    STATUS_CHOICES = [
+        ("saved", "已保存"),
+        ("applied", "已学习"),
+        ("failed", "学习失败"),
+    ]
+
+    message = models.OneToOneField(
+        DoctorRehearsalMessage,
+        on_delete=models.CASCADE,
+        related_name="feedback",
+        verbose_name="演练消息",
+    )
+    doctor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="rehearsal_feedbacks",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    comment = models.TextField(null=True, blank=True, verbose_name="医生批复")
+    edited_markdown = models.TextField(
+        null=True, blank=True, verbose_name="编辑后的 Markdown"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="saved",
+        db_index=True,
+        verbose_name="状态",
+    )
+    apply_to_kernel = models.BooleanField(
+        default=False, verbose_name="是否写入叙事底座"
+    )
+    narrative_annotation = models.ForeignKey(
+        DoctorNarrativeAnnotation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rehearsal_feedbacks",
+        verbose_name="关联批注记录",
+    )
+    error_message = models.TextField(null=True, blank=True, verbose_name="错误信息")
+
+    class Meta:
+        verbose_name = "医生问诊演练批复"
+        verbose_name_plural = "医生问诊演练批复"
+        ordering = ["-created_at"]
+
+    def clean(self):
+        super().clean()
+        if self.doctor_id and not self.doctor.is_doctor:
+            raise ValidationError({"doctor": "仅医生用户可提交演练批复"})
+        if self.message_id and self.doctor_id and self.message.doctor_id != self.doctor_id:
+            raise ValidationError({"doctor": "批复医生与消息归属不一致"})
+        if self.message_id and self.message.role != "assistant":
+            raise ValidationError({"message": "仅可对 assistant 消息提交批复"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.doctor.username} - feedback - msg {self.message_id}"

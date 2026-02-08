@@ -1,0 +1,4 @@
+WARNING 2026-02-09 03:04:30,249 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
+WARNING 2026-02-09 03:18:14,503 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
+WARNING 2026-02-09 03:41:11,191 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-fe-455fad0e6fa34737a40e417e]', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_parameter_error'}, 'id': 'chatcmpl-c99f8fde-de98-90ec-8cb0-70673e6fb264', 'request_id': 'c99f8fde-de98-90ec-8cb0-70673e6fb264'}
+WARNING 2026-02-09 03:45:20,226 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}

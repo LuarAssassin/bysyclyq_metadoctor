@@ -3,6 +3,11 @@ from mdapi.models import (
     CustomUser,
     DoctorAvatarVideo,
     DoctorKnowledge,
+    DoctorNarrativeAnnotation,
+    DoctorNarrativeKernel,
+    DoctorRehearsalFeedback,
+    DoctorRehearsalMessage,
+    DoctorRehearsalSession,
     DoctorVoiceProfile,
     KnowledgeTag,
 )
@@ -81,3 +86,71 @@ class DoctorAvatarVideoAdmin(admin.ModelAdmin):
     )
     list_filter = ("task_status", "video_model", "is_deleted")
     search_fields = ("scene_name", "image_file_name", "doctor__username", "task_id")
+
+
+@admin.register(DoctorNarrativeKernel)
+class DoctorNarrativeKernelAdmin(admin.ModelAdmin):
+    list_display = (
+        "doctor",
+        "kernel_name",
+        "schema_version",
+        "revision",
+        "last_annotation_at",
+        "updated_at",
+    )
+    list_filter = ("schema_version", "is_deleted")
+    search_fields = ("doctor__username", "doctor__nickname", "kernel_name")
+
+
+@admin.register(DoctorNarrativeAnnotation)
+class DoctorNarrativeAnnotationAdmin(admin.ModelAdmin):
+    list_display = (
+        "doctor",
+        "source",
+        "llm_applied",
+        "revision_after",
+        "created_at",
+    )
+    list_filter = ("source", "llm_applied", "is_deleted")
+    search_fields = ("doctor__username", "comment", "question")
+
+
+@admin.register(DoctorRehearsalSession)
+class DoctorRehearsalSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        "doctor",
+        "title",
+        "status",
+        "last_message_at",
+        "updated_at",
+    )
+    list_filter = ("status", "is_deleted")
+    search_fields = ("doctor__username", "title", "summary")
+
+
+@admin.register(DoctorRehearsalMessage)
+class DoctorRehearsalMessageAdmin(admin.ModelAdmin):
+    list_display = (
+        "session",
+        "doctor",
+        "role",
+        "turn_index",
+        "generation_status",
+        "total_tokens",
+        "created_at",
+    )
+    list_filter = ("role", "generation_status", "is_deleted")
+    search_fields = ("doctor__username", "content", "model_name")
+
+
+@admin.register(DoctorRehearsalFeedback)
+class DoctorRehearsalFeedbackAdmin(admin.ModelAdmin):
+    list_display = (
+        "doctor",
+        "message",
+        "status",
+        "apply_to_kernel",
+        "created_at",
+    )
+    list_filter = ("status", "apply_to_kernel", "is_deleted")
+    search_fields = ("doctor__username", "comment", "message__content")

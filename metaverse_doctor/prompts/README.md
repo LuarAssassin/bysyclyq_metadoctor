@@ -23,4 +23,17 @@
 - `qwen/doctor_i2v_negative_prompt.txt`
 - `qwen/doctor_i2v_prompt_variants.json`（图生视频批量场景模板，默认前 5 条）
 
+当前 `mdapi/services/narrative_llm.py` 会从以下文件读取提示词：
+
+- `qwen/narrative_optimize_system.txt`
+- `qwen/narrative_optimize_user.txt`
+
+当前 `mdapi/services/rehearsal.py` 会从以下文件读取提示词：
+
+- `qwen/rehearsal_select_files_system.txt`
+- `qwen/rehearsal_select_files_user.txt`
+- `qwen/rehearsal_long_system.txt`
+- `qwen/rehearsal_long_user.txt`
+- `qwen/rehearsal_answer_system.txt`
+
 如果文件不存在或为空，会自动回退到代码内默认提示词。

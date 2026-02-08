@@ -1,0 +1,28 @@
+请基于以下输入，输出可合并到 Narrative Kernel 的最小增量。
+输出 JSON 结构必须为：
+{
+  "delta": { ... },
+  "negative_rules": ["..."],
+  "reason": "一句话说明"
+}
+
+约束：
+1) delta 只包含需要更新的字段，不要重写整个底座。
+2) 如果医生批注没有明确要求，不要改动。
+3) negative_rules 仅放“不能说/不该说/不好回答”的明确规则。
+4) 若无需改动，delta 必须是 {}，negative_rules 必须是 []。
+
+当前底座(JSON)：
+{{kernel_payload_json}}
+
+患者问题：
+{{question}}
+
+模型回答：
+{{answer}}
+
+医生批注：
+{{comment}}
+
+医生手工增量（优先级更高，可参考）：
+{{manual_delta_json}}

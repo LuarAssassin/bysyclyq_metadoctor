@@ -1,0 +1,16 @@
+用户问题：
+{{question}}
+
+候选知识文件（JSON）：
+{{candidates_json}}
+
+请输出 JSON：
+{
+  "selected_file_ids": ["file-xxx", "file-yyy"],
+  "reason": "一句话解释选择依据"
+}
+
+注意：
+- selected_file_ids 最多 2 个。
+- 如果用户只是问候、闲聊或通用问题，不需要医生私有知识，请返回 []。
+- 不能编造不存在的 file_id。

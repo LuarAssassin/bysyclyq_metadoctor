@@ -16,6 +16,15 @@ from mdapi.views import (
     DoctorKnowledgeIndexView,
     DoctorKnowledgeTagView,
     DoctorKnowledgeView,
+    DoctorRehearsalAskStreamView,
+    DoctorRehearsalMessageFeedbackView,
+    DoctorRehearsalMessageMarkdownView,
+    DoctorRehearsalMessageView,
+    DoctorRehearsalPlaybackAssetsView,
+    DoctorRehearsalSessionView,
+    DoctorNarrativeAnnotationView,
+    DoctorNarrativeKernelView,
+    DoctorNarrativeRedlineView,
 )
 
 
@@ -68,5 +77,50 @@ urlpatterns = [
         "doctor/digital-human/videos/<int:video_id>/refresh/",
         DoctorAvatarVideoRefreshView.as_view(),
         name="doctor-digital-human-video-refresh",
+    ),
+    path(
+        "doctor/narrative-kernel/",
+        DoctorNarrativeKernelView.as_view(),
+        name="doctor-narrative-kernel",
+    ),
+    path(
+        "doctor/narrative-kernel/annotations/",
+        DoctorNarrativeAnnotationView.as_view(),
+        name="doctor-narrative-kernel-annotations",
+    ),
+    path(
+        "doctor/narrative-kernel/redlines/",
+        DoctorNarrativeRedlineView.as_view(),
+        name="doctor-narrative-kernel-redlines",
+    ),
+    path(
+        "doctor/rehearsal/sessions/",
+        DoctorRehearsalSessionView.as_view(),
+        name="doctor-rehearsal-sessions",
+    ),
+    path(
+        "doctor/rehearsal/sessions/<int:session_id>/messages/",
+        DoctorRehearsalMessageView.as_view(),
+        name="doctor-rehearsal-session-messages",
+    ),
+    path(
+        "doctor/rehearsal/sessions/<int:session_id>/ask/stream/",
+        DoctorRehearsalAskStreamView.as_view(),
+        name="doctor-rehearsal-session-ask-stream",
+    ),
+    path(
+        "doctor/rehearsal/playback-assets/",
+        DoctorRehearsalPlaybackAssetsView.as_view(),
+        name="doctor-rehearsal-playback-assets",
+    ),
+    path(
+        "doctor/rehearsal/messages/<int:message_id>/markdown/",
+        DoctorRehearsalMessageMarkdownView.as_view(),
+        name="doctor-rehearsal-message-markdown",
+    ),
+    path(
+        "doctor/rehearsal/messages/<int:message_id>/feedback/",
+        DoctorRehearsalMessageFeedbackView.as_view(),
+        name="doctor-rehearsal-message-feedback",
     ),
 ]

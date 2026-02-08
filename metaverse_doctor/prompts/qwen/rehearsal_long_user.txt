@@ -1,0 +1,11 @@
+问题：
+{{question}}
+
+请按以下结构输出（必须包含）：
+[KNOWLEDGE]
+基于文档的知识回答，先结论后解释。
+[/KNOWLEDGE]
+[SOURCES]
+- fileid://xxx 该文件提供了什么依据
+- fileid://yyy 该文件提供了什么依据
+[/SOURCES]

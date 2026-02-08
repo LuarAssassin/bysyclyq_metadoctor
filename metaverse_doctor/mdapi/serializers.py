@@ -1,6 +1,16 @@
 from rest_framework import serializers
 
-from mdapi.models import DoctorAvatarVideo, DoctorKnowledge, DoctorVoiceProfile, KnowledgeTag
+from mdapi.models import (
+    DoctorAvatarVideo,
+    DoctorKnowledge,
+    DoctorNarrativeAnnotation,
+    DoctorNarrativeKernel,
+    DoctorRehearsalFeedback,
+    DoctorRehearsalMessage,
+    DoctorRehearsalSession,
+    DoctorVoiceProfile,
+    KnowledgeTag,
+)
 
 
 class KnowledgeTagSerializer(serializers.ModelSerializer):
@@ -133,6 +143,121 @@ class DoctorAvatarVideoSerializer(serializers.ModelSerializer):
             "error_message",
             "completed_at",
             "last_synced_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class DoctorNarrativeKernelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorNarrativeKernel
+        fields = [
+            "id",
+            "schema_version",
+            "kernel_name",
+            "revision",
+            "payload",
+            "compiled_prompt",
+            "last_annotation_at",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "schema_version",
+            "kernel_name",
+            "revision",
+            "compiled_prompt",
+            "last_annotation_at",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class DoctorNarrativeAnnotationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorNarrativeAnnotation
+        fields = [
+            "id",
+            "source",
+            "question",
+            "answer",
+            "comment",
+            "delta",
+            "llm_applied",
+            "llm_delta",
+            "llm_error",
+            "revision_after",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class DoctorRehearsalSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorRehearsalSession
+        fields = [
+            "id",
+            "title",
+            "status",
+            "summary",
+            "last_message_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class DoctorRehearsalMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorRehearsalMessage
+        fields = [
+            "id",
+            "session",
+            "role",
+            "turn_index",
+            "generation_status",
+            "reply_to",
+            "content",
+            "content_markdown",
+            "edited_markdown",
+            "edited_at",
+            "model_name",
+            "selected_file_ids",
+            "selected_file_meta",
+            "grounding_answer",
+            "grounding_sources",
+            "search_sources",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "error_message",
+            "meta",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class DoctorRehearsalFeedbackSerializer(serializers.ModelSerializer):
+    annotation_id = serializers.IntegerField(
+        source="narrative_annotation_id",
+        read_only=True,
+    )
+
+    class Meta:
+        model = DoctorRehearsalFeedback
+        fields = [
+            "id",
+            "message",
+            "comment",
+            "edited_markdown",
+            "status",
+            "apply_to_kernel",
+            "annotation_id",
+            "error_message",
             "created_at",
             "updated_at",
         ]
