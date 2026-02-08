@@ -145,8 +145,10 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 文件上传大小限制
-DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB
+# DATA_UPLOAD_MAX_MEMORY_SIZE 影响整个请求体大小，需覆盖知识文件 150MB 场景并预留 multipart 开销。
+DATA_UPLOAD_MAX_MEMORY_SIZE = 200 * 1024 * 1024  # 200MB
+# FILE_UPLOAD_MAX_MEMORY_SIZE 控制内存阈值，超过后自动落盘临时文件，避免大文件占用过多内存。
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
@@ -234,65 +236,68 @@ OSS_BUCKET = os.getenv('OSS_BUCKET')
 OSS_REGION = os.getenv('OSS_REGION')
 OSS_PUBLIC_BASE_URL = os.getenv('OSS_PUBLIC_BASE_URL')
 
-# 文件上传配置
-FILE_UPLOAD_CONFIG = {
-    # 单个文件大小限制（字节）
-    'MAX_FILE_SIZE': 100 * 1024 * 1024,  # 100MB
-    
-    # 批量上传单次数量限制
-    'MAX_BATCH_COUNT': 10,  # 最多一次上传10个文件
-    
-    # 允许的文件类型（MIME type）
-    'ALLOWED_TYPES': {
-        'images': [
-            'image/jpeg',
-            'image/png',
-            'image/gif',
-            'image/webp',
-            'image/bmp',
-            'image/svg+xml',
+# 医生知识库上传配置（与 qwen-long / qwen-doc-turbo 文档能力对齐）
+DOCTOR_KNOWLEDGE_UPLOAD_CONFIG = {
+    # 单个文件大小限制：qwen 文件上传非图片上限 150MB。
+    "MAX_FILE_SIZE": 150 * 1024 * 1024,
+    # 图片格式在 qwen-long file-extract 场景上限 20MB。
+    "IMAGE_MAX_FILE_SIZE": 20 * 1024 * 1024,
+    # doc_url 单次最多 10 个 URL；医生端上传保持同量级。
+    "MAX_BATCH_COUNT": 10,
+    # 允许的 MIME 类型（按 qwen-long + qwen-doc-turbo 支持集合对齐）
+    "ALLOWED_TYPES": {
+        "images": [
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/bmp",
         ],
-        'documents': [
-            'application/pdf',
-            'application/msword',  # .doc
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
-            'application/vnd.ms-excel',  # .xls
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',  # .xlsx
-            'application/vnd.ms-powerpoint',  # .ppt
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',  # .pptx
-            'text/plain',
-            'text/csv',
-        ],
-        'videos': [
-            'video/mp4',
-            'video/mpeg',
-            'video/quicktime',  # .mov
-            'video/x-msvideo',  # .avi
-            'video/x-flv',
-        ],
-        'audio': [
-            'audio/mpeg',  # .mp3
-            'audio/wav',
-            'audio/ogg',
-            'audio/mp4',  # .m4a
-        ],
-        'archives': [
-            'application/zip',
-            'application/x-rar-compressed',
-            'application/x-7z-compressed',
-            'application/x-tar',
-            'application/gzip',
+        "documents": [
+            "text/plain",  # .txt
+            "text/markdown",  # .md
+            "application/pdf",
+            "application/msword",  # .doc
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",  # .docx
+            "application/vnd.ms-excel",  # .xls
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",  # .xlsx
+            "application/vnd.ms-powerpoint",  # .ppt
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",  # .pptx
+            "text/csv",  # .csv
+            "application/json",  # .json
+            "application/epub+zip",  # .epub
+            "application/x-mobipocket-ebook",  # .mobi
         ],
     },
-    
-    # 允许的文件扩展名（备用验证）
-    'ALLOWED_EXTENSIONS': {
-        'images': ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'],
-        'documents': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.csv'],
-        'videos': ['.mp4', '.mpeg', '.mov', '.avi', '.flv'],
-        'audio': ['.mp3', '.wav', '.ogg', '.m4a'],
-        'archives': ['.zip', '.rar', '.7z', '.tar', '.gz'],
+    # 允许的扩展名（备用验证，解决部分客户端 content-type 不准确问题）
+    "ALLOWED_EXTENSIONS": {
+        "images": [".jpe", ".jpg", ".jpeg", ".png", ".gif", ".bmp"],
+        "documents": [
+            ".txt",
+            ".md",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".csv",
+            ".json",
+            ".epub",
+            ".mobi",
+        ],
     },
+}
+
+# 兼容旧代码引用
+FILE_UPLOAD_CONFIG = DOCTOR_KNOWLEDGE_UPLOAD_CONFIG
+
+# 预留：Qwen-VL 图片/视频能力的格式与大小约束（供后续数字人素材接口使用）
+QWEN_VL_UPLOAD_CONFIG = {
+    "IMAGE_MAX_FILE_SIZE": 10 * 1024 * 1024,
+    "IMAGE_ALLOWED_EXTENSIONS": [".bmp", ".jpe", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp", ".heic"],
+    "VIDEO_MAX_FILE_SIZE": 1 * 1024 * 1024 * 1024,  # 先按 1GB 保守值，后续可按具体模型细分
+    "VIDEO_ALLOWED_EXTENSIONS": [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"],
 }
 
 # 日志配置
@@ -344,6 +349,34 @@ DASHSCOPE_BASE_URL = os.getenv(
 QWEN_LONG_MODEL = os.getenv('QWEN_LONG_MODEL', 'qwen-long')
 QWEN_DOC_MODEL = os.getenv('QWEN_DOC_MODEL', 'qwen-doc-turbo')
 OSS_SIGNED_URL_EXPIRE_SECONDS = int(os.getenv("OSS_SIGNED_URL_EXPIRE_SECONDS", 900))
+QWEN_VOICE_ENROLL_URL = os.getenv(
+    "QWEN_VOICE_ENROLL_URL",
+    "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/customization",
+)
+
+# 数字人（音色 + 图生视频）配置
+DIGITAL_HUMAN_TTS_TARGET_MODEL = os.getenv(
+    "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"
+)
+DIGITAL_HUMAN_I2V_MODEL = os.getenv("DIGITAL_HUMAN_I2V_MODEL", "wan2.6-i2v-flash")
+DIGITAL_HUMAN_I2V_RESOLUTION = os.getenv("DIGITAL_HUMAN_I2V_RESOLUTION", "720P")
+DIGITAL_HUMAN_I2V_DURATION = int(os.getenv("DIGITAL_HUMAN_I2V_DURATION", 5))
+DIGITAL_HUMAN_I2V_GENERATE_COUNT = int(os.getenv("DIGITAL_HUMAN_I2V_GENERATE_COUNT", 5))
+DIGITAL_HUMAN_I2V_MAX_GENERATE_COUNT = int(os.getenv("DIGITAL_HUMAN_I2V_MAX_GENERATE_COUNT", 5))
+DIGITAL_HUMAN_VOICE_UPLOAD_CONFIG = {
+    "MAX_FILE_SIZE": 20 * 1024 * 1024,
+    "ALLOWED_EXTENSIONS": [".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"],
+    "ALLOWED_MIME_TYPES": [
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/mp4",
+        "audio/aac",
+        "audio/flac",
+        "audio/ogg",
+    ],
+}
 
 # knowledge extract queue
 KNOWLEDGE_EXTRACT_QUEUE_KEY = os.getenv(

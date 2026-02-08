@@ -75,11 +75,17 @@ class AliyunOSSClient:
             sanitized = f"{stem}{suffix}"
         return sanitized or f"file-{uuid.uuid4().hex}"
 
-    def build_object_key(self, doctor_id, file_name: str) -> str:
+    def build_object_key(
+        self,
+        doctor_id,
+        file_name: str,
+        prefix: str = "doctor-knowledge",
+    ) -> str:
         date_path = datetime.now().strftime("%Y/%m/%d")
         safe_file_name = self._sanitize_file_name(file_name)
+        safe_prefix = (prefix or "doctor-knowledge").strip("/ ")
         return (
-            f"doctor-knowledge/{doctor_id}/{date_path}/"
+            f"{safe_prefix}/{doctor_id}/{date_path}/"
             f"{uuid.uuid4().hex}_{safe_file_name}"
         )
 
@@ -100,8 +106,12 @@ class AliyunOSSClient:
         except Exception as exc:  # noqa: BLE001
             raise OSSReadError(f"生成 OSS 签名 URL 失败: {exc}") from exc
 
-    def upload_file(self, uploaded_file, doctor_id) -> dict:
-        object_key = self.build_object_key(doctor_id=doctor_id, file_name=uploaded_file.name)
+    def upload_file(self, uploaded_file, doctor_id, prefix: str = "doctor-knowledge") -> dict:
+        object_key = self.build_object_key(
+            doctor_id=doctor_id,
+            file_name=uploaded_file.name,
+            prefix=prefix,
+        )
         content_type = (
             getattr(uploaded_file, "content_type", None)
             or mimetypes.guess_type(uploaded_file.name)[0]

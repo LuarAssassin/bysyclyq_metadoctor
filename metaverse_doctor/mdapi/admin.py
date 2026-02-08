@@ -1,5 +1,11 @@
 from django.contrib import admin
-from mdapi.models import CustomUser, DoctorKnowledge, KnowledgeTag
+from mdapi.models import (
+    CustomUser,
+    DoctorAvatarVideo,
+    DoctorKnowledge,
+    DoctorVoiceProfile,
+    KnowledgeTag,
+)
 
 
 @admin.register(CustomUser)
@@ -45,3 +51,33 @@ class DoctorKnowledgeAdmin(admin.ModelAdmin):
 class KnowledgeTagAdmin(admin.ModelAdmin):
     list_display = ("name", "created_at")
     search_fields = ("name",)
+
+
+@admin.register(DoctorVoiceProfile)
+class DoctorVoiceProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "doctor",
+        "target_model",
+        "is_active",
+        "status",
+        "created_at",
+    )
+    list_filter = ("is_active", "status", "is_deleted")
+    search_fields = ("name", "doctor__username", "qwen_voice_id", "preferred_name")
+
+
+@admin.register(DoctorAvatarVideo)
+class DoctorAvatarVideoAdmin(admin.ModelAdmin):
+    list_display = (
+        "scene_name",
+        "image_file_name",
+        "doctor",
+        "video_model",
+        "task_status",
+        "duration_seconds",
+        "resolution",
+        "created_at",
+    )
+    list_filter = ("task_status", "video_model", "is_deleted")
+    search_fields = ("scene_name", "image_file_name", "doctor__username", "task_id")

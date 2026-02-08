@@ -166,8 +166,10 @@
   - 单文件：`file`
   - 多文件：`files`（同名 key 多个）
 - 限制：
-  - 单文件最大 100MB
+  - 单文件最大 150MB（图片文件最大 20MB）
   - 单次最多 10 个
+  - 支持格式（与 Qwen 抽取链路对齐）：
+    `.txt .md .pdf .doc .docx .xls .xlsx .ppt .pptx .csv .json .epub .mobi .jpe .jpg .jpeg .png .gif .bmp`
 
 - 成功（201）返回字段重点：
   - `extract_queued_count`: 成功进入抽取队列的文件数
@@ -251,3 +253,65 @@
 }
 ```
 
+## 4. 医生数字人素材（菜单2）
+
+### 4.1 `POST /doctor/digital-human/voice/`
+
+功能：上传医生录音样本并调用 Qwen `create_voice` 创建专属音色，结果入库。
+
+- Auth：医生 token
+- Content-Type：`multipart/form-data`
+- Form-Data：
+  - `audio`：音频文件（必填）
+  - `name`：音色名称（可选）
+  - `preferred_name`：Qwen 音色偏好名（可选）
+  - `target_model`：目标语音模型（可选，默认 `qwen3-tts-vc-realtime-2026-01-15`）
+  - `set_active`：是否设为当前生效音色（可选，默认 `true`）
+- 限制：
+  - 音频最大 20MB
+  - 支持扩展名：`.mp3 .wav .m4a .aac .flac .ogg`
+
+### 4.2 `GET /doctor/digital-human/voice/`
+
+功能：获取当前医生的音色档案列表（用于演练和患者问诊选用）。
+
+- Auth：医生 token
+
+### 4.3 `POST /doctor/digital-human/videos/`
+
+功能：上传医生正面图片后，默认一次提交 5 个“图生无声视频”任务（讲解 + 待机等场景模板）。
+
+- Auth：医生 token
+- Content-Type：`multipart/form-data`
+- Form-Data：
+  - `image`：首帧图片（必填）
+  - `prompt`：补充正向要求（可选）
+  - `negative_prompt`：补充负向要求（可选）
+  - `duration`：视频时长，2~15 秒（可选，默认 5）
+  - `resolution`：`720P` 或 `1080P`（可选，默认 `720P`）
+  - `model`：图生视频模型（可选，默认 `wan2.6-i2v-flash`）
+  - `generate_count`：本次生成任务数量（可选，默认 `5`，范围 `1~5`）
+  - `prompt_extend`：是否启用提示词扩展（可选，默认 `true`）
+  - `watermark`：是否加水印（可选，默认 `true`）
+  - `seed`：随机种子（可选）
+- 当前实现：
+  - 固定生成无声视频（`audio=false`）
+  - 使用场景模板批量提交异步任务，默认模板：
+    - `talking_explain`（健康讲解）
+    - `idle_standby`（待机轻动）
+    - `nod_acknowledge`（点头确认）
+    - `gentle_gesture`（温和手势）
+    - `listening_pause`（倾听停顿）
+  - 返回批量结果：`count`、`failed_count`、`items`、`failed_items`
+
+### 4.4 `GET /doctor/digital-human/videos/`
+
+功能：获取当前医生的图生视频任务列表（含场景标识、任务状态、外部视频URL、落 OSS 结果）。
+
+- Auth：医生 token
+
+### 4.5 `POST /doctor/digital-human/videos/{video_id}/refresh/`
+
+功能：主动刷新图生视频任务状态；成功后自动把 DashScope 视频下载并存入 OSS。
+
+- Auth：医生 token

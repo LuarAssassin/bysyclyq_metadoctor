@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from mdapi.models import DoctorKnowledge, KnowledgeTag
+from mdapi.models import DoctorAvatarVideo, DoctorKnowledge, DoctorVoiceProfile, KnowledgeTag
 
 
 class KnowledgeTagSerializer(serializers.ModelSerializer):
@@ -80,3 +80,60 @@ class DoctorKnowledgeIndexSerializer(serializers.ModelSerializer):
 
     def get_tags(self, obj):
         return [tag.name for tag in obj.tags.all()]
+
+
+class DoctorVoiceProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorVoiceProfile
+        fields = [
+            "id",
+            "name",
+            "preferred_name",
+            "target_model",
+            "qwen_voice_id",
+            "sample_file_name",
+            "sample_oss_url",
+            "sample_content_type",
+            "sample_size_bytes",
+            "is_active",
+            "status",
+            "error_message",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class DoctorAvatarVideoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorAvatarVideo
+        fields = [
+            "id",
+            "image_file_name",
+            "image_oss_url",
+            "video_model",
+            "scene_key",
+            "scene_name",
+            "prompt",
+            "negative_prompt",
+            "resolution",
+            "duration_seconds",
+            "prompt_extend",
+            "watermark",
+            "audio_enabled",
+            "task_request_id",
+            "task_id",
+            "task_status",
+            "video_url_external",
+            "video_file_name",
+            "video_oss_url",
+            "video_content_type",
+            "video_size_bytes",
+            "error_message",
+            "completed_at",
+            "last_synced_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields

@@ -762,6 +762,135 @@ file-id 仅在生成它的阿里云主账号内有效，不支持跨账号或通
 
 免费额度：100万Token的免费额度仅在阿里云百炼开通后的90天内有效。使用超出免费额度的部分将按照相应的输入输出成本收费。
 
+## 数据挖掘
+```python
+import os
+import dashscope
+
+response = dashscope.Generation.call(
+    api_key=os.getenv('DASHSCOPE_API_KEY'), # 如果您没有配置环境变量，请在此处替换您的API-KEY
+    model='qwen-doc-turbo',
+    messages=[
+    {"role": "system","content": "You are a helpful assistant."},
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": "从这两份产品手册中，提取所有产品信息，并整理成一个标准的JSON数组。每个对象需要包含：model(产品的型号)、name(产品的名称)、price(价格（去除货币符号和逗号）)"
+            },
+            {
+                "type": "doc_url",
+                "doc_url": [
+                    "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20251107/jockge/%E7%A4%BA%E4%BE%8B%E4%BA%A7%E5%93%81%E6%89%8B%E5%86%8CA.docx",
+                    "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20251107/ztwxzr/%E7%A4%BA%E4%BE%8B%E4%BA%A7%E5%93%81%E6%89%8B%E5%86%8CB.docx"
+                ],
+                "file_parsing_strategy": "auto"
+            }
+        ]
+    }]
+)
+try:
+    if response.status_code == 200:
+        print(response.output.choices[0].message.content)
+    else:
+        print(f"请求失败，状态码: {response.status_code}")
+        print(f"错误代码: {response.code}")
+        print(f"错误信息: {response.message}")
+        print("请参考文档：https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+except Exception as e:
+    print(f"发生错误: {e}")
+    print("请参考文档：https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+```
+```python
+import os
+from pathlib import Path
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.getenv("DASHSCOPE_API_KEY"),  # 如果您没有配置环境变量，请在此处替换您的API-KEY
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",  # 填写DashScope服务base_url
+)
+
+file_object = client.files.create(file=Path("示例产品手册A.docx"), purpose="file-extract")
+# 打印file-id用于后续模型对话
+print(file_object.id)
+```
+
+```python
+import os
+from openai import OpenAI, BadRequestError
+
+client = OpenAI(
+    api_key=os.getenv("DASHSCOPE_API_KEY"), # 如果您没有配置环境变量，请在此处替换您的API-KEY
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+)
+
+try:
+    completion = client.chat.completions.create(
+        model="qwen-doc-turbo",
+        messages=[
+            {'role': 'system', 'content': 'You are a helpful assistant.'},
+            # 请将 '{FILE_ID}'替换为您实际对话场景所使用的 fileid
+            {'role': 'system', 'content': 'fileid://{FILE_ID}'},
+            {'role': 'user', 'content': '从这份产品手册中，提取所有产品信息，并整理成一个标准的JSON数组。每个对象需要包含：model(产品的型号)、name(产品的名称)、price(价格（去除货币符号和逗号）) '}
+        ],
+        # 本代码示例采用流式输出，以清晰和直观地展示模型输出过程。如果您希望查看非流式输出的案例，请参见https://help.aliyun.com/zh/model-studio/text-generation
+        stream=True,
+        stream_options={"include_usage": True}
+    )
+
+    full_content = ""
+    for chunk in completion:
+        if chunk.choices and chunk.choices[0].delta.content:
+            full_content += chunk.choices[0].delta.content
+            print(chunk.model_dump())
+    
+    print(full_content)
+
+except BadRequestError as e:
+    print(f"错误信息：{e}")
+    print("请参考文档：https://help.aliyun.com/zh/model-studio/developer-reference/error-code")
+```
+
+通过文件URL方式上传时，文件解析策略（file_parsing_strategy）参数有什么不同？
+
+当解析策略设置为 "auto" 时，系统会根据文件内容自动进行解析；当解析策略设置为 "text_only" 时，系统将仅解析文字类内容；当解析策略设置为“text_and_images”时，系统将会解析所有图片与文本类内容，解析所需时间也会相应增加。
+
+如何确定文件已经解析完成？
+
+获取 file-id 后，您可以直接尝试使用该ID与模型进行对话。如果文件仍在解析中，API会返回相应的错误提示File parsing in progress, please try again later.，此时请稍后重试。如果模型调用成功并返回了回复，则表示文件已解析完成，可以正常使用。
+限制
+SDK 依赖：
+
+文件URL (doc_url): 文件URL方式当前仅支持DashScope协议，可以选择使用DashScope Python SDK或者HTTP方式调用（如curl）
+
+上传文件 (file-id): 文件上传与管理操作 必须 使用 OpenAI 兼容 SDK。
+
+文件上传与引用：
+
+文件URL (doc_url): 单次请求最多支持 10 个文件URL，且传入的URL需确保公网可访问。
+
+上传文件 (file-id): 单个文件不超过 150MB。单个阿里云账号最多可上传 1 万个文件，总大小不超过 100GB，当前暂无有效期限制。单次请求最多引用 1 个文件。
+
+使用文件ID传入时，当文件数量或总大小达到任一上限时，新的文件上传请求将会失败。请参考OpenAI兼容-File，及时删除不再需要的文件以释放配额，然后才能继续上传。
+支持格式：TXT, DOC, DOCX, PDF, XLS, XLSX, MD, PPT, PPTX, JPG, JPEG, PNG, GIF, BMP。
+
+API 输入：
+
+通过doc_url或 file-id 引入信息时，上下文长度上限为 262,144 Token。
+
+直接在 user 或 system 消息中输入纯文本时，单条消息内容限制在 9,000 Token 以内。
+
+API 输出：
+
+最大输出长度为 32,768 Token。
+
+文件共享：
+
+file-id 仅在生成它的阿里云主账号内有效，不支持跨账号或通过 RAM 用户 API Key 调用。
+
+限流：关于模型的限流条件，请参见限流。
 
 ## 视觉理解
 ```python
@@ -1017,7 +1146,7 @@ else:
     print('Error: ', transcription_response.output.message)
 ```
 
-## 实时语音合成 （可以先不做）
+## 实时语音合成
 
 ```python
 # coding=utf-8
@@ -1446,3 +1575,288 @@ def synthesizer_with_llm():
 if __name__ == "__main__":
     synthesizer_with_llm()
 ```
+
+## 图生视频-基于首帧
+```python
+import os
+from http import HTTPStatus
+from dashscope import VideoSynthesis
+import dashscope
+
+# 以下为北京地域URL，各地域的URL不同，获取URL：https://help.aliyun.com/zh/model-studio/image-to-video-api-reference
+dashscope.base_http_api_url = 'https://dashscope.aliyuncs.com/api/v1'
+# 各地域的API Key不同。获取API Key：https://help.aliyun.com/zh/model-studio/get-api-key
+api_key = os.getenv("DASHSCOPE_API_KEY", "YOUR_API_KEY")
+
+print('please wait...')
+rsp = VideoSynthesis.call(api_key=api_key,
+                          model='wan2.6-i2v-flash',
+                          prompt='镜头从海龟下方缓缓上移，海龟悠然游动，腹部细节清晰可见。',
+                          img_url="https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20260121/zlpocv/wan-i2v-haigui.webp",
+                          resolution="720P",
+                          duration=10,
+                          shot_type="multi",
+                          prompt_extend=True,
+                          watermark=True)
+print(rsp)
+if rsp.status_code == HTTPStatus.OK:
+    print("video_url:", rsp.output.video_url)
+else:
+    print('Failed, status_code: %s, code: %s, message: %s' % (rsp.status_code, rsp.code, rsp.message))
+```
+
+- 输出示例
+```json
+{
+    "request_id": "c1209113-8437-424f-a386-xxxxxx",
+    "output": {
+        "task_id": "966cebcd-dedc-4962-af88-xxxxxx",
+        "task_status": "SUCCEEDED",
+        "video_url": "https://dashscope-result-sh.oss-accelerate.aliyuncs.com/xxx.mp4?Expires=xxx",
+         ...
+    },
+    ...
+}
+```
+模型名称
+
+能力支持
+
+输入模态
+
+输出视频规格
+
+wan2.6-i2v-flash 推荐
+
+有声视频、无声视频
+
+多镜头叙事、声画同步
+
+文本、图像、音频
+
+分辨率档位：720P、1080P
+
+视频时长：[2s, 15s]（整数）
+
+固定规格：30fps、MP4 (H.264编码)
+
+---
+
+wan2.6-i2v 推荐
+
+有声视频
+
+多镜头叙事、声画同步
+
+文本、图像、音频
+
+分辨率档位：720P、1080P
+
+视频时长：[2s, 15s]（整数）
+
+固定规格：30fps、MP4 (H.264编码)
+
+---
+
+支持模型：wan2.6-i2v-flash、wan2.2系列模型、wanx2.1系列模型。
+
+功能介绍：适用于无需音频的纯视觉展示场景，如动态海报、无声短视频等。
+
+参数设置：
+
+wan2.6-i2v-flash：默认生成有声视频。若需生成无声视频，必须显式设置 audio=false。即使传入 audio_url，只要 audio=false，输出仍为无声视频，并按无声视频计费。
+
+wan2.2及以下版本模型：默认生成无声视频，无需额外配置。
+
+```python
+import os
+from http import HTTPStatus
+from dashscope import VideoSynthesis
+import dashscope
+
+# 以下为北京地域URL，各地域的URL不同，获取URL：https://help.aliyun.com/zh/model-studio/image-to-video-api-reference
+dashscope.base_http_api_url = 'https://dashscope.aliyuncs.com/api/v1'
+
+# 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx"
+# 各地域的API Key不同。获取API Key：https://help.aliyun.com/zh/model-studio/get-api-key
+api_key = os.getenv("DASHSCOPE_API_KEY")
+
+def sample_async_call_i2v():
+    # 异步调用，返回一个task_id
+    rsp = VideoSynthesis.async_call(api_key=api_key,
+                                    model='wan2.6-i2v-flash',
+                                    prompt='一只猫在草地上奔跑',
+                                    img_url="https://cdn.translate.alibaba.com/r/wanx-demo-1.png",
+                                    audio=False,   # 必须显式设置为False，表示输出无声视频
+                                    resolution="720P",
+                                    duration=5,
+                                    prompt_extend=True,
+                                    watermark=True,
+                                    negative_prompt="",
+                                    seed=12345)
+    print(rsp)
+    if rsp.status_code == HTTPStatus.OK:
+        print("task_id: %s" % rsp.output.task_id)
+    else:
+        print('Failed, status_code: %s, code: %s, message: %s' % (rsp.status_code, rsp.code, rsp.message))
+
+    # 等待异步任务结束
+    rsp = VideoSynthesis.wait(task=rsp, api_key=api_key)
+    print(rsp)
+    if rsp.status_code == HTTPStatus.OK:
+        print(rsp.output.video_url)
+    else:
+        print('Failed, status_code: %s, code: %s, message: %s' % (rsp.status_code, rsp.code, rsp.message))
+
+
+if __name__ == '__main__':
+    sample_async_call_i2v()
+```
+传入图像
+图像个数：1个。
+
+输入方式：图像URL、本地文件路径、Base64 编码字符串。
+公网URL：支持 HTTP 或 HTTPS 协议。
+
+示例值：https://help-static-aliyun-doc.aliyuncs.com/xxx.png。
+
+临时URL：支持OSS协议，必须通过上传文件获取临时 URL。
+
+示例值：oss://dashscope-instant/xxx/xxx.png。
+
+示例值：data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABDg......（示例已截断，仅做演示）。
+
+格式要求：遵循 data:{MIME_type};base64,{base64_data} 的格式，其中：
+
+{base64_data}：图像文件经过 Base64 编码后的字符串。
+
+{MIME_type}：图像的媒体类型，需与文件格式对应。
+
+图像格式
+
+MIME Type
+
+JPEG
+
+image/jpeg
+
+JPG
+
+image/jpeg
+
+PNG
+
+image/png
+
+BMP
+
+image/bmp
+
+WEBP
+
+image/webp
+
+```python
+import base64
+import os
+from http import HTTPStatus
+from dashscope import VideoSynthesis
+import mimetypes
+import dashscope
+
+# 以下为北京地域url，获取url：https://help.aliyun.com/zh/model-studio/image-to-video-api-reference
+dashscope.base_http_api_url = 'https://dashscope.aliyuncs.com/api/v1'
+
+# 若没有配置环境变量，请用百炼API Key将下行替换为：api_key="sk-xxx"
+# 获取API Key：https://help.aliyun.com/zh/model-studio/get-api-key
+api_key = os.getenv("DASHSCOPE_API_KEY")
+
+# --- 辅助函数：用于 Base64 编码 ---
+# 格式为 data:{MIME_type};base64,{base64_data}
+def encode_file(file_path):
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type or not mime_type.startswith("image/"):
+        raise ValueError("不支持或无法识别的图像格式")
+    with open(file_path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+    return f"data:{mime_type};base64,{encoded_string}"
+
+"""
+图像输入方式说明：
+以下提供了三种图片输入方式，三选一即可
+
+1. 使用公网URL - 适合已有公开可访问的图片
+2. 使用本地文件 - 适合本地开发测试
+3. 使用Base64编码 - 适合私有图片或需要加密传输的场景
+"""
+
+# 【方式一】使用公网可访问的图片URL
+# 示例：使用一个公开的图片URL
+img_url = "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/wpimhv/rap.png"
+
+# 【方式二】使用本地文件（支持绝对路径和相对路径）
+# 格式要求：file:// + 文件路径
+# 示例（绝对路径）：
+# img_url = "file://" + "/path/to/your/img.png"    # Linux/macOS
+# img_url = "file://" + "/C:/path/to/your/img.png"  # Windows
+# 示例（相对路径）：
+# img_url = "file://" + "./img.png"                # 相对当前执行文件的路径
+
+# 【方式三】使用Base64编码的图片
+# img_url = encode_file("./img.png")
+
+# 设置音频audio url
+audio_url = "https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/ozwpvi/rap.mp3"
+
+def sample_call_i2v():
+    # 同步调用，直接返回结果
+    print('please wait...')
+    rsp = VideoSynthesis.call(api_key=api_key,
+                              model='wan2.6-i2v-flash',
+                              prompt='一幅都市奇幻艺术的场景。一个充满动感的涂鸦艺术角色。一个由喷漆所画成的少年，正从一面混凝土墙上活过来。他一边用极快的语速演唱一首英文rap，一边摆着一个经典的、充满活力的说唱歌手姿势。场景设定在夜晚一个充满都市感的铁路桥下。灯光来自一盏孤零零的街灯，营造出电影般的氛围，充满高能量和惊人的细节。视频的音频部分完全由他的rap构成，没有其他对话或杂音。',
+                              img_url=img_url,
+                              audio_url=audio_url,
+                              resolution="720P",
+                              duration=10,
+                              prompt_extend=True,
+                              watermark=False,
+                              negative_prompt="",
+                              seed=12345)
+    print(rsp)
+    if rsp.status_code == HTTPStatus.OK:
+        print("video_url:", rsp.output.video_url)
+    else:
+        print('Failed, status_code: %s, code: %s, message: %s' %
+              (rsp.status_code, rsp.code, rsp.message))
+
+
+if __name__ == '__main__':
+    sample_call_i2v()
+```
+
+视频个数：1个。
+
+输出视频规格：不同模型支持的输出规格有所差异，请参见适用范围。
+
+输出视频URL有效期：24小时。
+
+输出视频尺寸：由输入图像和设置的分辨率resolution决定。
+
+模型将尽量保持输入图像的宽高比不变，缩放至总像素数接近目标值。因编码规范，长宽必须被16整除，模型会自动微调尺寸。
+
+例如：输入图像750×1000（宽高比 3:4 = 0.75），设置 resolution = "720P"（目标总像素约 92 万）。最终输出可能为 816 × 1104（宽高比 ≈ 0.739，总像素 ≈ 90 万），且长宽均为 16 的倍数。
+
+我们需要自己下载并报错到 oss
+
+常见问题
+Q: 为什么不能直接设置视频宽高比（如 16:9）？
+A：当前 API 不支持直接指定视频宽高比。您只能通过 resolution 参数设置视频的分辨率。
+
+resolution 控制的是视频的总像素数量，而非固定比例。模型会优先保留输入首帧图像的原始宽高比（近似），并在此基础上进行微调，以满足视频编码要求（即长和宽均需为 16 的整数倍）。
+
+Q: 为什么运行SDK代码时出现 “url error, please check url!” 错误？
+A：请确保：
+
+DashScope Python SDK 版本不低于 1.25.8。
+
+DashScope Java SDK 版本不低于 2.22.6。
