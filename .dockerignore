@@ -1,0 +1,47 @@
+# ── Git ──
+.git
+.gitignore
+
+# ── Python ──
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# ── Node ──
+**/node_modules
+**/.next
+**/dist
+
+# ── IDE ──
+.vscode
+.cursor
+.idea
+*.swp
+*.swo
+
+# ── Docker ──
+docker-compose*.yml
+.dockerignore
+
+# ── 环境文件（敏感信息不进镜像）──
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# ── 数据文件 ──
+metaverse_doctor/db.sqlite3
+metaverse_doctor/media/
+metaverse_doctor/static/
+metaverse_doctor/logs/
+
+# ── 其他 ──
+README.md
+LICENSE
+metaverse_doctor/docs/
+metaverse_doctor/api*.md
+metaverse_doctor/scripts/

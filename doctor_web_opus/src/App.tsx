@@ -9,6 +9,11 @@ import DigitalHumanPage from '@/pages/DigitalHumanPage'
 import NarrativeKernelPage from '@/pages/NarrativeKernelPage'
 import RehearsalArenaPage from '@/pages/RehearsalArenaPage'
 
+// 从 Vite base 配置派生 basename（生产构建用 --base=/doctor/ 则值为 "/doctor"）
+// 本地开发时 BASE_URL === "/" 则不设置 basename，行为不变
+const _base = import.meta.env.BASE_URL?.replace(/\/+$/, '')
+const basename = _base && _base !== '' ? _base : undefined
+
 const router = createBrowserRouter([
   {
     path: '/auth',
@@ -31,7 +36,7 @@ const router = createBrowserRouter([
     ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
-])
+], { basename })
 
 export default function App() {
   return <RouterProvider router={router} />

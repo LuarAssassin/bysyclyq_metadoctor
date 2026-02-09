@@ -55,7 +55,8 @@ apiClient.interceptors.response.use(
     } catch (e) {
       pendingQueue.forEach((p) => p.reject(e)); pendingQueue = []
       clearTokens()
-      window.location.href = '/auth/login'
+      const base = import.meta.env.BASE_URL?.replace(/\/+$/, '') || ''
+      window.location.href = `${base}/auth/login`
       return Promise.reject(e)
     } finally { isRefreshing = false }
   },
