@@ -10,3 +10,4 @@ WARNING 2026-02-09 16:26:13,851 qwen-long multi-file fallback to single-file mer
 WARNING 2026-02-09 16:26:29,145 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
 WARNING 2026-02-09 17:37:54,574 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
 WARNING 2026-02-09 17:43:09,954 drain_until_done: TTS 未在 15.0s 内返回 session.finished，已超时退出 (已收到 198 个音频分片)
+WARNING 2026-02-09 18:12:49,460 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
