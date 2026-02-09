@@ -44,6 +44,41 @@ class DoctorRegisterSerializer(serializers.ModelSerializer):
         return user
 
 
+class PatientRegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=6)
+
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "username",
+            "password",
+            "email",
+            "phone",
+            "nickname",
+            "institution",
+            "profession",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def validate_username(self, value):
+        exists = CustomUser.all_objects.filter(username=value).exists()
+        if exists:
+            raise serializers.ValidationError("用户名已存在")
+        return value
+
+    def create(self, validated_data):
+        password = validated_data.pop("password")
+        user = CustomUser.objects.create_user(
+            password=password,
+            is_doctor=False,
+            is_active=True,
+            **validated_data,
+        )
+        return user
+
+
 class DoctorApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser

@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Patient · Frost Design System
+   北医三院 · 冰雪运动 · 移动端优先
+   ============================================ */
+
+@layer base {
+  :root {
+    --frost: 14 165 233;
+    --aurora: 20 184 166;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    margin: 0;
+    background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 40%, #f0fdfa 100%);
+    min-height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+  }
+
+  /* 自定义滚动条 */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(14, 165, 233, 0.15); border-radius: 999px; }
+}
+
+@layer components {
+  /* ── 毛玻璃卡片 ─────────────── */
+  .glass {
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 1.25rem;
+    box-shadow: 0 4px 24px rgba(14, 165, 233, 0.06);
+  }
+
+  .glass-strong {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(32px) saturate(1.6);
+    -webkit-backdrop-filter: blur(32px) saturate(1.6);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 1.25rem;
+    box-shadow: 0 8px 32px rgba(14, 165, 233, 0.08);
+  }
+
+  /* ── 认证页背景 ─────────────── */
+  .auth-bg {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 20%, rgba(56, 189, 248, 0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 80%, rgba(20, 184, 166, 0.12) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 10% 70%, rgba(251, 113, 133, 0.08) 0%, transparent 50%),
+      linear-gradient(170deg, #f0f9ff 0%, #e0f2fe 35%, #ccfbf1 75%, #f0f9ff 100%);
+    min-height: 100dvh;
+  }
+
+  /* ── 底部导航栏 ─────────────── */
+  .tab-bar {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border-top: 1px solid rgba(226, 232, 240, 0.6);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* ── 渐变按钮 ────────────────── */
+  .btn-primary {
+    @apply bg-gradient-to-r from-frost-500 to-frost-400 text-white font-medium
+           rounded-2xl shadow-lg shadow-frost-500/20
+           active:scale-[0.97] transition-all duration-150;
+  }
+
+  .btn-aurora {
+    @apply bg-gradient-to-r from-aurora-500 to-aurora-400 text-white font-medium
+           rounded-2xl shadow-lg shadow-aurora-500/20
+           active:scale-[0.97] transition-all duration-150;
+  }
+
+  /* ── 脉冲呼吸动画 ────────────── */
+  .pulse-dot {
+    @apply relative flex h-2.5 w-2.5;
+  }
+  .pulse-dot::before {
+    content: '';
+    @apply absolute inline-flex h-full w-full rounded-full bg-frost-400 opacity-75 animate-ping;
+  }
+  .pulse-dot::after {
+    content: '';
+    @apply relative inline-flex h-2.5 w-2.5 rounded-full bg-frost-500;
+  }
+
+  /* ── Markdown 内容样式 ──────── */
+  .prose-patient {
+    @apply text-sm leading-relaxed text-slate-700;
+  }
+  .prose-patient p { @apply mb-2 last:mb-0; }
+  .prose-patient strong { @apply font-semibold text-slate-800; }
+  .prose-patient ul { @apply list-disc pl-5 mb-2 space-y-0.5; }
+  .prose-patient ol { @apply list-decimal pl-5 mb-2 space-y-0.5; }
+  .prose-patient li { @apply text-sm; }
+  .prose-patient h1,
+  .prose-patient h2,
+  .prose-patient h3 { @apply font-semibold text-slate-800 mb-1.5 mt-3 first:mt-0; }
+  .prose-patient h1 { @apply text-base; }
+  .prose-patient h2 { @apply text-sm; }
+  .prose-patient h3 { @apply text-sm; }
+  .prose-patient code {
+    @apply bg-frost-50 text-frost-700 px-1.5 py-0.5 rounded text-xs font-mono;
+  }
+  .prose-patient blockquote {
+    @apply border-l-[3px] border-frost-300 pl-3 text-slate-500 italic my-2;
+  }
+}
+
+@layer utilities {
+  .safe-bottom { padding-bottom: var(--safe-bottom); }
+}

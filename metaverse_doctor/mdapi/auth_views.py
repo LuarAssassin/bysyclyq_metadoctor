@@ -8,6 +8,7 @@ from mdapi.auth_serializers import (
     DoctorApplicationSerializer,
     DoctorRegisterSerializer,
     DoctorTokenObtainPairSerializer,
+    PatientRegisterSerializer,
 )
 from mdapi.models import CustomUser
 from mdapi.utils.api_response import APIResponse
@@ -23,6 +24,24 @@ class DoctorRegisterView(APIView):
         user = serializer.save()
         data = DoctorApplicationSerializer(user).data
         return APIResponse.created(data=data, message="医生注册申请已提交，审核通过后可登录")
+
+
+class PatientRegisterView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PatientRegisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        data = {
+            "id": user.id,
+            "username": user.username,
+            "nickname": user.nickname,
+            "email": user.email,
+            "phone": user.phone,
+            "created_at": user.created_at,
+        }
+        return APIResponse.created(data=data, message="患者注册成功")
 
 
 class DoctorTokenObtainPairView(APIView):
@@ -90,4 +109,3 @@ class CustomTokenRefreshView(TokenRefreshView):
         if response.status_code == 200:
             return APIResponse.success(data=response.data, message="刷新成功")
         return response
-

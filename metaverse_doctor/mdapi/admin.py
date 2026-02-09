@@ -10,6 +10,8 @@ from mdapi.models import (
     DoctorRehearsalSession,
     DoctorVoiceProfile,
     KnowledgeTag,
+    PatientConsultMessage,
+    PatientConsultSession,
 )
 
 
@@ -154,3 +156,33 @@ class DoctorRehearsalFeedbackAdmin(admin.ModelAdmin):
     )
     list_filter = ("status", "apply_to_kernel", "is_deleted")
     search_fields = ("doctor__username", "comment", "message__content")
+
+
+@admin.register(PatientConsultSession)
+class PatientConsultSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        "patient",
+        "doctor",
+        "title",
+        "status",
+        "last_message_at",
+        "updated_at",
+    )
+    list_filter = ("status", "is_deleted")
+    search_fields = ("patient__username", "doctor__username", "title", "summary")
+
+
+@admin.register(PatientConsultMessage)
+class PatientConsultMessageAdmin(admin.ModelAdmin):
+    list_display = (
+        "session",
+        "patient",
+        "doctor",
+        "role",
+        "turn_index",
+        "generation_status",
+        "total_tokens",
+        "created_at",
+    )
+    list_filter = ("role", "generation_status", "is_deleted")
+    search_fields = ("patient__username", "doctor__username", "content", "model_name")

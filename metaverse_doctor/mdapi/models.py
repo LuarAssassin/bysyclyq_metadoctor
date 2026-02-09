@@ -714,3 +714,184 @@ class DoctorRehearsalFeedback(SoftDeleteModel):
 
     def __str__(self):
         return f"{self.doctor.username} - feedback - msg {self.message_id}"
+
+
+class PatientConsultSession(SoftDeleteModel):
+    """患者问诊会话（绑定单个医生）"""
+
+    STATUS_CHOICES = [
+        ("active", "进行中"),
+        ("archived", "已归档"),
+    ]
+
+    patient = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="patient_consult_sessions",
+        verbose_name="患者",
+    )
+    doctor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="doctor_patient_consult_sessions",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    title = models.CharField(max_length=200, verbose_name="会话标题")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="active",
+        db_index=True,
+        verbose_name="会话状态",
+    )
+    summary = models.TextField(null=True, blank=True, verbose_name="会话摘要")
+    last_message_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name="最近消息时间"
+    )
+
+    class Meta:
+        verbose_name = "患者问诊会话"
+        verbose_name_plural = "患者问诊会话"
+        ordering = ["-last_message_at", "-updated_at"]
+
+    def clean(self):
+        super().clean()
+        if self.patient_id and self.patient.is_doctor:
+            raise ValidationError({"patient": "患者会话仅允许非医生用户创建"})
+        if self.doctor_id:
+            if not self.doctor.is_doctor:
+                raise ValidationError({"doctor": "会话绑定对象必须是医生"})
+            if self.doctor.doctor_apply_status != "approved" or not self.doctor.is_active:
+                raise ValidationError({"doctor": "该医生当前不可提供问诊服务"})
+        if self.title:
+            self.title = self.title.strip()
+        if not self.title:
+            raise ValidationError({"title": "会话标题不能为空"})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.patient.username} -> {self.doctor.username} - {self.title}"
+
+
+class PatientConsultMessage(SoftDeleteModel):
+    """患者问诊消息"""
+
+    ROLE_CHOICES = [
+        ("user", "患者提问"),
+        ("assistant", "模型回答"),
+    ]
+    STATUS_CHOICES = [
+        ("generating", "生成中"),
+        ("succeeded", "生成成功"),
+        ("failed", "生成失败"),
+    ]
+
+    session = models.ForeignKey(
+        PatientConsultSession,
+        on_delete=models.CASCADE,
+        related_name="messages",
+        verbose_name="问诊会话",
+    )
+    patient = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="patient_consult_messages",
+        verbose_name="患者",
+    )
+    doctor = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="doctor_patient_consult_messages",
+        limit_choices_to={"is_doctor": True},
+        verbose_name="医生",
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        db_index=True,
+        verbose_name="消息角色",
+    )
+    turn_index = models.PositiveIntegerField(default=1, db_index=True, verbose_name="轮次")
+    generation_status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="succeeded",
+        db_index=True,
+        verbose_name="生成状态",
+    )
+    reply_to = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="follow_replies",
+        verbose_name="对应提问",
+    )
+
+    content = models.TextField(verbose_name="消息正文")
+    content_markdown = models.TextField(
+        null=True, blank=True, verbose_name="Markdown 内容"
+    )
+    model_name = models.CharField(
+        max_length=100, null=True, blank=True, verbose_name="回答模型"
+    )
+
+    selected_file_ids = models.JSONField(
+        default=list, blank=True, verbose_name="选中的知识文件ID列表"
+    )
+    selected_file_meta = models.JSONField(
+        default=list, blank=True, verbose_name="选中的知识文件元数据"
+    )
+    grounding_answer = models.TextField(
+        null=True, blank=True, verbose_name="qwen-long 知识回答"
+    )
+    grounding_sources = models.JSONField(
+        default=list, blank=True, verbose_name="qwen-long 出处"
+    )
+    search_sources = models.JSONField(
+        default=list, blank=True, verbose_name="联网搜索出处"
+    )
+
+    input_tokens = models.IntegerField(
+        null=True, blank=True, verbose_name="输入 token"
+    )
+    output_tokens = models.IntegerField(
+        null=True, blank=True, verbose_name="输出 token"
+    )
+    total_tokens = models.IntegerField(
+        null=True, blank=True, verbose_name="总 token"
+    )
+    error_message = models.TextField(null=True, blank=True, verbose_name="错误信息")
+    meta = models.JSONField(default=dict, blank=True, verbose_name="扩展元数据")
+
+    class Meta:
+        verbose_name = "患者问诊消息"
+        verbose_name_plural = "患者问诊消息"
+        ordering = ["created_at"]
+
+    def clean(self):
+        super().clean()
+        if self.patient_id and self.patient.is_doctor:
+            raise ValidationError({"patient": "患者消息仅允许非医生用户"})
+        if self.doctor_id and not self.doctor.is_doctor:
+            raise ValidationError({"doctor": "消息归属医生必须是医生账号"})
+        if self.session_id:
+            if self.patient_id and self.session.patient_id != self.patient_id:
+                raise ValidationError({"patient": "消息患者与会话患者不一致"})
+            if self.doctor_id and self.session.doctor_id != self.doctor_id:
+                raise ValidationError({"doctor": "消息医生与会话医生不一致"})
+        if self.role == "assistant" and self.reply_to_id and self.reply_to.role != "user":
+            raise ValidationError({"reply_to": "assistant 消息仅可关联用户问题"})
+        if self.content is None:
+            self.content = ""
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.session_id} - {self.role} - turn {self.turn_index}"

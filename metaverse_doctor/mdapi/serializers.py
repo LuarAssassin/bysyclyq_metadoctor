@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from mdapi.models import (
+    CustomUser,
     DoctorAvatarVideo,
     DoctorKnowledge,
     DoctorNarrativeAnnotation,
@@ -10,6 +11,8 @@ from mdapi.models import (
     DoctorRehearsalSession,
     DoctorVoiceProfile,
     KnowledgeTag,
+    PatientConsultMessage,
+    PatientConsultSession,
 )
 
 
@@ -258,6 +261,67 @@ class DoctorRehearsalFeedbackSerializer(serializers.ModelSerializer):
             "apply_to_kernel",
             "annotation_id",
             "error_message",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class PatientDoctorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            "id",
+            "username",
+            "nickname",
+            "avatar",
+            "institution",
+            "profession",
+        ]
+        read_only_fields = fields
+
+
+class PatientConsultSessionSerializer(serializers.ModelSerializer):
+    doctor = PatientDoctorSerializer(read_only=True)
+
+    class Meta:
+        model = PatientConsultSession
+        fields = [
+            "id",
+            "doctor",
+            "title",
+            "status",
+            "summary",
+            "last_message_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class PatientConsultMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PatientConsultMessage
+        fields = [
+            "id",
+            "session",
+            "role",
+            "turn_index",
+            "generation_status",
+            "reply_to",
+            "content",
+            "content_markdown",
+            "model_name",
+            "selected_file_ids",
+            "selected_file_meta",
+            "grounding_answer",
+            "grounding_sources",
+            "search_sources",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "error_message",
+            "meta",
             "created_at",
             "updated_at",
         ]

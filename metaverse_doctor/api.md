@@ -505,7 +505,8 @@
 ```json
 {
   "question": "血压偏高并伴有头痛，应该怎么处理？",
-  "forced_search": true
+  "forced_search": true,
+  "enable_audio": true
 }
 ```
 
@@ -520,10 +521,17 @@
 
 - 返回类型：`text/event-stream`
 - 事件：
-  - `start`：返回 `answer_message_id`、`selected_file_ids` 等初始化信息
+  - `start`：返回 `answer_message_id`、`selected_file_ids`，以及 `audio` 初始化信息
   - `delta`：流式增量文本
+  - `audio_delta`：语音增量片段（`pcm16/24000Hz/mono`，base64）
+  - `audio_error`：语音流错误（不影响文本继续输出）
   - `done`：最终 `usage`（`input_tokens/output_tokens/total_tokens`）与来源信息
   - `error`：错误信息
+
+- 语音说明（`enable_audio=true`）：
+  - 音色优先使用“医生最近上传且可用（status=ready）”的 `voice_id`，若无则使用系统默认音色。
+  - 语音按文本增量实时送入合成（低延迟优先），不再等待句号分段。
+  - 若实时语音失败，文本流式问答仍会继续并正常落库；失败信息通过 `audio_error` 事件返回。
 
 ### 6.5 `GET /doctor/rehearsal/playback-assets/`
 
@@ -531,7 +539,7 @@
 
 - Auth：医生 token
 - 返回字段：
-  - `voice_id`：优先医生复刻音色，若无则返回默认音色
+  - `voice_id`：优先医生最近上传且可用的复刻音色，若无则返回默认音色
   - `tts_model`
   - `video_urls`：全部可用签名视频地址数组（私有桶可直接播放，可能为空）
   - `videos`：视频详情数组（含 `video_id`、`scene_key`、`scene_name`、`video_url`、`video_oss_url`）
@@ -570,3 +578,105 @@
   - 每条 assistant 消息都会有一条关联批复记录（`DoctorRehearsalFeedback`）
   - 当 `apply_to_kernel=true` 时，调用 Qwen-Max 抽取结构化增量，写入医生叙事底座并产生关联批注记录
   - Qwen-Max 失败时直接报错，不回退规则兜底
+
+## 7. 患者端问诊 API
+
+### 7.1 `POST /auth/patient/register/`
+
+功能：患者注册账号（注册后默认可登录）。
+
+- Auth：无需
+- Content-Type：`application/json`
+- Body：
+
+```json
+{
+  "username": "patient_li",
+  "password": "12345678",
+  "email": "patient_li@example.com",
+  "phone": "13800002222",
+  "nickname": "李女士"
+}
+```
+
+### 7.2 `GET /patient/doctors/`
+
+功能：患者端医生目录，仅返回“审核通过且可用”的医生。
+
+- Auth：患者 token（必须登录）
+- 返回：医生基础信息列表（`id/username/nickname/avatar/institution/profession`）
+
+### 7.3 `GET /patient/doctors/{doctor_id}/assets/`
+
+功能：获取指定医生可播放素材（语音 + 数字人视频）。
+
+- Auth：患者 token
+- 返回字段重点：
+  - `voice_id`：优先该医生最近上传且可用音色（`status=ready`），否则默认音色
+  - `tts_model`
+  - `video_urls[]`：可直接播放的视频签名地址数组
+  - `videos[]`：含 `video_id/scene_key/scene_name/video_url/video_oss_url`
+
+### 7.4 `POST /patient/sessions/`
+
+功能：创建患者问诊会话（会话与单个医生绑定）。
+
+- Auth：患者 token
+- Content-Type：`application/json`
+- Body：
+
+```json
+{
+  "doctor_id": 12,
+  "title": "术后恢复咨询"
+}
+```
+
+- 说明：
+  - `doctor_id` 必填，且必须是审核通过且可用医生。
+  - `title` 可选，不传则自动生成默认标题。
+
+### 7.5 `GET /patient/sessions/`
+
+功能：获取当前患者自己的会话列表。
+
+- Auth：患者 token
+
+### 7.6 `GET /patient/sessions/{session_id}/messages/?limit=100`
+
+功能：获取患者会话消息列表。
+
+- Auth：患者 token
+- Query：
+  - `limit`：默认 `100`，最大 `300`
+
+### 7.7 `POST /patient/sessions/{session_id}/ask/stream/`
+
+功能：患者端流式问答主接口（SSE）。
+
+- Auth：患者 token
+- Content-Type：`application/json`
+- Body：
+
+```json
+{
+  "question": "我最近睡眠不好，白天也很疲惫，应该先做什么检查？",
+  "forced_search": true,
+  "enable_audio": true
+}
+```
+
+- 关键行为：
+  - `enable_audio` 默认 `true`（不传即开启语音流）。
+  - 会复用所选医生的知识库、叙事底座、形象和音色能力。
+  - 仅落库患者会话消息，不会写回医生叙事底座（默认不学习医生侧内核）。
+  - 若语音通道异常，文本流式继续，`audio_error` 事件返回错误。
+
+- 返回类型：`text/event-stream`
+- 事件：
+  - `start`
+  - `delta`
+  - `audio_delta`
+  - `audio_error`
+  - `done`
+  - `error`

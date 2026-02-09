@@ -72,14 +72,18 @@
 - 接口：`POST /doctor/rehearsal/sessions/{session_id}/ask/stream/`
 - 返回：`text/event-stream`
 - 事件：
-  - `start`：含 `answer_message_id`、`selected_file_ids` 等
+  - `start`：含 `answer_message_id`、`selected_file_ids`，以及 `audio` 初始化信息
   - `delta`：增量文本
+  - `audio_delta`：语音增量（`pcm16/24000Hz/mono` base64）
+  - `audio_error`：语音流错误（文本不受影响）
   - `done`：最终 `usage`、`search_sources`
   - `error`：流内错误
 
 - 兼容策略：
   - 后端对 qwen-long 做了“多文件失败自动逐文件回退合并”，前端无需处理该差异，按统一 SSE 事件消费即可。
   - 当 `start.selected_file_ids=[]` 时表示本轮无需私有知识，后端会跳过 qwen-long，直接走 qwen-max。
+  - 若请求体传 `enable_audio=true`，后端会同步推送 `audio_delta`；建议在前端用 WebAudio 播放 PCM 分片。
+  - 语音默认使用“医生最近上传且可用”的 `voice_id`，若无则自动回退系统默认音色。
 
 注意两点：
 
@@ -90,6 +94,7 @@
 
 - 播放资源：`GET /doctor/rehearsal/playback-assets/`
   - 返回 `video_urls`（全部可播地址数组）和 `videos`（含场景信息），前端自己随机。
+  - `voice_id` 已调整为优先“最近上传且可用”的医生音色。
 - Markdown 保存：`PATCH /doctor/rehearsal/messages/{message_id}/markdown/`
 - 批复学习：`POST /doctor/rehearsal/messages/{message_id}/feedback/`
   - 建议先保存 Markdown，再提交反馈。

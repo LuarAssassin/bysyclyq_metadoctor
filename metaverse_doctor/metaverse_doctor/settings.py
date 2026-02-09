@@ -375,6 +375,10 @@ QWEN_VOICE_ENROLL_URL = os.getenv(
     "QWEN_VOICE_ENROLL_URL",
     "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/customization",
 )
+QWEN_TTS_REALTIME_WS_URL = os.getenv(
+    "QWEN_TTS_REALTIME_WS_URL",
+    "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+)
 
 # 数字人（音色 + 图生视频）配置
 DIGITAL_HUMAN_TTS_TARGET_MODEL = os.getenv(

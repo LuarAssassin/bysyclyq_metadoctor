@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from mdapi.models import (
+    CustomUser,
     DoctorAvatarVideo,
     DoctorKnowledge,
     DoctorNarrativeAnnotation,
@@ -23,8 +24,10 @@ from mdapi.models import (
     DoctorRehearsalSession,
     DoctorVoiceProfile,
     KnowledgeTag,
+    PatientConsultMessage,
+    PatientConsultSession,
 )
-from mdapi.permissions import IsDoctor
+from mdapi.permissions import IsDoctor, IsPatient
 from mdapi.serializers import (
     DoctorAvatarVideoSerializer,
     DoctorNarrativeAnnotationSerializer,
@@ -35,6 +38,9 @@ from mdapi.serializers import (
     DoctorRehearsalMessageSerializer,
     DoctorRehearsalSessionSerializer,
     DoctorVoiceProfileSerializer,
+    PatientConsultMessageSerializer,
+    PatientConsultSessionSerializer,
+    PatientDoctorSerializer,
 )
 from mdapi.services.digital_human import (
     DigitalHumanConfigurationError,
@@ -61,6 +67,10 @@ from mdapi.services.rehearsal import (
     RehearsalConfigurationError,
     RehearsalServiceError,
     get_rehearsal_service,
+)
+from mdapi.services.rehearsal_tts import (
+    DoctorRehearsalRealtimeTTS,
+    RehearsalRealtimeTTSError,
 )
 from mdapi.services.oss import (
     OSSConfigurationError,
@@ -177,6 +187,39 @@ def _build_video_play_url(
         return client.build_signed_get_url(video.video_object_key, expires=expires)
     except (OSSConfigurationError, OSSReadError):
         return video.video_oss_url or None
+
+
+def _resolve_latest_doctor_voice(doctor) -> tuple[str, str, str]:
+    latest_voice = (
+        DoctorVoiceProfile.objects.filter(doctor=doctor, status="ready")
+        .order_by("-created_at", "-updated_at")
+        .first()
+    )
+    if latest_voice:
+        return (
+            latest_voice.qwen_voice_id,
+            latest_voice.target_model
+            or getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"),
+            latest_voice.name or "医生最新音色",
+        )
+    return (
+        getattr(settings, "DIGITAL_HUMAN_DEFAULT_VOICE", "longanyang"),
+        getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"),
+        "系统默认音色",
+    )
+
+
+def _get_available_doctor(doctor_id: int) -> CustomUser | None:
+    return (
+        CustomUser.objects.filter(
+            id=doctor_id,
+            is_doctor=True,
+            doctor_apply_status="approved",
+            is_active=True,
+        )
+        .order_by("-updated_at")
+        .first()
+    )
 
 
 class DoctorKnowledgeView(APIView):
@@ -1387,6 +1430,7 @@ class DoctorRehearsalAskStreamView(APIView):
         forced_search = None
         if forced_search_value is not None:
             forced_search = _parse_bool(forced_search_value, default=True)
+        enable_audio = _parse_bool(request.data.get("enable_audio"), default=False)
 
         try:
             rehearsal = get_rehearsal_service()
@@ -1486,6 +1530,42 @@ class DoctorRehearsalAskStreamView(APIView):
             full_content = ""
             usage_data = {}
             search_sources = []
+            audio_status = "disabled"
+            audio_error = ""
+            voice_id = ""
+            tts_model = ""
+            voice_name = ""
+            tts_bridge: DoctorRehearsalRealtimeTTS | None = None
+            audio_stats = {
+                "audio_format": "pcm16",
+                "sample_rate": 24000,
+                "channels": 1,
+                "first_audio_delay_ms": None,
+                "audio_chunk_count": 0,
+                "audio_base64_chars": 0,
+                "error": "",
+            }
+            tts_error_emitted = False
+
+            if enable_audio:
+                voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(request.user)
+                try:
+                    tts_bridge = DoctorRehearsalRealtimeTTS(
+                        api_key=getattr(settings, "DASHSCOPE_API_KEY", ""),
+                        model=tts_model,
+                        voice_id=voice_id,
+                        ws_url=getattr(
+                            settings,
+                            "QWEN_TTS_REALTIME_WS_URL",
+                            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                        ),
+                    )
+                    tts_bridge.start()
+                    audio_status = "streaming"
+                except RehearsalRealtimeTTSError as exc:
+                    audio_status = "failed"
+                    audio_error = str(exc)
+                    tts_bridge = None
 
             yield _to_sse_event(
                 "start",
@@ -1496,8 +1576,27 @@ class DoctorRehearsalAskStreamView(APIView):
                     "selected_file_ids": selected_file_ids,
                     "selected_file_meta": selected_meta,
                     "grounding_sources": grounding_result["sources"],
+                    "audio": {
+                        "enabled": enable_audio,
+                        "status": audio_status,
+                        "voice_id": voice_id or None,
+                        "voice_name": voice_name or None,
+                        "tts_model": tts_model or None,
+                        "audio_format": "pcm16",
+                        "sample_rate": 24000,
+                        "channels": 1,
+                    },
                 },
             )
+            if audio_error:
+                yield _to_sse_event(
+                    "audio_error",
+                    {
+                        "message_id": assistant_msg.id,
+                        "message": audio_error,
+                    },
+                )
+                tts_error_emitted = True
 
             try:
                 for event in rehearsal.stream_final_answer(
@@ -1512,17 +1611,85 @@ class DoctorRehearsalAskStreamView(APIView):
                                 "delta",
                                 {"message_id": assistant_msg.id, "delta": delta},
                             )
+                            if tts_bridge:
+                                try:
+                                    tts_bridge.append_text(delta)
+                                except RehearsalRealtimeTTSError as exc:
+                                    audio_status = "failed"
+                                    audio_error = str(exc)
+                                    if not tts_error_emitted:
+                                        yield _to_sse_event(
+                                            "audio_error",
+                                            {
+                                                "message_id": assistant_msg.id,
+                                                "message": audio_error,
+                                            },
+                                        )
+                                        tts_error_emitted = True
+                                    tts_bridge.close()
+                                    tts_bridge = None
+
+                            if tts_bridge:
+                                for audio_event in tts_bridge.drain_events():
+                                    if audio_event.get("type") == "audio_delta":
+                                        yield _to_sse_event(
+                                            "audio_delta",
+                                            {
+                                                "message_id": assistant_msg.id,
+                                                "audio_format": "pcm16",
+                                                "sample_rate": 24000,
+                                                "channels": 1,
+                                                "delta": audio_event.get("delta", ""),
+                                            },
+                                        )
+                                    elif audio_event.get("type") == "error":
+                                        audio_status = "failed"
+                                        audio_error = str(
+                                            audio_event.get("message") or "realtime tts error"
+                                        )
+                                        if not tts_error_emitted:
+                                            yield _to_sse_event(
+                                                "audio_error",
+                                                {
+                                                    "message_id": assistant_msg.id,
+                                                    "message": audio_error,
+                                                },
+                                            )
+                                            tts_error_emitted = True
                     elif event.get("type") == "done":
                         full_content = str(event.get("content", full_content) or "")
                         usage_data = event.get("usage", {}) or {}
                         search_sources = event.get("search_sources", []) or []
             except RehearsalServiceError as exc:
+                if tts_bridge:
+                    try:
+                        tts_bridge.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    audio_stats = tts_bridge.get_stats()
+                    if audio_stats.get("error"):
+                        audio_error = str(audio_stats.get("error"))
+                        audio_status = "failed"
+                elif enable_audio and audio_status != "failed":
+                    audio_status = "stopped"
                 assistant_msg.generation_status = "failed"
                 assistant_msg.error_message = str(exc)
                 assistant_msg.selected_file_ids = selected_file_ids
                 assistant_msg.selected_file_meta = selected_meta
                 assistant_msg.grounding_answer = grounding_result["answer"]
                 assistant_msg.grounding_sources = grounding_result["sources"]
+                assistant_msg.meta = {
+                    "selector_reason": selected.get("reason", ""),
+                    "audio": {
+                        "enabled": enable_audio,
+                        "status": audio_status,
+                        "voice_id": voice_id or None,
+                        "voice_name": voice_name or None,
+                        "tts_model": tts_model or None,
+                        "error": audio_error or None,
+                        **audio_stats,
+                    },
+                }
                 assistant_msg.save(
                     update_fields=[
                         "generation_status",
@@ -1531,6 +1698,7 @@ class DoctorRehearsalAskStreamView(APIView):
                         "selected_file_meta",
                         "grounding_answer",
                         "grounding_sources",
+                        "meta",
                         "updated_at",
                     ]
                 )
@@ -1539,6 +1707,57 @@ class DoctorRehearsalAskStreamView(APIView):
                     {"message": str(exc), "message_id": assistant_msg.id},
                 )
                 return
+
+            if tts_bridge:
+                try:
+                    tts_bridge.finish()
+                except RehearsalRealtimeTTSError as exc:
+                    audio_status = "failed"
+                    audio_error = str(exc)
+                    if not tts_error_emitted:
+                        yield _to_sse_event(
+                            "audio_error",
+                            {
+                                "message_id": assistant_msg.id,
+                                "message": audio_error,
+                            },
+                        )
+                        tts_error_emitted = True
+
+                for audio_event in tts_bridge.drain_until_done(max_wait_seconds=15.0):
+                    if audio_event.get("type") == "audio_delta":
+                        yield _to_sse_event(
+                            "audio_delta",
+                            {
+                                "message_id": assistant_msg.id,
+                                "audio_format": "pcm16",
+                                "sample_rate": 24000,
+                                "channels": 1,
+                                "delta": audio_event.get("delta", ""),
+                            },
+                        )
+                    elif audio_event.get("type") == "error":
+                        audio_status = "failed"
+                        audio_error = str(audio_event.get("message") or "realtime tts error")
+                        if not tts_error_emitted:
+                            yield _to_sse_event(
+                                "audio_error",
+                                {
+                                    "message_id": assistant_msg.id,
+                                    "message": audio_error,
+                                },
+                            )
+                            tts_error_emitted = True
+                audio_stats = tts_bridge.get_stats()
+                if audio_stats.get("error"):
+                    audio_status = "failed"
+                    if not audio_error:
+                        audio_error = str(audio_stats.get("error"))
+                elif audio_status == "streaming":
+                    audio_status = "succeeded"
+                tts_bridge.close()
+            elif enable_audio and audio_status != "failed":
+                audio_status = "disabled"
 
             assistant_msg.generation_status = "succeeded"
             assistant_msg.content = full_content
@@ -1554,6 +1773,15 @@ class DoctorRehearsalAskStreamView(APIView):
             assistant_msg.total_tokens = usage_data.get("total_tokens")
             assistant_msg.meta = {
                 "selector_reason": selected.get("reason", ""),
+                "audio": {
+                    "enabled": enable_audio,
+                    "status": audio_status,
+                    "voice_id": voice_id or None,
+                    "voice_name": voice_name or None,
+                    "tts_model": tts_model or None,
+                    "error": audio_error or None,
+                    **audio_stats,
+                },
             }
             assistant_msg.error_message = None
             assistant_msg.save(
@@ -1585,6 +1813,15 @@ class DoctorRehearsalAskStreamView(APIView):
                     "usage": usage_data,
                     "search_sources": search_sources,
                     "selected_file_ids": selected_file_ids,
+                    "audio": {
+                        "enabled": enable_audio,
+                        "status": audio_status,
+                        "voice_id": voice_id or None,
+                        "voice_name": voice_name or None,
+                        "tts_model": tts_model or None,
+                        "error": audio_error or None,
+                        **audio_stats,
+                    },
                 },
             )
 
@@ -1601,11 +1838,7 @@ class DoctorRehearsalPlaybackAssetsView(APIView):
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request):
-        active_voice = (
-            DoctorVoiceProfile.objects.filter(doctor=request.user, is_active=True, status="ready")
-            .order_by("-updated_at")
-            .first()
-        )
+        voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(request.user)
         video_queryset = list(
             DoctorAvatarVideo.objects.filter(
                 doctor=request.user,
@@ -1640,17 +1873,9 @@ class DoctorRehearsalPlaybackAssetsView(APIView):
         ]
 
         data = {
-            "tts_model": getattr(
-                settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"
-            ),
-            "voice_id": (
-                active_voice.qwen_voice_id
-                if active_voice
-                else getattr(settings, "DIGITAL_HUMAN_DEFAULT_VOICE", "longanyang")
-            ),
-            "voice_name": (
-                active_voice.name if active_voice else "系统默认音色"
-            ),
+            "tts_model": tts_model,
+            "voice_id": voice_id,
+            "voice_name": voice_name,
             "video_urls": video_urls,
             "videos": videos,
             "video_message": "后端返回全部可播放链接，前端自行随机与循环播放",
@@ -1838,3 +2063,581 @@ class DoctorRehearsalMessageFeedbackView(APIView):
             },
             message="批复已学习并写入叙事底座",
         )
+
+
+class PatientDoctorDirectoryView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def get(self, request):
+        queryset = CustomUser.objects.filter(
+            is_doctor=True,
+            doctor_apply_status="approved",
+            is_active=True,
+        ).order_by("-updated_at")
+        serializer = PatientDoctorSerializer(queryset, many=True)
+        return APIResponse.success(data=serializer.data, message="获取成功")
+
+
+class PatientDoctorAssetsView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def get(self, request, doctor_id):
+        doctor = _get_available_doctor(doctor_id)
+        if not doctor:
+            return APIResponse.not_found(message="医生不存在或当前不可服务")
+
+        voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(doctor)
+        video_queryset = list(
+            DoctorAvatarVideo.objects.filter(
+                doctor=doctor,
+                task_status="succeeded",
+            )
+            .exclude(video_oss_url__isnull=True)
+            .exclude(video_oss_url="")
+            .order_by("-updated_at")
+        )
+
+        oss_client = None
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
+        videos = []
+        for video in video_queryset:
+            videos.append(
+                {
+                    "video_id": video.id,
+                    "scene_key": video.scene_key,
+                    "scene_name": video.scene_name,
+                    "video_url": _build_video_play_url(video, oss_client=oss_client),
+                    "video_oss_url": video.video_oss_url,
+                }
+            )
+        video_urls = [
+            item["video_url"]
+            for item in videos
+            if item.get("video_url")
+        ]
+
+        data = {
+            "doctor": PatientDoctorSerializer(doctor).data,
+            "tts_model": tts_model,
+            "voice_id": voice_id,
+            "voice_name": voice_name,
+            "video_urls": video_urls,
+            "videos": videos,
+        }
+        return APIResponse.success(data=data, message="获取成功")
+
+
+class PatientConsultSessionView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def get(self, request):
+        queryset = PatientConsultSession.objects.filter(patient=request.user).order_by(
+            "-last_message_at", "-updated_at"
+        )
+        serializer = PatientConsultSessionSerializer(queryset, many=True)
+        return APIResponse.success(data=serializer.data, message="获取成功")
+
+    def post(self, request):
+        doctor_id = request.data.get("doctor_id")
+        if doctor_id is None:
+            return APIResponse.error(message="doctor_id 不能为空", code=400)
+        try:
+            doctor_id_int = int(doctor_id)
+        except (TypeError, ValueError):
+            return APIResponse.error(message="doctor_id 必须是整数", code=400)
+
+        doctor = _get_available_doctor(doctor_id_int)
+        if not doctor:
+            return APIResponse.not_found(message="医生不存在或当前不可服务")
+
+        title = (request.data.get("title") or "").strip()
+        if not title:
+            title = f"{doctor.nickname or doctor.username}问诊-{timezone.now().strftime('%Y%m%d-%H%M%S')}"
+
+        item = PatientConsultSession.objects.create(
+            patient=request.user,
+            doctor=doctor,
+            title=title,
+            status="active",
+        )
+        data = PatientConsultSessionSerializer(item).data
+        return APIResponse.created(data=data, message="患者问诊会话已创建")
+
+
+class PatientConsultMessageView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def get(self, request, session_id):
+        session = PatientConsultSession.objects.filter(
+            id=session_id, patient=request.user
+        ).select_related("doctor").first()
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        raw_limit = request.query_params.get("limit", 100)
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            limit = 100
+        limit = max(1, min(limit, 300))
+
+        queryset = list(
+            PatientConsultMessage.objects.filter(session=session)
+            .order_by("-created_at")[:limit]
+        )
+        queryset.reverse()
+        serializer = PatientConsultMessageSerializer(queryset, many=True)
+        return APIResponse.success(
+            data={
+                "session": PatientConsultSessionSerializer(session).data,
+                "messages": serializer.data,
+            },
+            message="获取成功",
+        )
+
+
+class PatientConsultAskStreamView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def _build_history(self, session, exclude_message_id: int, history_limit: int) -> list[dict[str, str]]:
+        history_queryset = (
+            PatientConsultMessage.objects.filter(session=session)
+            .exclude(id=exclude_message_id)
+            .order_by("-created_at")[:history_limit]
+        )
+        history_messages = []
+        for item in reversed(list(history_queryset)):
+            history_messages.append(
+                {
+                    "role": "assistant" if item.role == "assistant" else "user",
+                    "content": item.content or "",
+                }
+            )
+        return history_messages
+
+    def post(self, request, session_id):
+        session = (
+            PatientConsultSession.objects.filter(id=session_id, patient=request.user)
+            .select_related("doctor")
+            .first()
+        )
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        question = (request.data.get("question") or "").strip()
+        if not question:
+            return APIResponse.error(message="question 不能为空", code=400)
+
+        forced_search_value = request.data.get("forced_search")
+        forced_search = None
+        if forced_search_value is not None:
+            forced_search = _parse_bool(forced_search_value, default=True)
+        enable_audio = _parse_bool(request.data.get("enable_audio"), default=True)
+
+        try:
+            rehearsal = get_rehearsal_service()
+        except RehearsalConfigurationError as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        turn_index = (
+            PatientConsultMessage.objects.filter(session=session).count() // 2
+        ) + 1
+        user_msg = PatientConsultMessage.objects.create(
+            session=session,
+            patient=request.user,
+            doctor=session.doctor,
+            role="user",
+            turn_index=turn_index,
+            generation_status="succeeded",
+            content=question,
+            content_markdown=question,
+            model_name=None,
+        )
+
+        assistant_msg = PatientConsultMessage.objects.create(
+            session=session,
+            patient=request.user,
+            doctor=session.doctor,
+            role="assistant",
+            turn_index=turn_index,
+            generation_status="generating",
+            reply_to=user_msg,
+            content="[生成中]",
+            content_markdown="[生成中]",
+            model_name=rehearsal.answer_model,
+        )
+
+        session.last_message_at = timezone.now()
+        session.save(update_fields=["last_message_at", "updated_at"])
+
+        kernel, _ = _get_or_create_doctor_narrative_kernel(session.doctor)
+        knowledge_queryset = (
+            DoctorKnowledge.objects.filter(
+                doctor=session.doctor,
+                extract_status="success",
+            )
+            .exclude(qwen_file_id__isnull=True)
+            .exclude(qwen_file_id="")
+            .prefetch_related("tags")
+            .order_by("-updated_at")
+        )
+        candidates = rehearsal.build_ranked_candidates(question, knowledge_queryset)
+
+        try:
+            selected = rehearsal.select_file_ids_with_qwen_max(
+                question=question,
+                candidates=candidates,
+            )
+            selected_file_ids = selected["selected_file_ids"]
+            selected_meta_map = {item["file_id"]: item for item in candidates}
+            selected_meta = [
+                selected_meta_map[file_id]
+                for file_id in selected_file_ids
+                if file_id in selected_meta_map
+            ]
+            if selected_file_ids:
+                grounding_result = rehearsal.build_long_grounding_answer(
+                    question=question,
+                    selected_file_ids=selected_file_ids,
+                )
+            else:
+                grounding_result = {"answer": "", "sources": []}
+        except RehearsalServiceError as exc:
+            assistant_msg.generation_status = "failed"
+            assistant_msg.error_message = str(exc)
+            assistant_msg.save(
+                update_fields=["generation_status", "error_message", "updated_at"]
+            )
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        history_messages = self._build_history(
+            session=session,
+            exclude_message_id=user_msg.id,
+            history_limit=rehearsal.history_limit,
+        )
+        final_messages = rehearsal.build_final_messages(
+            narrative_kernel_prompt=kernel.compiled_prompt,
+            grounding_answer=grounding_result["answer"],
+            history_messages=history_messages,
+            question=question,
+        )
+
+        def event_stream():
+            full_content = ""
+            usage_data = {}
+            search_sources = []
+            audio_status = "disabled"
+            audio_error = ""
+            voice_id = ""
+            tts_model = ""
+            voice_name = ""
+            tts_bridge: DoctorRehearsalRealtimeTTS | None = None
+            audio_stats = {
+                "audio_format": "pcm16",
+                "sample_rate": 24000,
+                "channels": 1,
+                "first_audio_delay_ms": None,
+                "audio_chunk_count": 0,
+                "audio_base64_chars": 0,
+                "error": "",
+            }
+            tts_error_emitted = False
+
+            if enable_audio:
+                voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(session.doctor)
+                try:
+                    tts_bridge = DoctorRehearsalRealtimeTTS(
+                        api_key=getattr(settings, "DASHSCOPE_API_KEY", ""),
+                        model=tts_model,
+                        voice_id=voice_id,
+                        ws_url=getattr(
+                            settings,
+                            "QWEN_TTS_REALTIME_WS_URL",
+                            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                        ),
+                    )
+                    tts_bridge.start()
+                    audio_status = "streaming"
+                except RehearsalRealtimeTTSError as exc:
+                    audio_status = "failed"
+                    audio_error = str(exc)
+                    tts_bridge = None
+
+            yield _to_sse_event(
+                "start",
+                {
+                    "session_id": session.id,
+                    "question_message_id": user_msg.id,
+                    "answer_message_id": assistant_msg.id,
+                    "doctor_id": session.doctor_id,
+                    "selected_file_ids": selected_file_ids,
+                    "selected_file_meta": selected_meta,
+                    "grounding_sources": grounding_result["sources"],
+                    "audio": {
+                        "enabled": enable_audio,
+                        "status": audio_status,
+                        "voice_id": voice_id or None,
+                        "voice_name": voice_name or None,
+                        "tts_model": tts_model or None,
+                        "audio_format": "pcm16",
+                        "sample_rate": 24000,
+                        "channels": 1,
+                    },
+                },
+            )
+            if audio_error:
+                yield _to_sse_event(
+                    "audio_error",
+                    {
+                        "message_id": assistant_msg.id,
+                        "message": audio_error,
+                    },
+                )
+                tts_error_emitted = True
+
+            try:
+                for event in rehearsal.stream_final_answer(
+                    messages=final_messages,
+                    forced_search=forced_search,
+                ):
+                    if event.get("type") == "delta":
+                        delta = str(event.get("delta", "") or "")
+                        if delta:
+                            full_content += delta
+                            yield _to_sse_event(
+                                "delta",
+                                {"message_id": assistant_msg.id, "delta": delta},
+                            )
+                            if tts_bridge:
+                                try:
+                                    tts_bridge.append_text(delta)
+                                except RehearsalRealtimeTTSError as exc:
+                                    audio_status = "failed"
+                                    audio_error = str(exc)
+                                    if not tts_error_emitted:
+                                        yield _to_sse_event(
+                                            "audio_error",
+                                            {
+                                                "message_id": assistant_msg.id,
+                                                "message": audio_error,
+                                            },
+                                        )
+                                        tts_error_emitted = True
+                                    tts_bridge.close()
+                                    tts_bridge = None
+
+                            if tts_bridge:
+                                for audio_event in tts_bridge.drain_events():
+                                    if audio_event.get("type") == "audio_delta":
+                                        yield _to_sse_event(
+                                            "audio_delta",
+                                            {
+                                                "message_id": assistant_msg.id,
+                                                "audio_format": "pcm16",
+                                                "sample_rate": 24000,
+                                                "channels": 1,
+                                                "delta": audio_event.get("delta", ""),
+                                            },
+                                        )
+                                    elif audio_event.get("type") == "error":
+                                        audio_status = "failed"
+                                        audio_error = str(
+                                            audio_event.get("message") or "realtime tts error"
+                                        )
+                                        if not tts_error_emitted:
+                                            yield _to_sse_event(
+                                                "audio_error",
+                                                {
+                                                    "message_id": assistant_msg.id,
+                                                    "message": audio_error,
+                                                },
+                                            )
+                                            tts_error_emitted = True
+                    elif event.get("type") == "done":
+                        full_content = str(event.get("content", full_content) or "")
+                        usage_data = event.get("usage", {}) or {}
+                        search_sources = event.get("search_sources", []) or []
+            except RehearsalServiceError as exc:
+                if tts_bridge:
+                    try:
+                        tts_bridge.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    audio_stats = tts_bridge.get_stats()
+                    if audio_stats.get("error"):
+                        audio_error = str(audio_stats.get("error"))
+                        audio_status = "failed"
+                elif enable_audio and audio_status != "failed":
+                    audio_status = "stopped"
+                assistant_msg.generation_status = "failed"
+                assistant_msg.error_message = str(exc)
+                assistant_msg.selected_file_ids = selected_file_ids
+                assistant_msg.selected_file_meta = selected_meta
+                assistant_msg.grounding_answer = grounding_result["answer"]
+                assistant_msg.grounding_sources = grounding_result["sources"]
+                assistant_msg.meta = {
+                    "selector_reason": selected.get("reason", ""),
+                    "audio": {
+                        "enabled": enable_audio,
+                        "status": audio_status,
+                        "voice_id": voice_id or None,
+                        "voice_name": voice_name or None,
+                        "tts_model": tts_model or None,
+                        "error": audio_error or None,
+                        **audio_stats,
+                    },
+                }
+                assistant_msg.save(
+                    update_fields=[
+                        "generation_status",
+                        "error_message",
+                        "selected_file_ids",
+                        "selected_file_meta",
+                        "grounding_answer",
+                        "grounding_sources",
+                        "meta",
+                        "updated_at",
+                    ]
+                )
+                yield _to_sse_event(
+                    "error",
+                    {"message": str(exc), "message_id": assistant_msg.id},
+                )
+                return
+
+            if tts_bridge:
+                try:
+                    tts_bridge.finish()
+                except RehearsalRealtimeTTSError as exc:
+                    audio_status = "failed"
+                    audio_error = str(exc)
+                    if not tts_error_emitted:
+                        yield _to_sse_event(
+                            "audio_error",
+                            {
+                                "message_id": assistant_msg.id,
+                                "message": audio_error,
+                            },
+                        )
+                        tts_error_emitted = True
+
+                for audio_event in tts_bridge.drain_until_done(max_wait_seconds=15.0):
+                    if audio_event.get("type") == "audio_delta":
+                        yield _to_sse_event(
+                            "audio_delta",
+                            {
+                                "message_id": assistant_msg.id,
+                                "audio_format": "pcm16",
+                                "sample_rate": 24000,
+                                "channels": 1,
+                                "delta": audio_event.get("delta", ""),
+                            },
+                        )
+                    elif audio_event.get("type") == "error":
+                        audio_status = "failed"
+                        audio_error = str(audio_event.get("message") or "realtime tts error")
+                        if not tts_error_emitted:
+                            yield _to_sse_event(
+                                "audio_error",
+                                {
+                                    "message_id": assistant_msg.id,
+                                    "message": audio_error,
+                                },
+                            )
+                            tts_error_emitted = True
+                audio_stats = tts_bridge.get_stats()
+                if audio_stats.get("error"):
+                    audio_status = "failed"
+                    if not audio_error:
+                        audio_error = str(audio_stats.get("error"))
+                elif audio_status == "streaming":
+                    audio_status = "succeeded"
+                tts_bridge.close()
+            elif enable_audio and audio_status != "failed":
+                audio_status = "disabled"
+
+            assistant_msg.generation_status = "succeeded"
+            assistant_msg.content = full_content
+            assistant_msg.content_markdown = full_content
+            assistant_msg.model_name = rehearsal.answer_model
+            assistant_msg.selected_file_ids = selected_file_ids
+            assistant_msg.selected_file_meta = selected_meta
+            assistant_msg.grounding_answer = grounding_result["answer"]
+            assistant_msg.grounding_sources = grounding_result["sources"]
+            assistant_msg.search_sources = search_sources
+            assistant_msg.input_tokens = usage_data.get("input_tokens")
+            assistant_msg.output_tokens = usage_data.get("output_tokens")
+            assistant_msg.total_tokens = usage_data.get("total_tokens")
+            assistant_msg.meta = {
+                "selector_reason": selected.get("reason", ""),
+                "audio": {
+                    "enabled": enable_audio,
+                    "status": audio_status,
+                    "voice_id": voice_id or None,
+                    "voice_name": voice_name or None,
+                    "tts_model": tts_model or None,
+                    "error": audio_error or None,
+                    **audio_stats,
+                },
+            }
+            assistant_msg.error_message = None
+            assistant_msg.save(
+                update_fields=[
+                    "generation_status",
+                    "content",
+                    "content_markdown",
+                    "model_name",
+                    "selected_file_ids",
+                    "selected_file_meta",
+                    "grounding_answer",
+                    "grounding_sources",
+                    "search_sources",
+                    "input_tokens",
+                    "output_tokens",
+                    "total_tokens",
+                    "meta",
+                    "error_message",
+                    "updated_at",
+                ]
+            )
+            session.last_message_at = timezone.now()
+            session.save(update_fields=["last_message_at", "updated_at"])
+
+            yield _to_sse_event(
+                "done",
+                {
+                    "message_id": assistant_msg.id,
+                    "usage": usage_data,
+                    "search_sources": search_sources,
+                    "selected_file_ids": selected_file_ids,
+                    "audio": {
+                        "enabled": enable_audio,
+                        "status": audio_status,
+                        "voice_id": voice_id or None,
+                        "voice_name": voice_name or None,
+                        "tts_model": tts_model or None,
+                        "error": audio_error or None,
+                        **audio_stats,
+                    },
+                },
+            )
+
+        response = StreamingHttpResponse(
+            event_stream(),
+            content_type="text/event-stream",
+        )
+        response["Cache-Control"] = "no-cache"
+        response["X-Accel-Buffering"] = "no"
+        return response

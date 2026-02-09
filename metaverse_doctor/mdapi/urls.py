@@ -6,6 +6,7 @@ from mdapi.auth_views import (
     DoctorApplicationReviewView,
     DoctorRegisterView,
     DoctorTokenObtainPairView,
+    PatientRegisterView,
 )
 from mdapi.views import (
     DoctorAvatarVideoRefreshView,
@@ -25,6 +26,11 @@ from mdapi.views import (
     DoctorNarrativeAnnotationView,
     DoctorNarrativeKernelView,
     DoctorNarrativeRedlineView,
+    PatientConsultAskStreamView,
+    PatientConsultMessageView,
+    PatientConsultSessionView,
+    PatientDoctorAssetsView,
+    PatientDoctorDirectoryView,
 )
 
 
@@ -32,6 +38,7 @@ urlpatterns = [
     path("auth/login/", DoctorTokenObtainPairView.as_view(), name="auth-login"),
     path("auth/token/refresh/", CustomTokenRefreshView.as_view(), name="auth-refresh"),
     path("auth/doctor/register/", DoctorRegisterView.as_view(), name="doctor-register"),
+    path("auth/patient/register/", PatientRegisterView.as_view(), name="patient-register"),
     path(
         "auth/doctor/applications/",
         DoctorApplicationListView.as_view(),
@@ -122,5 +129,26 @@ urlpatterns = [
         "doctor/rehearsal/messages/<int:message_id>/feedback/",
         DoctorRehearsalMessageFeedbackView.as_view(),
         name="doctor-rehearsal-message-feedback",
+    ),
+    path("patient/doctors/", PatientDoctorDirectoryView.as_view(), name="patient-doctors"),
+    path(
+        "patient/doctors/<int:doctor_id>/assets/",
+        PatientDoctorAssetsView.as_view(),
+        name="patient-doctor-assets",
+    ),
+    path(
+        "patient/sessions/",
+        PatientConsultSessionView.as_view(),
+        name="patient-sessions",
+    ),
+    path(
+        "patient/sessions/<int:session_id>/messages/",
+        PatientConsultMessageView.as_view(),
+        name="patient-session-messages",
+    ),
+    path(
+        "patient/sessions/<int:session_id>/ask/stream/",
+        PatientConsultAskStreamView.as_view(),
+        name="patient-session-ask-stream",
     ),
 ]

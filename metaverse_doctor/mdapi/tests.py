@@ -2,7 +2,13 @@ from django.test import SimpleTestCase, TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 from unittest.mock import patch
 
-from mdapi.models import CustomUser, DoctorRehearsalMessage, DoctorRehearsalSession
+from mdapi.models import (
+    CustomUser,
+    DoctorRehearsalMessage,
+    DoctorRehearsalSession,
+    PatientConsultMessage,
+    PatientConsultSession,
+)
 from mdapi.services.digital_human import (
     DigitalHumanServiceError,
     QwenDigitalHumanService,
@@ -19,7 +25,14 @@ from mdapi.services.narrative_kernel import (
 )
 from mdapi.services.narrative_llm import QwenNarrativeOptimizer
 from mdapi.services.rehearsal import DoctorRehearsalService, RehearsalServiceError
-from mdapi.views import DoctorRehearsalAskStreamView, DoctorRehearsalMessageView
+from mdapi.services.rehearsal_tts import DoctorRehearsalRealtimeTTS
+from mdapi.views import (
+    DoctorRehearsalAskStreamView,
+    DoctorRehearsalMessageView,
+    PatientConsultAskStreamView,
+    PatientConsultSessionView,
+    PatientDoctorDirectoryView,
+)
 
 
 class DashScopeLikeResponse(dict):
@@ -336,6 +349,58 @@ class RehearsalServiceHelperTests(SimpleTestCase):
         self.assertIn("[SOURCE fileid://file-b]", result["answer"])
 
 
+class RehearsalRealtimeTTSHelperTests(SimpleTestCase):
+    def test_extract_completed_segments_by_sentence_end(self):
+        segments, remainder = DoctorRehearsalRealtimeTTS.extract_completed_segments(
+            "第一句。第二句？第三句",
+            max_buffer_chars=120,
+        )
+        self.assertEqual(segments, ["第一句。", "第二句？"])
+        self.assertEqual(remainder, "第三句")
+
+    def test_extract_completed_segments_soft_break_when_too_long(self):
+        text = "这是一段没有句号但会超过阈值的文本，需要在逗号位置切分，避免实时语音长时间无输出"
+        segments, remainder = DoctorRehearsalRealtimeTTS.extract_completed_segments(
+            text,
+            max_buffer_chars=20,
+        )
+        self.assertTrue(segments)
+        self.assertLessEqual(len(remainder), 20)
+
+    def test_normalize_markdown_for_tts(self):
+        text = (
+            "## 处理建议\n"
+            "- 先观察 24 小时\n"
+            "- 再复查\n"
+            "[查看指南](https://example.com)\n"
+            "`不要读出符号`"
+        )
+        normalized = DoctorRehearsalRealtimeTTS.normalize_markdown_for_tts(text)
+        self.assertIn("先观察 24 小时", normalized)
+        self.assertIn("再复查", normalized)
+        self.assertIn("查看指南", normalized)
+        self.assertNotIn("- 先观察", normalized)
+        self.assertNotIn("##", normalized)
+        self.assertNotIn("https://example.com", normalized)
+        self.assertNotIn("`", normalized)
+
+    def test_append_text_pushes_each_chunk_immediately(self):
+        calls = []
+
+        class _FakeClient:
+            @staticmethod
+            def append_text(text):
+                calls.append(text)
+
+        service = DoctorRehearsalRealtimeTTS.__new__(DoctorRehearsalRealtimeTTS)
+        service._client = _FakeClient()
+
+        DoctorRehearsalRealtimeTTS.append_text(service, "第一段。")
+        DoctorRehearsalRealtimeTTS.append_text(service, "第二段。")
+
+        self.assertEqual(calls, ["第一段。", "第二段。"])
+
+
 class RehearsalViewTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
@@ -420,3 +485,197 @@ class RehearsalViewTests(TestCase):
         self.assertIsNotNone(assistant_message)
         self.assertEqual(assistant_message.content, "[生成中]")
         self.assertEqual(assistant_message.generation_status, "failed")
+
+
+class PatientConsultViewTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.patient = CustomUser.objects.create_user(
+            username="patient_consult_tester",
+            password="pass12345",
+            is_doctor=False,
+            is_active=True,
+        )
+        self.available_doctor = CustomUser.objects.create_user(
+            username="approved_doctor_for_patient",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+        )
+        self.pending_doctor = CustomUser.objects.create_user(
+            username="pending_doctor_for_patient",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="pending",
+        )
+        self.inactive_doctor = CustomUser.objects.create_user(
+            username="inactive_doctor_for_patient",
+            password="pass12345",
+            is_doctor=True,
+            is_active=False,
+            doctor_apply_status="approved",
+        )
+
+    def test_doctor_directory_only_returns_approved_active_doctors(self):
+        request = self.factory.get("/api/patient/doctors/")
+        force_authenticate(request, user=self.patient)
+
+        response = PatientDoctorDirectoryView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        doctor_ids = [item["id"] for item in response.data["data"]]
+        self.assertIn(self.available_doctor.id, doctor_ids)
+        self.assertNotIn(self.pending_doctor.id, doctor_ids)
+        self.assertNotIn(self.inactive_doctor.id, doctor_ids)
+
+    def test_create_patient_session_with_approved_doctor(self):
+        request = self.factory.post(
+            "/api/patient/sessions/",
+            {"doctor_id": self.available_doctor.id, "title": "首次问诊"},
+            format="json",
+        )
+        force_authenticate(request, user=self.patient)
+
+        response = PatientConsultSessionView.as_view()(request)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["data"]["doctor"]["id"], self.available_doctor.id)
+        self.assertEqual(response.data["data"]["title"], "首次问诊")
+        self.assertTrue(
+            PatientConsultSession.objects.filter(
+                patient=self.patient,
+                doctor=self.available_doctor,
+                title="首次问诊",
+            ).exists()
+        )
+
+    def test_patient_ask_stream_defaults_enable_audio_true(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title="患者流式问诊会话",
+        )
+
+        class _FakeRehearsalService:
+            answer_model = "qwen-max-latest"
+            history_limit = 12
+
+            @staticmethod
+            def build_ranked_candidates(question, knowledge_items):  # noqa: ARG004
+                return []
+
+            @staticmethod
+            def select_file_ids_with_qwen_max(*, question, candidates):  # noqa: ARG004
+                return {"selected_file_ids": [], "reason": "no-match"}
+
+            @staticmethod
+            def build_long_grounding_answer(*, question, selected_file_ids):  # noqa: ARG004
+                return {"answer": "", "sources": []}
+
+            @staticmethod
+            def build_final_messages(
+                narrative_kernel_prompt,  # noqa: ARG004
+                grounding_answer,  # noqa: ARG004
+                history_messages,  # noqa: ARG004
+                question,  # noqa: ARG004
+            ):
+                return [
+                    {"role": "system", "content": "system"},
+                    {"role": "user", "content": question},
+                ]
+
+            @staticmethod
+            def stream_final_answer(*, messages, forced_search):  # noqa: ARG004
+                yield {"type": "delta", "delta": "您好，"}
+                yield {
+                    "type": "done",
+                    "content": "您好，已收到您的问题。",
+                    "usage": {
+                        "input_tokens": 11,
+                        "output_tokens": 7,
+                        "total_tokens": 18,
+                    },
+                    "search_sources": [],
+                }
+
+        class _FakeRealtimeTTS:
+            def __init__(self, **kwargs):  # noqa: ANN003
+                self._events = []
+
+            def start(self):
+                return None
+
+            def append_text(self, text):
+                if text:
+                    self._events.append({"type": "audio_delta", "delta": "YXVkaW8x"})
+
+            def drain_events(self, max_items=500):  # noqa: ARG002
+                events = list(self._events)
+                self._events.clear()
+                return events
+
+            def finish(self):
+                return None
+
+            def drain_until_done(self, max_wait_seconds=15.0):  # noqa: ARG002
+                return [{"type": "audio_delta", "delta": "YXVkaW8y"}]
+
+            @staticmethod
+            def get_stats():
+                return {
+                    "audio_format": "pcm16",
+                    "sample_rate": 24000,
+                    "channels": 1,
+                    "first_audio_delay_ms": 10,
+                    "audio_chunk_count": 2,
+                    "audio_base64_chars": 12,
+                    "error": "",
+                }
+
+            def close(self):
+                return None
+
+        request = self.factory.post(
+            f"/api/patient/sessions/{session.id}/ask/stream/",
+            {"question": "我最近睡眠不太好"},
+            format="json",
+        )
+        force_authenticate(request, user=self.patient)
+
+        with patch(
+            "mdapi.views.get_rehearsal_service",
+            return_value=_FakeRehearsalService(),
+        ), patch(
+            "mdapi.views.DoctorRehearsalRealtimeTTS",
+            _FakeRealtimeTTS,
+        ):
+            response = PatientConsultAskStreamView.as_view()(request, session_id=session.id)
+            chunks = []
+            for item in response.streaming_content:
+                if isinstance(item, bytes):
+                    chunks.append(item.decode("utf-8"))
+                else:
+                    chunks.append(str(item))
+            body = "".join(chunks)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertIn("event: start", body)
+        self.assertIn('"enabled": true', body)
+        self.assertIn("event: audio_delta", body)
+        self.assertIn("event: done", body)
+
+        user_message = PatientConsultMessage.objects.filter(
+            session=session,
+            role="user",
+        ).first()
+        assistant_message = PatientConsultMessage.objects.filter(
+            session=session,
+            role="assistant",
+        ).first()
+        self.assertIsNotNone(user_message)
+        self.assertIsNotNone(assistant_message)
+        self.assertEqual(assistant_message.generation_status, "succeeded")
+        self.assertEqual(assistant_message.content, "您好，已收到您的问题。")
