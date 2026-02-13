@@ -81,8 +81,9 @@ export default function PatientConsultReviewPage() {
       const data: DoctorConsultTreePayload = await consultReviewApi.tree()
       setTree(data.patients)
       setExpandedPatientIds((prev) => {
-        if (prev.length) return prev
-        return data.patients.map((item) => item.patient.id)
+        if (!prev.length) return []
+        const patientIds = new Set(data.patients.map((item) => item.patient.id))
+        return prev.filter((id) => patientIds.has(id))
       })
 
       setSelectedSessionId((prev) => {
@@ -464,4 +465,3 @@ export default function PatientConsultReviewPage() {
     </div>
   )
 }
-

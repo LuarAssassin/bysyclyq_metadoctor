@@ -9,6 +9,7 @@ import GlassCard from '@/components/GlassCard'
 import StatusBadge from '@/components/StatusBadge'
 import { cn } from '@/lib/cn'
 import {
+  Expand,
   CircleStop,
   ImagePlus,
   Loader2,
@@ -19,9 +20,10 @@ import {
   Upload,
   UserCircle,
   Volume2,
+  X,
 } from 'lucide-react'
 import dayjs from 'dayjs'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 
 const videoStatusMap: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'info' }> = {
   submitted: { label: '已提交', variant: 'info' },
@@ -30,11 +32,73 @@ const videoStatusMap: Record<string, { label: string; variant: 'success' | 'warn
   failed:    { label: '失败', variant: 'danger' },
 }
 
+const voiceCloneGuideText =
+  '白日依山尽，黄河入海流。欲穷千里目，更上一层楼。'
+
+const FIXED_VIDEO_DURATION_SECONDS = 15
+const FIXED_VIDEO_GENERATE_COUNT = 5
+
 /* ── 录音时长格式化 ─────────── */
 function fmtDuration(sec: number) {
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function encodeAudioBufferToWav(audioBuffer: AudioBuffer): ArrayBuffer {
+  const numChannels = audioBuffer.numberOfChannels
+  const sampleRate = audioBuffer.sampleRate
+  const numFrames = audioBuffer.length
+  const bytesPerSample = 2
+  const blockAlign = numChannels * bytesPerSample
+  const dataSize = numFrames * blockAlign
+  const wavBuffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(wavBuffer)
+
+  const writeAscii = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) {
+      view.setUint8(offset + i, value.charCodeAt(i))
+    }
+  }
+
+  writeAscii(0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeAscii(8, 'WAVE')
+  writeAscii(12, 'fmt ')
+  view.setUint32(16, 16, true) // PCM
+  view.setUint16(20, 1, true) // format
+  view.setUint16(22, numChannels, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * blockAlign, true)
+  view.setUint16(32, blockAlign, true)
+  view.setUint16(34, 16, true) // bitsPerSample
+  writeAscii(36, 'data')
+  view.setUint32(40, dataSize, true)
+
+  let writeOffset = 44
+  for (let frame = 0; frame < numFrames; frame += 1) {
+    for (let channel = 0; channel < numChannels; channel += 1) {
+      const sample = audioBuffer.getChannelData(channel)[frame] ?? 0
+      const clamped = Math.max(-1, Math.min(1, sample))
+      const pcm = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
+      view.setInt16(writeOffset, pcm, true)
+      writeOffset += 2
+    }
+  }
+
+  return wavBuffer
+}
+
+async function convertBlobToWav(blob: Blob): Promise<Blob> {
+  const arrayBuffer = await blob.arrayBuffer()
+  const decodeContext = new AudioContext()
+  try {
+    const audioBuffer = await decodeContext.decodeAudioData(arrayBuffer.slice(0))
+    const wavArrayBuffer = encodeAudioBufferToWav(audioBuffer)
+    return new Blob([wavArrayBuffer], { type: 'audio/wav' })
+  } finally {
+    await decodeContext.close().catch(() => {})
+  }
 }
 
 export default function DigitalHumanPage() {
@@ -53,7 +117,7 @@ export default function DigitalHumanPage() {
   const voiceRef = useRef<HTMLInputElement>(null)
 
   // Recording
-  const [voiceMode, setVoiceMode] = useState<'file' | 'record'>('file')
+  const [voiceMode, setVoiceMode] = useState<'file' | 'record'>('record')
   const [isRecording, setIsRecording] = useState(false)
   const [recordSec, setRecordSec] = useState(0)
   const [recordPreviewUrl, setRecordPreviewUrl] = useState<string | null>(null)
@@ -69,10 +133,14 @@ export default function DigitalHumanPage() {
   const [videos, setVideos] = useState<AvatarVideo[]>([])
   const [videoLoading, setVideoLoading] = useState(false)
   const [creatingVideo, setCreatingVideo] = useState(false)
+  const [previewVideo, setPreviewVideo] = useState<{
+    title: string
+    src: string
+  } | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const imageRef = useRef<HTMLInputElement>(null)
   const [videoForm, setVideoForm] = useState({
-    prompt: '', duration: 5, resolution: '720P', generate_count: 5,
+    prompt: '', resolution: '720P',
   })
 
   const hasRunning = videos.some((v) => ['submitted', 'running'].includes(v.task_status))
@@ -152,13 +220,40 @@ export default function DigitalHumanPage() {
       chunksRef.current = []
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
-        const ext = recorder.mimeType.includes('mp4') ? 'mp4' : recorder.mimeType.includes('webm') ? 'webm' : 'wav'
-        const file = new File([blob], `录音_${dayjs().format('HHmmss')}.${ext}`, { type: recorder.mimeType })
-        setVoiceFile(file)
-        setRecordPreviewUrl(URL.createObjectURL(blob))
-        audioCtx.close().catch(() => {})
-        cleanupRecording()
+        void (async () => {
+          const rawMimeType = recorder.mimeType || 'audio/webm'
+          const rawBlob = new Blob(chunksRef.current, { type: rawMimeType })
+
+          let finalBlob: Blob
+          if (rawMimeType.includes('wav')) {
+            finalBlob = rawBlob
+          } else {
+            try {
+              // 百炼音色复刻对浏览器录音容器兼容性差，统一转 WAV 后上传
+              finalBlob = await convertBlobToWav(rawBlob)
+            } catch {
+              if (recordPreviewUrl) URL.revokeObjectURL(recordPreviewUrl)
+              setRecordPreviewUrl(null)
+              setVoiceFile(null)
+              toast.error('录音转码失败，请改用文件上传（.wav/.mp3）后再创建音色')
+              audioCtx.close().catch(() => {})
+              cleanupRecording()
+              return
+            }
+          }
+
+          const file = new File(
+            [finalBlob],
+            `录音_${dayjs().format('HHmmss')}.wav`,
+            { type: 'audio/wav' },
+          )
+
+          setVoiceFile(file)
+          if (recordPreviewUrl) URL.revokeObjectURL(recordPreviewUrl)
+          setRecordPreviewUrl(URL.createObjectURL(finalBlob))
+          audioCtx.close().catch(() => {})
+          cleanupRecording()
+        })()
       }
       mediaRecorderRef.current = recorder
       recorder.start(200) // 每 200ms 产出一个 chunk
@@ -184,7 +279,7 @@ export default function DigitalHumanPage() {
         ctx.clearRect(0, 0, width, height)
 
         // 背景
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.6)'
+        ctx.fillStyle = 'rgba(224, 242, 254, 0.9)'
         ctx.fillRect(0, 0, width, height)
 
         // 波形
@@ -258,8 +353,9 @@ export default function DigitalHumanPage() {
     try {
       const res = await digitalHumanApi.createVideos({
         image: imageFile, prompt: videoForm.prompt || undefined,
-        duration: videoForm.duration, resolution: videoForm.resolution,
-        generate_count: videoForm.generate_count,
+        duration: FIXED_VIDEO_DURATION_SECONDS,
+        resolution: videoForm.resolution,
+        generate_count: FIXED_VIDEO_GENERATE_COUNT,
       })
       toast.success(res.message)
       if (res.data.failed_count > 0) toast.warning(`${res.data.failed_count} 条任务提交失败`)
@@ -271,6 +367,18 @@ export default function DigitalHumanPage() {
   const refreshVideo = async (id: number) => {
     try { const r = await digitalHumanApi.refreshVideo(id); toast.success(r.message); await loadVideos() }
     catch (e) { toast.error(toErrorMessage(e)) }
+  }
+
+  const openVideoPreview = (video: AvatarVideo) => {
+    const src = video.video_play_url || video.video_oss_url
+    if (!src) {
+      toast.warning('视频尚未就绪，暂不可预览')
+      return
+    }
+    setPreviewVideo({
+      title: video.scene_name || video.scene_key || `视频#${video.id}`,
+      src,
+    })
   }
 
   return (
@@ -320,18 +428,9 @@ export default function DigitalHumanPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Voice Create */}
         <GlassCard title="医生音色复刻" extra={<StatusBadge variant="info"><Mic className="w-3 h-3" />最大 20MB</StatusBadge>}>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* 模式切换 */}
             <div className="flex rounded-lg bg-alpine-50 p-0.5">
-              <button
-                onClick={() => { setVoiceMode('file'); if (isRecording) stopRecording() }}
-                className={cn(
-                  'flex-1 h-8 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all',
-                  voiceMode === 'file' ? 'bg-white text-alpine-800 shadow-sm' : 'text-alpine-400 hover:text-alpine-600'
-                )}
-              >
-                <Volume2 className="w-3.5 h-3.5" /> 文件上传
-              </button>
               <button
                 onClick={() => setVoiceMode('record')}
                 className={cn(
@@ -341,7 +440,23 @@ export default function DigitalHumanPage() {
               >
                 <Mic className="w-3.5 h-3.5" /> 在线录音
               </button>
+              <button
+                onClick={() => { setVoiceMode('file'); if (isRecording) stopRecording() }}
+                className={cn(
+                  'flex-1 h-8 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all',
+                  voiceMode === 'file' ? 'bg-white text-alpine-800 shadow-sm' : 'text-alpine-400 hover:text-alpine-600'
+                )}
+              >
+                <Volume2 className="w-3.5 h-3.5" /> 文件上传
+              </button>
             </div>
+
+            {voiceMode === 'record' && (
+              <div className="rounded-xl bg-gradient-to-r from-snow-50 to-white px-3 py-1.5">
+                <p className="text-xs font-medium text-ice-700 mb-1">点击【开始录音】并朗读：</p>
+                <p className="text-xs leading-relaxed text-alpine-600">{voiceCloneGuideText}</p>
+              </div>
+            )}
 
             {/* 文件上传模式 */}
             {voiceMode === 'file' && (
@@ -357,20 +472,15 @@ export default function DigitalHumanPage() {
 
             {/* 在线录音模式 */}
             {voiceMode === 'record' && (
-              <div className="space-y-2.5">
+              <div className="space-y-1.5">
                 {/* 波形画布 */}
-                <div className="relative rounded-xl overflow-hidden bg-alpine-900/60" style={{ height: 72 }}>
+                <div className="relative rounded-xl overflow-hidden bg-gradient-to-r from-snow-50 to-white" style={{ height: 44 }}>
                   <canvas
                     ref={waveCanvasRef}
                     width={400}
-                    height={72}
+                    height={44}
                     className="w-full h-full"
                   />
-                  {!isRecording && !recordPreviewUrl && (
-                    <div className="absolute inset-0 flex items-center justify-center text-xs text-alpine-400">
-                      点击下方按钮开始录音
-                    </div>
-                  )}
                   {isRecording && (
                     <div className="absolute top-2 left-3 flex items-center gap-1.5">
                       <span className="relative flex h-2 w-2">
@@ -466,7 +576,7 @@ export default function DigitalHumanPage() {
         title="医生数字人视频生成"
         extra={<StatusBadge variant={hasRunning ? 'warning' : 'success'} dot>{hasRunning ? '轮询中 (4s)' : '任务稳定'}</StatusBadge>}
       >
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-alpine-500 mb-1">首帧图片</label>
             <button onClick={() => imageRef.current?.click()} className="w-full h-10 rounded-xl border border-dashed border-alpine-200 hover:border-ice-300 text-sm text-alpine-500 flex items-center justify-center gap-2 transition-colors">
@@ -476,12 +586,10 @@ export default function DigitalHumanPage() {
             <input ref={imageRef} type="file" accept="image/*" className="hidden" onChange={(e) => setImageFile(e.target.files?.[0] || null)} />
           </div>
           <div>
-            <label className="block text-xs font-medium text-alpine-500 mb-1">时长 (2-15s)</label>
-            <input type="number" min={2} max={15} value={videoForm.duration} onChange={(e) => setVideoForm((p) => ({ ...p, duration: +e.target.value }))} className="w-full h-10 rounded-lg border border-alpine-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ice-300" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-alpine-500 mb-1">任务数量 (1-5)</label>
-            <input type="number" min={1} max={5} value={videoForm.generate_count} onChange={(e) => setVideoForm((p) => ({ ...p, generate_count: +e.target.value }))} className="w-full h-10 rounded-lg border border-alpine-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ice-300" />
+            <label className="block text-xs font-medium text-alpine-500 mb-1">固定生成策略</label>
+            <div className="h-10 rounded-lg border border-alpine-200 bg-alpine-50 px-3 text-sm text-alpine-600 flex items-center">
+              时长 {FIXED_VIDEO_DURATION_SECONDS} 秒 · 任务 {FIXED_VIDEO_GENERATE_COUNT} 条
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -514,7 +622,12 @@ export default function DigitalHumanPage() {
                 </div>
                 <div className="aspect-video bg-alpine-900">
                   {(v.video_play_url || v.video_oss_url) ? (
-                    <video controls src={v.video_play_url || v.video_oss_url || undefined} onError={() => { toast.info('播放地址可能过期，正在刷新'); loadVideos() }} className="w-full h-full object-cover" />
+                    <video
+                      controls
+                      src={v.video_play_url || v.video_oss_url || undefined}
+                      onError={() => { toast.info('播放地址可能过期，正在刷新'); loadVideos() }}
+                      className="w-full h-full object-contain bg-alpine-900"
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-sm text-alpine-400">视频未就绪</div>
                   )}
@@ -523,7 +636,14 @@ export default function DigitalHumanPage() {
                   <p className="text-[11px] text-alpine-400 truncate">task: {v.task_id}</p>
                   <p className="text-[11px] text-alpine-400">{dayjs(v.updated_at).format('MM-DD HH:mm')}</p>
                   {v.error_message && <p className="text-[11px] text-red-500 line-clamp-2 mt-0.5">{v.error_message}</p>}
-                  <button onClick={() => refreshVideo(v.id)} className="mt-1.5 w-full text-xs text-ice-600 hover:text-ice-700 py-1.5 rounded-lg hover:bg-ice-50 transition-colors flex items-center justify-center gap-1">
+                  <button
+                    onClick={() => openVideoPreview(v)}
+                    disabled={!(v.video_play_url || v.video_oss_url)}
+                    className="mt-1.5 w-full text-xs text-alpine-600 hover:text-alpine-700 py-1.5 rounded-lg hover:bg-alpine-50 transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Expand className="w-3 h-3" /> 放大查看
+                  </button>
+                  <button onClick={() => refreshVideo(v.id)} className="mt-1 w-full text-xs text-ice-600 hover:text-ice-700 py-1.5 rounded-lg hover:bg-ice-50 transition-colors flex items-center justify-center gap-1">
                     <RefreshCw className="w-3 h-3" /> 刷新状态
                   </button>
                 </div>
@@ -532,6 +652,51 @@ export default function DigitalHumanPage() {
           })}
         </div>
       )}
+
+      <AnimatePresence>
+        {previewVideo && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px]"
+              onClick={() => setPreviewVideo(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-50 p-4 sm:p-6 flex items-center justify-center"
+            >
+              <div
+                className="w-full max-w-6xl rounded-2xl overflow-hidden border border-white/20 bg-alpine-900 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="h-12 px-4 flex items-center justify-between bg-alpine-900/90 border-b border-white/10">
+                  <p className="text-sm font-medium text-white truncate">{previewVideo.title}</p>
+                  <button
+                    onClick={() => setPreviewVideo(null)}
+                    className="w-8 h-8 rounded-lg text-white/80 hover:text-white hover:bg-white/10 flex items-center justify-center"
+                    title="关闭"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="w-full bg-black" style={{ height: 'min(78vh, 860px)' }}>
+                  <video
+                    controls
+                    autoPlay
+                    src={previewVideo.src}
+                    className="w-full h-full object-contain bg-black"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

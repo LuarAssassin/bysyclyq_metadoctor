@@ -98,6 +98,10 @@ from mdapi.utils.api_response import APIResponse
 from mdapi.utils.pagnition import StandardResultsSetPagination
 
 
+FIXED_DOCTOR_AVATAR_VIDEO_DURATION_SECONDS = 15
+FIXED_DOCTOR_AVATAR_VIDEO_GENERATE_COUNT = 5
+
+
 def _mark_extract_failed(item: DoctorKnowledge, error_message: str):
     item.extract_status = "failed"
     item.knowledge_status = "failed"
@@ -1001,37 +1005,12 @@ class DoctorAvatarVideoView(APIView):
         if resolution not in {"720P", "1080P"}:
             return APIResponse.error(message="resolution 仅支持 720P 或 1080P", code=400)
 
-        try:
-            duration = int(
-                request.data.get(
-                    "duration",
-                    getattr(settings, "DIGITAL_HUMAN_I2V_DURATION", 5),
-                )
-            )
-        except (TypeError, ValueError):
-            return APIResponse.error(message="duration 必须是整数", code=400)
-        if not 2 <= duration <= 15:
-            return APIResponse.error(message="duration 必须在 2 到 15 秒之间", code=400)
+        duration = FIXED_DOCTOR_AVATAR_VIDEO_DURATION_SECONDS
 
         model = (request.data.get("model") or "").strip() or getattr(
             settings, "DIGITAL_HUMAN_I2V_MODEL", "wan2.6-i2v-flash"
         )
-        default_generate_count = int(
-            getattr(settings, "DIGITAL_HUMAN_I2V_GENERATE_COUNT", 5)
-        )
-        max_generate_count = max(
-            1, int(getattr(settings, "DIGITAL_HUMAN_I2V_MAX_GENERATE_COUNT", 5))
-        )
-        generate_count_raw = request.data.get("generate_count", default_generate_count)
-        try:
-            generate_count = int(generate_count_raw)
-        except (TypeError, ValueError):
-            return APIResponse.error(message="generate_count 必须是整数", code=400)
-        if not 1 <= generate_count <= max_generate_count:
-            return APIResponse.error(
-                message=f"generate_count 必须在 1 到 {max_generate_count} 之间",
-                code=400,
-            )
+        generate_count = FIXED_DOCTOR_AVATAR_VIDEO_GENERATE_COUNT
 
         custom_prompt = (request.data.get("prompt") or "").strip()
         custom_negative_prompt = (request.data.get("negative_prompt") or "").strip()

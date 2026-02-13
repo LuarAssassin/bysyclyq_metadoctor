@@ -49,7 +49,7 @@ export default function MainLayout() {
       {/* ── Sidebar ─────────────────────── */}
       <aside className={cn(
         'sidebar-gradient fixed inset-y-0 left-0 z-40 w-[260px] flex flex-col transition-transform duration-300 ease-out',
-        'lg:translate-x-0 lg:static lg:z-auto',
+        'lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:z-auto',
         mobileOpen ? 'translate-x-0' : '-translate-x-full',
       )}>
         {/* Brand */}
@@ -67,7 +67,7 @@ export default function MainLayout() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 space-y-1 mt-2">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 space-y-1 mt-2">
           {navItems.map((item) => (
             <NavLink
               key={item.path}

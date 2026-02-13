@@ -110,7 +110,15 @@ class Command(BaseCommand):
 
             item.extract_status = "running"
             item.extract_error = None
-            item.save(update_fields=["extract_status", "extract_error", "updated_at"])
+            item.extract_raw_output = ""
+            item.save(
+                update_fields=[
+                    "extract_status",
+                    "extract_error",
+                    "extract_raw_output",
+                    "updated_at",
+                ]
+            )
 
             try:
                 signed_doc_url = None
@@ -161,6 +169,7 @@ class Command(BaseCommand):
                 )
             except QwenExtractionError as exc:
                 error_text = str(exc)
+                error_raw_output = str(getattr(exc, "raw_output", "") or "").strip()
                 if attempt < max_retries:
                     next_attempt = attempt + 1
                     is_parsing_in_progress = "File parsing in progress" in error_text
@@ -173,18 +182,21 @@ class Command(BaseCommand):
                         f"{error_text}（自动重试 {next_attempt}/{max_retries}，"
                         f"{delay_seconds} 秒后执行）"
                     )
+                    if error_raw_output:
+                        item.extract_raw_output = error_raw_output
                     item.extracted_at = timezone.now()
                     item.extract_retry_count = next_attempt
-                    item.save(
-                        update_fields=[
-                            "extract_status",
-                            "knowledge_status",
-                            "extract_error",
-                            "extracted_at",
-                            "extract_retry_count",
-                            "updated_at",
-                        ]
-                    )
+                    retry_update_fields = [
+                        "extract_status",
+                        "knowledge_status",
+                        "extract_error",
+                        "extracted_at",
+                        "extract_retry_count",
+                        "updated_at",
+                    ]
+                    if error_raw_output:
+                        retry_update_fields.append("extract_raw_output")
+                    item.save(update_fields=retry_update_fields)
                     try:
                         queue_client.enqueue(
                             {
@@ -198,16 +210,19 @@ class Command(BaseCommand):
                         item.extract_status = "failed"
                         item.knowledge_status = "failed"
                         item.extract_error = f"{error_text}; 重试入队失败: {queue_exc}"
+                        if error_raw_output:
+                            item.extract_raw_output = error_raw_output
                         item.extracted_at = timezone.now()
-                        item.save(
-                            update_fields=[
-                                "extract_status",
-                                "knowledge_status",
-                                "extract_error",
-                                "extracted_at",
-                                "updated_at",
-                            ]
-                        )
+                        queue_failed_update_fields = [
+                            "extract_status",
+                            "knowledge_status",
+                            "extract_error",
+                            "extracted_at",
+                            "updated_at",
+                        ]
+                        if error_raw_output:
+                            queue_failed_update_fields.append("extract_raw_output")
+                        item.save(update_fields=queue_failed_update_fields)
                     self.stderr.write(
                         self.style.WARNING(
                             f"[retry] knowledge_id={knowledge_id}, attempt={next_attempt}"
@@ -217,18 +232,21 @@ class Command(BaseCommand):
                     item.extract_status = "failed"
                     item.knowledge_status = "failed"
                     item.extract_error = error_text
+                    if error_raw_output:
+                        item.extract_raw_output = error_raw_output
                     item.extracted_at = timezone.now()
                     item.extract_retry_count = attempt
-                    item.save(
-                        update_fields=[
-                            "extract_status",
-                            "knowledge_status",
-                            "extract_error",
-                            "extracted_at",
-                            "extract_retry_count",
-                            "updated_at",
-                        ]
-                    )
+                    failed_update_fields = [
+                        "extract_status",
+                        "knowledge_status",
+                        "extract_error",
+                        "extracted_at",
+                        "extract_retry_count",
+                        "updated_at",
+                    ]
+                    if error_raw_output:
+                        failed_update_fields.append("extract_raw_output")
+                    item.save(update_fields=failed_update_fields)
                     self.stderr.write(
                         self.style.ERROR(
                             f"[failed] knowledge_id={knowledge_id}, attempt={attempt}, error={error_text}"

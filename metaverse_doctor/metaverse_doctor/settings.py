@@ -420,7 +420,7 @@ DIGITAL_HUMAN_I2V_MAX_GENERATE_COUNT = int(os.getenv("DIGITAL_HUMAN_I2V_MAX_GENE
 DIGITAL_HUMAN_DEFAULT_VOICE = os.getenv("DIGITAL_HUMAN_DEFAULT_VOICE", "longanyang")
 DIGITAL_HUMAN_VOICE_UPLOAD_CONFIG = {
     "MAX_FILE_SIZE": 20 * 1024 * 1024,
-    "ALLOWED_EXTENSIONS": [".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"],
+    "ALLOWED_EXTENSIONS": [".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm"],
     "ALLOWED_MIME_TYPES": [
         "audio/mpeg",
         "audio/mp3",
@@ -430,6 +430,8 @@ DIGITAL_HUMAN_VOICE_UPLOAD_CONFIG = {
         "audio/aac",
         "audio/flac",
         "audio/ogg",
+        "audio/webm",
+        "video/webm",
     ],
 }
 DIGITAL_HUMAN_AVATAR_UPLOAD_CONFIG = {

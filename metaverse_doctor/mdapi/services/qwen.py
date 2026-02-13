@@ -1,3 +1,4 @@
+import json
 import re
 import tempfile
 import logging
@@ -15,6 +16,10 @@ class QwenConfigurationError(Exception):
 
 class QwenExtractionError(Exception):
     """Raised when qwen extraction failed or output cannot be parsed."""
+
+    def __init__(self, message: str, *, raw_output: str | None = None):
+        super().__init__(message)
+        self.raw_output = (raw_output or "").strip()
 
 
 class QwenKnowledgeExtractor:
@@ -104,6 +109,16 @@ class QwenKnowledgeExtractor:
     def _normalize_content(content) -> str:
         if isinstance(content, str):
             return content
+        if isinstance(content, dict):
+            # 兼容不同 SDK 形态：{"text": "..."} / {"content": "..."} / 嵌套结构
+            for key in ("text", "content", "value"):
+                value = content.get(key)
+                if isinstance(value, str):
+                    return value.strip()
+                if isinstance(value, list):
+                    normalized = QwenKnowledgeExtractor._normalize_content(value)
+                    if normalized:
+                        return normalized
         if isinstance(content, list):
             fragments = []
             for item in content:
@@ -137,6 +152,72 @@ class QwenKnowledgeExtractor:
         for key, value in values.items():
             rendered = rendered.replace(f"{{{{{key}}}}}", str(value))
         return rendered
+
+    @staticmethod
+    def _strip_code_fence(text: str) -> str:
+        normalized = str(text or "").replace("\ufeff", "").strip()
+        fence_match = re.fullmatch(
+            r"```[a-zA-Z0-9_-]*\s*(.*?)\s*```",
+            normalized,
+            re.DOTALL,
+        )
+        if fence_match:
+            return (fence_match.group(1) or "").strip()
+        return normalized
+
+    @staticmethod
+    def _extract_first_match(text: str, patterns: list[str]) -> str:
+        for pattern in patterns:
+            match = re.search(pattern, text, re.DOTALL | re.IGNORECASE | re.MULTILINE)
+            if match:
+                value = (match.group(1) or "").strip()
+                if value:
+                    return value
+        return ""
+
+    def _parse_json_style_output(self, text: str) -> tuple[list[str], str] | None:
+        candidates = [text]
+        object_match = re.search(r"\{[\s\S]*\}", text)
+        if object_match:
+            candidate = (object_match.group(0) or "").strip()
+            if candidate and candidate not in candidates:
+                candidates.append(candidate)
+
+        for candidate in candidates:
+            try:
+                payload = json.loads(candidate)
+            except Exception:  # noqa: BLE001
+                continue
+
+            if not isinstance(payload, dict):
+                continue
+
+            raw_tags = (
+                payload.get("tags")
+                or payload.get("tag")
+                or payload.get("labels")
+                or payload.get("keywords")
+            )
+            raw_description = (
+                payload.get("description")
+                or payload.get("summary")
+                or payload.get("desc")
+                or payload.get("摘要")
+            )
+
+            if isinstance(raw_tags, list):
+                tag_parts = [str(item).strip() for item in raw_tags]
+            elif isinstance(raw_tags, str):
+                tag_parts = re.split(r"[|,，、\n]+", raw_tags)
+            else:
+                tag_parts = []
+
+            tags = self._unique_keep_order(tag_parts)[:12]
+            description = str(raw_description or "").strip()
+            if tags and description:
+                return tags, description
+
+        return None
 
     def upload_file(self, uploaded_file) -> str:
         temp_path = None
@@ -172,33 +253,78 @@ class QwenKnowledgeExtractor:
         return file_id
 
     def _parse_output(self, raw_output: str) -> tuple[list[str], str]:
-        tags_match = re.search(
+        normalized_output = self._strip_code_fence(raw_output)
+
+        tags_patterns = [
             rf"{re.escape(self.TAG_START)}(.*?){re.escape(self.TAG_END)}",
-            raw_output,
-            re.DOTALL | re.IGNORECASE,
-        )
-        desc_match = re.search(
+            r"\[\s*TAGS\s*\](.*?)\[\s*/\s*TAGS\s*\]",
+            r"【\s*TAGS\s*】(.*?)【\s*/\s*TAGS\s*】",
+            r"<\s*TAGS\s*>(.*?)<\s*/\s*TAGS\s*>",
+            r"(?:^|\n)\s*TAGS\s*[:：]\s*(.*?)(?=\n\s*(?:DESCRIPTION|摘要|说明|SUMMARY)\s*[:：]|$)",
+        ]
+        desc_patterns = [
             rf"{re.escape(self.DESC_START)}(.*?){re.escape(self.DESC_END)}",
-            raw_output,
-            re.DOTALL | re.IGNORECASE,
-        )
+            r"\[\s*DESCRIPTION\s*\](.*?)\[\s*/\s*DESCRIPTION\s*\]",
+            r"【\s*DESCRIPTION\s*】(.*?)【\s*/\s*DESCRIPTION\s*】",
+            r"<\s*DESCRIPTION\s*>(.*?)<\s*/\s*DESCRIPTION\s*>",
+            r"(?:^|\n)\s*(?:DESCRIPTION|摘要|说明|SUMMARY)\s*[:：]\s*(.*)",
+        ]
 
-        if not tags_match or not desc_match:
+        raw_tags = self._extract_first_match(normalized_output, tags_patterns)
+        description = self._extract_first_match(normalized_output, desc_patterns)
+
+        if not raw_tags or not description:
+            json_parsed = self._parse_json_style_output(normalized_output)
+            if json_parsed:
+                return json_parsed
+
             raise QwenExtractionError(
-                "Qwen 输出格式不符合要求，缺少 TAGS 或 DESCRIPTION 标识符"
+                "Qwen 输出格式不符合要求，缺少 TAGS 或 DESCRIPTION 标识符",
+                raw_output=raw_output,
             )
-
-        raw_tags = tags_match.group(1).strip()
-        description = desc_match.group(1).strip()
-        if not description:
-            raise QwenExtractionError("Qwen 输出缺少描述内容")
 
         parts = re.split(r"[|,，、\n]+", raw_tags)
         tags = self._unique_keep_order(parts)[:12]
         if not tags:
-            raise QwenExtractionError("Qwen 输出缺少标签")
+            raise QwenExtractionError("Qwen 输出缺少标签", raw_output=raw_output)
 
         return tags, description
+
+    def _build_combined_extract_error(
+        self,
+        *,
+        doc_error: str | None,
+        long_error: str | None,
+        raw_output: str | None = None,
+    ) -> QwenExtractionError:
+        parts = []
+        if doc_error:
+            parts.append(doc_error)
+        if long_error:
+            parts.append(f"回退 qwen-long 仍失败: {long_error}")
+        if not parts:
+            parts.append("Qwen 知识抽取失败")
+        return QwenExtractionError("; ".join(parts), raw_output=raw_output)
+
+    def _extract_and_parse_doc_turbo(
+        self,
+        *,
+        prompt: str,
+        doc_url: str,
+    ) -> tuple[list[str], str, str]:
+        raw_output = self._extract_with_doc_turbo(prompt, doc_url)
+        tags, description = self._parse_output(raw_output)
+        return tags, description, raw_output
+
+    def _extract_and_parse_qwen_long(
+        self,
+        *,
+        prompt: str,
+        file_id: str,
+    ) -> tuple[list[str], str, str]:
+        raw_output = self._extract_with_qwen_long(prompt, file_id=file_id)
+        tags, description = self._parse_output(raw_output)
+        return tags, description, raw_output
 
     def _extract_with_doc_turbo(self, prompt: str, doc_url: str) -> str:
         try:
@@ -266,24 +392,35 @@ class QwenKnowledgeExtractor:
         )
 
         doc_turbo_error = None
-        raw_output = None
+        doc_turbo_raw = ""
         if doc_url:
             try:
-                raw_output = self._extract_with_doc_turbo(prompt, doc_url)
+                tags, description, raw_output = self._extract_and_parse_doc_turbo(
+                    prompt=prompt,
+                    doc_url=doc_url,
+                )
+                return {
+                    "file_id": file_id,
+                    "tags": tags,
+                    "description": description,
+                    "raw_output": raw_output,
+                }
             except QwenExtractionError as exc:
                 doc_turbo_error = str(exc)
+                doc_turbo_raw = getattr(exc, "raw_output", "")
 
-        if not raw_output:
-            try:
-                raw_output = self._extract_with_qwen_long(prompt, file_id=file_id)
-            except QwenExtractionError as exc:
-                if doc_turbo_error:
-                    raise QwenExtractionError(
-                        f"{doc_turbo_error}; 回退 qwen-long 仍失败: {exc}"
-                    ) from exc
-                raise
+        try:
+            tags, description, raw_output = self._extract_and_parse_qwen_long(
+                prompt=prompt,
+                file_id=file_id,
+            )
+        except QwenExtractionError as exc:
+            raise self._build_combined_extract_error(
+                doc_error=doc_turbo_error,
+                long_error=str(exc),
+                raw_output=getattr(exc, "raw_output", "") or doc_turbo_raw,
+            ) from exc
 
-        tags, description = self._parse_output(raw_output)
         return {
             "file_id": file_id,
             "tags": tags,

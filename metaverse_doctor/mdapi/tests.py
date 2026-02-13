@@ -27,6 +27,7 @@ from mdapi.services.narrative_kernel import (
     render_narrative_kernel_dsl,
 )
 from mdapi.services.narrative_llm import QwenNarrativeOptimizer
+from mdapi.services.qwen import QwenExtractionError, QwenKnowledgeExtractor
 from mdapi.services.rehearsal import DoctorRehearsalService, RehearsalServiceError
 from mdapi.services.rehearsal_tts import DoctorRehearsalRealtimeTTS
 from mdapi.views import (
@@ -279,6 +280,68 @@ class NarrativeLLMServiceTests(SimpleTestCase):
         self.assertIn("KERNEL", delta)
         self.assertEqual(rules, ["不要绝对化表达"])
         self.assertEqual(reason, "医生强调风险沟通")
+
+
+class QwenKnowledgeExtractorTests(SimpleTestCase):
+    def test_parse_output_supports_json_style_payload(self):
+        extractor = QwenKnowledgeExtractor.__new__(QwenKnowledgeExtractor)
+        raw_output = (
+            "```json\n"
+            "{\"tags\":[\"运动损伤\",\"康复训练\"],"
+            "\"description\":\"本文介绍常见运动损伤的预防与康复路径，适用于跑步人群和基层康复场景。\"}\n"
+            "```"
+        )
+        tags, description = extractor._parse_output(raw_output)
+        self.assertEqual(tags, ["运动损伤", "康复训练"])
+        self.assertIn("预防与康复路径", description)
+
+    def test_extract_fallbacks_to_qwen_long_when_doc_turbo_parse_fails(self):
+        extractor = QwenKnowledgeExtractor.__new__(QwenKnowledgeExtractor)
+        extractor.extract_user_prompt_template = "文件名：{{file_name}}"
+
+        def _fake_doc_turbo(prompt, doc_url):  # noqa: ARG001
+            return "这是一个摘要，但是没有结构化标签。"
+
+        def _fake_qwen_long(prompt, file_id):  # noqa: ARG001
+            return (
+                "[TAGS]运动损伤|康复训练[/TAGS]\n"
+                "[DESCRIPTION]本文聚焦运动损伤的风险识别与康复训练建议，"
+                "适用于基层问诊和健康科普场景。[/DESCRIPTION]"
+            )
+
+        extractor._extract_with_doc_turbo = _fake_doc_turbo
+        extractor._extract_with_qwen_long = _fake_qwen_long
+
+        result = extractor.extract(
+            file_id="file-1",
+            file_name="test.pdf",
+            doc_url="https://example.com/test.pdf",
+        )
+
+        self.assertEqual(result["tags"], ["运动损伤", "康复训练"])
+        self.assertIn("基层问诊", result["description"])
+
+    def test_extract_error_contains_raw_output_when_parse_fails(self):
+        extractor = QwenKnowledgeExtractor.__new__(QwenKnowledgeExtractor)
+        extractor.extract_user_prompt_template = "文件名：{{file_name}}"
+
+        def _fake_doc_turbo(prompt, doc_url):  # noqa: ARG001
+            return "无结构化输出"
+
+        def _fake_qwen_long(prompt, file_id):  # noqa: ARG001
+            return "依旧不是结构化输出"
+
+        extractor._extract_with_doc_turbo = _fake_doc_turbo
+        extractor._extract_with_qwen_long = _fake_qwen_long
+
+        with self.assertRaises(QwenExtractionError) as ctx:
+            extractor.extract(
+                file_id="file-2",
+                file_name="test2.pdf",
+                doc_url="https://example.com/test2.pdf",
+            )
+
+        self.assertTrue(getattr(ctx.exception, "raw_output", ""))
 
 
 class RehearsalServiceHelperTests(SimpleTestCase):
