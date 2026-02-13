@@ -9,14 +9,41 @@ DEFAULT_KERNEL_NAME = "doctor_narrative_kernel"
 DEFAULT_MAX_ANNOTATION_MEMORY = 30
 DEFAULT_MAX_REDLINE_RULES = 100
 DEFAULT_MAX_BAD_CASES = 50
+DEFAULT_OPENING_PROMPT_SUFFIX = (
+    "。我会结合您的描述，尽量提供专业、清晰的建议。请问今天有什么我可以帮您的吗？"
+)
 
 
-def build_default_narrative_payload(doctor) -> dict[str, Any]:
+def _doctor_display_name(doctor) -> str:
     display_name = (
         getattr(doctor, "nickname", None)
         or getattr(doctor, "get_full_name", lambda: "")()
         or getattr(doctor, "username", "doctor")
     )
+    display_name = str(display_name or "").strip() or "医生"
+    if not display_name.endswith("医生"):
+        display_name = f"{display_name}医生"
+    return display_name
+
+
+def build_default_opening_text(doctor) -> str:
+    display_name = _doctor_display_name(doctor)
+    profession = str(getattr(doctor, "profession", None) or "").strip()
+    institution = str(getattr(doctor, "institution", None) or "").strip()
+
+    opening = f"您好！我是{display_name}"
+    if institution and profession:
+        opening += f"，来自{institution}{profession}"
+    elif institution:
+        opening += f"，来自{institution}"
+    elif profession:
+        opening += f"，主要从事{profession}相关工作"
+    opening += DEFAULT_OPENING_PROMPT_SUFFIX
+    return opening
+
+
+def build_default_narrative_payload(doctor) -> dict[str, Any]:
+    display_name = _doctor_display_name(doctor)
     profession = getattr(doctor, "profession", None) or "临床医生"
     institution = getattr(doctor, "institution", None) or "未配置机构"
 
@@ -128,6 +155,9 @@ def build_default_narrative_payload(doctor) -> dict[str, Any]:
             "LOCATION": ["outpatient_room"],
             "INTENT": ["clarify_condition_and_plan"],
             "TONE": ["calm_surface", "decision_focused"],
+        },
+        "OPENING": {
+            "text": build_default_opening_text(doctor),
         },
     }
 

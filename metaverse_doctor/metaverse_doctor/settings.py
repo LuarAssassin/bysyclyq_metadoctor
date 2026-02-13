@@ -175,7 +175,6 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -256,6 +255,9 @@ ALIBABA_CLOUD_ACCESS_KEY_SECRET = os.getenv('ALIBABA_CLOUD_ACCESS_KEY_SECRET')
 OSS_BUCKET = os.getenv('OSS_BUCKET')
 OSS_REGION = os.getenv('OSS_REGION')
 OSS_PUBLIC_BASE_URL = os.getenv('OSS_PUBLIC_BASE_URL')
+OSS_AVATAR_SIGNED_URL_EXPIRE_SECONDS = int(
+    os.getenv("OSS_AVATAR_SIGNED_URL_EXPIRE_SECONDS", 24 * 60 * 60)
+)
 
 # 医生知识库上传配置（与 qwen-long / qwen-doc-turbo 文档能力对齐）
 DOCTOR_KNOWLEDGE_UPLOAD_CONFIG = {
@@ -386,7 +388,7 @@ QWEN_REHEARSAL_ANSWER_MODEL = os.getenv("QWEN_REHEARSAL_ANSWER_MODEL", "qwen-max
 QWEN_REHEARSAL_HISTORY_LIMIT = int(os.getenv("QWEN_REHEARSAL_HISTORY_LIMIT", 12))
 QWEN_REHEARSAL_SEARCH_STRATEGY = os.getenv("QWEN_REHEARSAL_SEARCH_STRATEGY", "max")
 QWEN_REHEARSAL_FORCED_SEARCH = os.getenv(
-    "QWEN_REHEARSAL_FORCED_SEARCH", "true"
+    "QWEN_REHEARSAL_FORCED_SEARCH", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
 QWEN_REHEARSAL_ENABLE_CITATION = os.getenv(
     "QWEN_REHEARSAL_ENABLE_CITATION", "true"
@@ -400,6 +402,11 @@ QWEN_TTS_REALTIME_WS_URL = os.getenv(
     "QWEN_TTS_REALTIME_WS_URL",
     "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
 )
+QWEN_PATIENT_ASR_MODEL = os.getenv("QWEN_PATIENT_ASR_MODEL", "qwen3-asr-flash")
+QWEN_PATIENT_ASR_ENABLE_ITN = os.getenv(
+    "QWEN_PATIENT_ASR_ENABLE_ITN", "false"
+).strip().lower() in {"1", "true", "yes", "on"}
+QWEN_PATIENT_ASR_LANGUAGE = os.getenv("QWEN_PATIENT_ASR_LANGUAGE", "").strip()
 
 # 数字人（音色 + 图生视频）配置
 DIGITAL_HUMAN_TTS_TARGET_MODEL = os.getenv(
@@ -423,6 +430,43 @@ DIGITAL_HUMAN_VOICE_UPLOAD_CONFIG = {
         "audio/aac",
         "audio/flac",
         "audio/ogg",
+    ],
+}
+DIGITAL_HUMAN_AVATAR_UPLOAD_CONFIG = {
+    "MAX_FILE_SIZE": 10 * 1024 * 1024,
+    "ALLOWED_EXTENSIONS": [".jpg", ".jpeg", ".png", ".webp", ".bmp"],
+    "ALLOWED_MIME_TYPES": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/bmp",
+    ],
+}
+PATIENT_ASR_UPLOAD_CONFIG = {
+    "MAX_FILE_SIZE": 12 * 1024 * 1024,
+    "ALLOWED_EXTENSIONS": [
+        ".mp3",
+        ".wav",
+        ".m4a",
+        ".aac",
+        ".flac",
+        ".ogg",
+        ".webm",
+        ".amr",
+        ".mp4",
+    ],
+    "ALLOWED_MIME_TYPES": [
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/mp4",
+        "audio/aac",
+        "audio/flac",
+        "audio/ogg",
+        "audio/webm",
+        "audio/amr",
+        "video/webm",
     ],
 }
 

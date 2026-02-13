@@ -3,7 +3,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 from django.conf import settings
 
@@ -138,3 +138,24 @@ class AliyunOSSClient:
 
 def get_oss_client() -> AliyunOSSClient:
     return AliyunOSSClient()
+
+
+def extract_object_key_from_url(
+    url: str | None,
+    *,
+    required_prefix: str | None = None,
+) -> str | None:
+    raw_url = str(url or "").strip()
+    if not raw_url:
+        return None
+
+    parsed = urlparse(raw_url)
+    object_key = unquote((parsed.path or "").lstrip("/")).strip()
+    if not object_key:
+        return None
+
+    if required_prefix:
+        prefix = required_prefix.strip("/ ")
+        if prefix and not object_key.startswith(f"{prefix}/"):
+            return None
+    return object_key

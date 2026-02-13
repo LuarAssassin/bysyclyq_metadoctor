@@ -4,6 +4,7 @@ import type {
   DoctorInfo,
   LoginTokens,
   MessageListPayload,
+  PatientAsrResult,
   PatientProfile,
   PatientSession,
   RefreshTokenPayload,
@@ -40,6 +41,33 @@ export const sessionApi = {
 
   list: () =>
     requestData<PatientSession[]>({ method: 'GET', url: '/patient/sessions/' }),
+
+  setPinned: (sessionId: number, isPinned: boolean) =>
+    requestApi<PatientSession>({
+      method: 'PATCH',
+      url: `/patient/sessions/${sessionId}/`,
+      data: { is_pinned: isPinned },
+    }),
+
+  remove: (sessionId: number) =>
+    requestApi<null>({ method: 'DELETE', url: `/patient/sessions/${sessionId}/` }),
+
+  interruptMessage: (sessionId: number, messageId: number, partialContent: string) =>
+    requestApi({
+      method: 'POST',
+      url: `/patient/sessions/${sessionId}/messages/${messageId}/interrupt/`,
+      data: { partial_content: partialContent },
+    }),
+
+  transcribeAudio: (audio: Blob, fileName: string) => {
+    const fd = new FormData()
+    fd.append('audio', audio, fileName)
+    return requestData<PatientAsrResult>({
+      method: 'POST',
+      url: '/patient/asr/transcribe/',
+      data: fd,
+    })
+  },
 
   messages: (sessionId: number, limit = 100) =>
     requestData<MessageListPayload>({ method: 'GET', url: `/patient/sessions/${sessionId}/messages/`, params: { limit } }),

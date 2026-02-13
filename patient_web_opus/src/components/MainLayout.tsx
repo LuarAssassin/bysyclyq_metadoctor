@@ -16,7 +16,7 @@ export default function MainLayout() {
   return (
     <div className="flex flex-col min-h-[100dvh]">
       {/* 内容区 */}
-      <main className={cn('flex-1', !hideTab && 'pb-[72px]')}>
+      <main className={cn('flex-1 min-h-0', !hideTab && 'pb-[72px]')}>
         <Outlet />
       </main>
 

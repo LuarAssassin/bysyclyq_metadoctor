@@ -2,6 +2,10 @@ import { requestApi, requestData } from './http'
 import type {
   AvatarVideo,
   AvatarVideoBatchResult,
+  DoctorConsultReviewResult,
+  DoctorConsultSessionMessagesPayload,
+  DoctorConsultTreePayload,
+  DoctorAvatarProfile,
   DoctorApplication,
   FeedbackApplyResult,
   KnowledgeIndexItem,
@@ -13,6 +17,8 @@ import type {
   NarrativeAnnotation,
   NarrativeAnnotationCreateResult,
   NarrativeKernel,
+  NarrativeOpening,
+  NarrativeOpeningSaveResult,
   NarrativeRedlineMutationResult,
   NarrativeRedlines,
   PageResult,
@@ -79,6 +85,15 @@ export const knowledgeApi = {
    ============================ */
 
 export const digitalHumanApi = {
+  getAvatar: () =>
+    requestData<DoctorAvatarProfile>({ method: 'GET', url: '/doctor/digital-human/avatar/' }),
+
+  uploadAvatar: (image: File) => {
+    const fd = new FormData()
+    fd.append('image', image)
+    return requestApi<DoctorAvatarProfile>({ method: 'POST', url: '/doctor/digital-human/avatar/', data: fd })
+  },
+
   createVoice: (p: { audio: File; name?: string; preferred_name?: string; target_model?: string; set_active?: boolean }) => {
     const fd = new FormData()
     fd.append('audio', p.audio)
@@ -132,6 +147,16 @@ export const narrativeApi = {
   patchKernel: (changes: Record<string, unknown>, note = '') =>
     requestApi<NarrativeKernel>({ method: 'PATCH', url: '/doctor/narrative-kernel/', data: { changes, note } }),
 
+  getOpening: () =>
+    requestData<NarrativeOpening>({ method: 'GET', url: '/doctor/narrative-kernel/opening/' }),
+
+  saveOpening: (text: string, note = '') =>
+    requestApi<NarrativeOpeningSaveResult>({
+      method: 'PUT',
+      url: '/doctor/narrative-kernel/opening/',
+      data: { text, note },
+    }),
+
   createAnnotation: (p: {
     source?: string; question?: string; answer?: string; comment: string
     negative_rules?: string[]; delta?: Record<string, unknown>
@@ -182,6 +207,39 @@ export const rehearsalApi = {
     requestApi<FeedbackApplyResult | RehearsalFeedback>({
       method: 'POST',
       url: `/doctor/rehearsal/messages/${messageId}/feedback/`,
+      data: p,
+    }),
+}
+
+/* ============================
+   患者问诊审核
+   ============================ */
+
+export const consultReviewApi = {
+  tree: () =>
+    requestData<DoctorConsultTreePayload>({
+      method: 'GET',
+      url: '/doctor/patient-consults/tree/',
+    }),
+
+  sessionMessages: (sessionId: number, limit = 120) =>
+    requestData<DoctorConsultSessionMessagesPayload>({
+      method: 'GET',
+      url: `/doctor/patient-consults/sessions/${sessionId}/messages/`,
+      params: { limit },
+    }),
+
+  reviewMessage: (
+    messageId: number,
+    p: {
+      action: 'approve' | 'approve_edited' | 'pending' | 'reject'
+      edited_markdown?: string
+      review_note?: string
+    },
+  ) =>
+    requestApi<DoctorConsultReviewResult>({
+      method: 'POST',
+      url: `/doctor/patient-consults/messages/${messageId}/review/`,
       data: p,
     }),
 }

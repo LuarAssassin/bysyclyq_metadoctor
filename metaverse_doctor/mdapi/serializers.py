@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 
 from mdapi.models import (
@@ -13,6 +14,12 @@ from mdapi.models import (
     KnowledgeTag,
     PatientConsultMessage,
     PatientConsultSession,
+)
+from mdapi.services.oss import (
+    OSSConfigurationError,
+    OSSReadError,
+    extract_object_key_from_url,
+    get_oss_client,
 )
 
 
@@ -268,6 +275,32 @@ class DoctorRehearsalFeedbackSerializer(serializers.ModelSerializer):
 
 
 class PatientDoctorSerializer(serializers.ModelSerializer):
+    avatar = serializers.SerializerMethodField()
+
+    def get_avatar(self, obj):
+        raw_url = str(getattr(obj, "avatar", "") or "").strip()
+        if not raw_url:
+            return None
+
+        object_key = extract_object_key_from_url(
+            raw_url,
+            required_prefix="doctor-digital-human/avatars",
+        )
+        if not object_key:
+            return raw_url
+
+        expire_seconds = int(
+            getattr(settings, "OSS_AVATAR_SIGNED_URL_EXPIRE_SECONDS", 24 * 60 * 60)
+        )
+        try:
+            oss_client = get_oss_client()
+            return oss_client.build_signed_get_url(
+                object_key,
+                expires=max(expire_seconds, 60),
+            )
+        except (OSSConfigurationError, OSSReadError):
+            return raw_url
+
     class Meta:
         model = CustomUser
         fields = [
@@ -291,6 +324,8 @@ class PatientConsultSessionSerializer(serializers.ModelSerializer):
             "doctor",
             "title",
             "status",
+            "is_pinned",
+            "pinned_at",
             "summary",
             "last_message_at",
             "created_at",
@@ -308,9 +343,14 @@ class PatientConsultMessageSerializer(serializers.ModelSerializer):
             "role",
             "turn_index",
             "generation_status",
+            "review_status",
+            "reviewed_at",
+            "review_note",
             "reply_to",
             "content",
             "content_markdown",
+            "edited_markdown",
+            "edited_at",
             "model_name",
             "selected_file_ids",
             "selected_file_meta",

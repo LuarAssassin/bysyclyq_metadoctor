@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { narrativeApi } from '@/lib/api'
 import { toErrorMessage } from '@/lib/http'
-import type { NarrativeAnnotation, NarrativeKernel, NarrativeRedlines } from '@/types/api'
+import type { NarrativeAnnotation, NarrativeKernel, NarrativeOpening, NarrativeRedlines } from '@/types/api'
 import PageHeader from '@/components/PageHeader'
 import GlassCard from '@/components/GlassCard'
 import StatusBadge from '@/components/StatusBadge'
@@ -12,8 +12,10 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Save,
   ShieldAlert,
   Trash2,
+  Volume2,
 } from 'lucide-react'
 import dayjs from 'dayjs'
 
@@ -23,9 +25,12 @@ const safeJsonParse = (s: string): Record<string, unknown> | null => {
 
 export default function NarrativeKernelPage() {
   const [kernel, setKernel] = useState<NarrativeKernel | null>(null)
+  const [opening, setOpening] = useState<NarrativeOpening | null>(null)
+  const [openingText, setOpeningText] = useState('')
   const [annotations, setAnnotations] = useState<NarrativeAnnotation[]>([])
   const [redlines, setRedlines] = useState<NarrativeRedlines | null>(null)
   const [kernelLoading, setKernelLoading] = useState(false)
+  const [openingSaving, setOpeningSaving] = useState(false)
 
   // Annotation form
   const [annForm, setAnnForm] = useState({ source: 'rehearsal', question: '', answer: '', comment: '', negRules: '', delta: '{}' })
@@ -41,10 +46,39 @@ export default function NarrativeKernelPage() {
     } catch (e) { toast.error(toErrorMessage(e)) }
     finally { setKernelLoading(false) }
   }
+  const loadOpening = async () => {
+    try {
+      const data = await narrativeApi.getOpening()
+      setOpening(data)
+      setOpeningText(data.text || data.default_text || '')
+    } catch (e) {
+      toast.error(toErrorMessage(e))
+    }
+  }
   const loadAnnotations = async () => { try { setAnnotations(await narrativeApi.listAnnotations(20)) } catch (e) { toast.error(toErrorMessage(e)) } }
   const loadRedlines = async () => { try { setRedlines(await narrativeApi.getRedlines()) } catch (e) { toast.error(toErrorMessage(e)) } }
-  const loadAll = () => Promise.all([loadKernel(), loadAnnotations(), loadRedlines()])
+  const loadAll = () => Promise.all([loadKernel(), loadOpening(), loadAnnotations(), loadRedlines()])
   useEffect(() => { loadAll() }, []) // eslint-disable-line
+
+  const handleSaveOpening = async () => {
+    const nextText = openingText.trim() || opening?.default_text || ''
+    if (!nextText) {
+      toast.warning('请先填写开场白文本')
+      return
+    }
+    setOpeningSaving(true)
+    try {
+      const res = await narrativeApi.saveOpening(nextText)
+      setOpening(res.data.opening)
+      setOpeningText(res.data.opening.text)
+      setKernel(res.data.kernel)
+      toast.success(res.message)
+    } catch (e) {
+      toast.error(toErrorMessage(e))
+    } finally {
+      setOpeningSaving(false)
+    }
+  }
 
   const handleAnnotation = async () => {
     if (!annForm.comment.trim()) { toast.warning('comment 为必填项'); return }
@@ -88,6 +122,52 @@ export default function NarrativeKernelPage() {
           <RefreshCw className="w-3.5 h-3.5" /> 刷新底座
         </button>
       </PageHeader>
+
+      {/* 底座概览（只读） */}
+      <GlassCard title="患者端开场白（文字+语音）" extra={<StatusBadge variant="info">进入问诊自动播报</StatusBadge>}>
+        <div className="space-y-3">
+          <p className="text-xs text-alpine-500">
+            默认文案基于医生注册信息自动生成。保存后会自动按当前生效音色合成语音并写入叙事底座。
+          </p>
+          <textarea
+            value={openingText}
+            onChange={(e) => setOpeningText(e.target.value)}
+            rows={4}
+            className="w-full rounded-xl border border-alpine-200 px-3 py-2.5 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ice-300 resize-y"
+            placeholder="请输入开场白文本"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setOpeningText(opening?.default_text || '')}
+              className="h-9 px-3 rounded-lg border border-alpine-200 text-alpine-600 text-sm hover:bg-alpine-50 transition-colors"
+            >
+              恢复默认文案
+            </button>
+            <button
+              onClick={handleSaveOpening}
+              disabled={openingSaving}
+              className="h-9 px-4 rounded-lg bg-ice-500 hover:bg-ice-600 text-white text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {openingSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              保存并生成语音
+            </button>
+            {opening?.voice_name && (
+              <span className="text-xs text-alpine-500">
+                当前音色：{opening.voice_name}
+              </span>
+            )}
+          </div>
+          {opening?.audio_url && (
+            <div className="rounded-xl border border-alpine-100 bg-alpine-50/60 px-3 py-2.5">
+              <div className="flex items-center gap-1.5 text-xs text-alpine-500 mb-2">
+                <Volume2 className="w-3.5 h-3.5" />
+                最新开场白语音预览
+              </div>
+              <audio controls src={opening.audio_url} className="w-full h-10" preload="none" />
+            </div>
+          )}
+        </div>
+      </GlassCard>
 
       {/* 底座概览（只读） */}
       <GlassCard

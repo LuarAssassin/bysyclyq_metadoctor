@@ -745,6 +745,10 @@ class PatientConsultSession(SoftDeleteModel):
         db_index=True,
         verbose_name="会话状态",
     )
+    is_pinned = models.BooleanField(default=False, db_index=True, verbose_name="是否置顶")
+    pinned_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name="置顶时间"
+    )
     summary = models.TextField(null=True, blank=True, verbose_name="会话摘要")
     last_message_at = models.DateTimeField(
         null=True, blank=True, db_index=True, verbose_name="最近消息时间"
@@ -753,7 +757,7 @@ class PatientConsultSession(SoftDeleteModel):
     class Meta:
         verbose_name = "患者问诊会话"
         verbose_name_plural = "患者问诊会话"
-        ordering = ["-last_message_at", "-updated_at"]
+        ordering = ["-is_pinned", "-pinned_at", "-last_message_at", "-updated_at"]
 
     def clean(self):
         super().clean()
@@ -789,6 +793,12 @@ class PatientConsultMessage(SoftDeleteModel):
         ("succeeded", "生成成功"),
         ("failed", "生成失败"),
     ]
+    REVIEW_STATUS_CHOICES = [
+        ("pending", "待审核"),
+        ("approved", "审核通过"),
+        ("approved_edited", "编辑后通过"),
+        ("rejected", "审核拒绝"),
+    ]
 
     session = models.ForeignKey(
         PatientConsultSession,
@@ -823,6 +833,24 @@ class PatientConsultMessage(SoftDeleteModel):
         db_index=True,
         verbose_name="生成状态",
     )
+    review_status = models.CharField(
+        max_length=20,
+        choices=REVIEW_STATUS_CHOICES,
+        default="approved",
+        db_index=True,
+        verbose_name="医生审核状态",
+    )
+    reviewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name="医生审核时间",
+    )
+    review_note = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="医生审核备注",
+    )
     reply_to = models.ForeignKey(
         "self",
         on_delete=models.SET_NULL,
@@ -835,6 +863,16 @@ class PatientConsultMessage(SoftDeleteModel):
     content = models.TextField(verbose_name="消息正文")
     content_markdown = models.TextField(
         null=True, blank=True, verbose_name="Markdown 内容"
+    )
+    edited_markdown = models.TextField(
+        null=True,
+        blank=True,
+        verbose_name="医生编辑后的 Markdown",
+    )
+    edited_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name="医生编辑时间",
     )
     model_name = models.CharField(
         max_length=100, null=True, blank=True, verbose_name="回答模型"
@@ -886,6 +924,10 @@ class PatientConsultMessage(SoftDeleteModel):
                 raise ValidationError({"doctor": "消息医生与会话医生不一致"})
         if self.role == "assistant" and self.reply_to_id and self.reply_to.role != "user":
             raise ValidationError({"reply_to": "assistant 消息仅可关联用户问题"})
+        if self.role == "user":
+            self.review_status = "approved"
+        if self.review_status == "approved_edited" and not (self.edited_markdown or "").strip():
+            raise ValidationError({"edited_markdown": "编辑后通过时，编辑内容不能为空"})
         if self.content is None:
             self.content = ""
 

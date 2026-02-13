@@ -9,6 +9,7 @@ from mdapi.auth_views import (
     PatientRegisterView,
 )
 from mdapi.views import (
+    DoctorDigitalAvatarView,
     DoctorAvatarVideoRefreshView,
     DoctorAvatarVideoView,
     DoctorDigitalVoiceView,
@@ -25,10 +26,17 @@ from mdapi.views import (
     DoctorRehearsalSessionView,
     DoctorNarrativeAnnotationView,
     DoctorNarrativeKernelView,
+    DoctorNarrativeOpeningView,
+    DoctorPatientConsultMessageReviewView,
+    DoctorPatientConsultSessionMessagesView,
+    DoctorPatientConsultTreeView,
     DoctorNarrativeRedlineView,
     PatientConsultAskStreamView,
+    PatientConsultMessageInterruptView,
     PatientConsultMessageView,
+    PatientASRTranscribeView,
     PatientConsultSessionView,
+    PatientConsultSessionItemView,
     PatientDoctorAssetsView,
     PatientDoctorDirectoryView,
 )
@@ -76,6 +84,11 @@ urlpatterns = [
         name="doctor-digital-human-voice",
     ),
     path(
+        "doctor/digital-human/avatar/",
+        DoctorDigitalAvatarView.as_view(),
+        name="doctor-digital-human-avatar",
+    ),
+    path(
         "doctor/digital-human/videos/",
         DoctorAvatarVideoView.as_view(),
         name="doctor-digital-human-videos",
@@ -89,6 +102,11 @@ urlpatterns = [
         "doctor/narrative-kernel/",
         DoctorNarrativeKernelView.as_view(),
         name="doctor-narrative-kernel",
+    ),
+    path(
+        "doctor/narrative-kernel/opening/",
+        DoctorNarrativeOpeningView.as_view(),
+        name="doctor-narrative-kernel-opening",
     ),
     path(
         "doctor/narrative-kernel/annotations/",
@@ -130,6 +148,21 @@ urlpatterns = [
         DoctorRehearsalMessageFeedbackView.as_view(),
         name="doctor-rehearsal-message-feedback",
     ),
+    path(
+        "doctor/patient-consults/tree/",
+        DoctorPatientConsultTreeView.as_view(),
+        name="doctor-patient-consult-tree",
+    ),
+    path(
+        "doctor/patient-consults/sessions/<int:session_id>/messages/",
+        DoctorPatientConsultSessionMessagesView.as_view(),
+        name="doctor-patient-consult-session-messages",
+    ),
+    path(
+        "doctor/patient-consults/messages/<int:message_id>/review/",
+        DoctorPatientConsultMessageReviewView.as_view(),
+        name="doctor-patient-consult-message-review",
+    ),
     path("patient/doctors/", PatientDoctorDirectoryView.as_view(), name="patient-doctors"),
     path(
         "patient/doctors/<int:doctor_id>/assets/",
@@ -137,14 +170,29 @@ urlpatterns = [
         name="patient-doctor-assets",
     ),
     path(
+        "patient/asr/transcribe/",
+        PatientASRTranscribeView.as_view(),
+        name="patient-asr-transcribe",
+    ),
+    path(
         "patient/sessions/",
         PatientConsultSessionView.as_view(),
         name="patient-sessions",
     ),
     path(
+        "patient/sessions/<int:session_id>/",
+        PatientConsultSessionItemView.as_view(),
+        name="patient-session-item",
+    ),
+    path(
         "patient/sessions/<int:session_id>/messages/",
         PatientConsultMessageView.as_view(),
         name="patient-session-messages",
+    ),
+    path(
+        "patient/sessions/<int:session_id>/messages/<int:message_id>/interrupt/",
+        PatientConsultMessageInterruptView.as_view(),
+        name="patient-session-message-interrupt",
     ),
     path(
         "patient/sessions/<int:session_id>/ask/stream/",

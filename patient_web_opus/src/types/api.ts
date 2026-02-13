@@ -45,11 +45,27 @@ export interface DoctorVideo {
   video_oss_url: string
 }
 
+export interface DoctorOpening {
+  text: string
+  default_text?: string
+  has_custom_text?: boolean
+  audio_url: string | null
+  audio_oss_url?: string | null
+  audio_content_type?: string | null
+  audio_size_bytes?: number | null
+  audio_updated_at?: string | null
+  updated_at?: string | null
+  voice_id?: string | null
+  tts_model?: string | null
+  voice_name?: string | null
+}
+
 export interface DoctorAssets {
   doctor: DoctorInfo
   tts_model: string
   voice_id: string
   voice_name: string
+  opening?: DoctorOpening
   video_urls: string[]
   videos: DoctorVideo[]
 }
@@ -60,7 +76,9 @@ export interface PatientSession {
   id: number
   doctor: DoctorInfo
   title: string
-  status: 'active' | 'closed' | string
+  status: 'active' | 'archived' | string
+  is_pinned: boolean
+  pinned_at: string | null
   summary: string | null
   last_message_at: string | null
   created_at: string
@@ -73,6 +91,9 @@ export interface PatientMessage {
   role: string
   turn_index: number
   generation_status: 'generating' | 'succeeded' | 'failed' | string
+  review_status: 'pending' | 'approved' | 'approved_edited' | 'rejected' | string
+  reviewed_at: string | null
+  review_note: string | null
   reply_to: number | null
   content: string
   content_markdown: string | null
@@ -96,6 +117,13 @@ export interface PatientMessage {
 export interface MessageListPayload {
   session: PatientSession
   messages: PatientMessage[]
+}
+
+export interface PatientAsrResult {
+  text: string
+  model: string
+  content_type?: string | null
+  size_bytes?: number
 }
 
 /* ── SSE 事件 ─────────────────── */
@@ -146,6 +174,7 @@ export interface SSEAudioErrorEvent {
 
 export interface SSEDoneEvent {
   message_id: number
+  interrupted?: boolean
   usage: {
     input_tokens?: number
     output_tokens?: number

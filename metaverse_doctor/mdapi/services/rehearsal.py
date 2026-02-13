@@ -126,7 +126,7 @@ class DoctorRehearsalService:
         )
         self.history_limit = int(getattr(settings, "QWEN_REHEARSAL_HISTORY_LIMIT", 12))
         self.search_strategy = getattr(settings, "QWEN_REHEARSAL_SEARCH_STRATEGY", "max")
-        self.forced_search = bool(getattr(settings, "QWEN_REHEARSAL_FORCED_SEARCH", True))
+        self.forced_search = bool(getattr(settings, "QWEN_REHEARSAL_FORCED_SEARCH", False))
         self.enable_citation = bool(getattr(settings, "QWEN_REHEARSAL_ENABLE_CITATION", True))
         self.prompt_dir = Path(
             getattr(settings, "PROMPT_DIR", Path(settings.BASE_DIR) / "prompts")

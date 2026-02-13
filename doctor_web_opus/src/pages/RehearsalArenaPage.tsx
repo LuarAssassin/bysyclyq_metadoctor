@@ -74,7 +74,7 @@ export default function RehearsalArenaPage() {
   const [msgLoading, setMsgLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [question, setQuestion] = useState('')
-  const [forcedSearch, setForcedSearch] = useState(true)
+  const [forcedSearch, setForcedSearch] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
   // Playback
@@ -182,9 +182,15 @@ export default function RehearsalArenaPage() {
     let startPayload: RehearsalStartEvent | null = null
 
     try {
+      const askPayload: { question: string; forced_search?: boolean; enable_audio: boolean } = {
+        question: localQ,
+        enable_audio: enableAudio,
+      }
+      if (forcedSearch) askPayload.forced_search = true
+
       await askRehearsalStream(
         sessionId,
-        { question: localQ, forced_search: forcedSearch, enable_audio: enableAudio },
+        askPayload,
         {
           onStart: (data) => {
             startPayload = data
@@ -523,7 +529,7 @@ export default function RehearsalArenaPage() {
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-1.5 cursor-pointer">
                     <input type="checkbox" checked={forcedSearch} onChange={(e) => setForcedSearch(e.target.checked)} className="rounded border-alpine-300 text-ice-500 focus:ring-ice-300" />
-                    <span className="text-[11px] text-alpine-400">forced_search</span>
+                    <span className="text-[11px] text-alpine-400">强制搜索</span>
                   </label>
                   <button
                     onClick={() => setEnableAudio(!enableAudio)}

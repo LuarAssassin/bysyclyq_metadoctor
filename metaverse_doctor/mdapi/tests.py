@@ -1,9 +1,11 @@
 from django.test import SimpleTestCase, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APIRequestFactory, force_authenticate
 from unittest.mock import patch
 
 from mdapi.models import (
     CustomUser,
+    DoctorNarrativeKernel,
     DoctorRehearsalMessage,
     DoctorRehearsalSession,
     PatientConsultMessage,
@@ -18,6 +20,7 @@ from mdapi.services.digital_human import (
 from mdapi.services.narrative_kernel import (
     apply_negative_rules_update,
     apply_annotation_update,
+    build_default_opening_text,
     deep_merge_dict,
     extract_negative_rules_from_comment,
     remove_negative_rules,
@@ -27,11 +30,21 @@ from mdapi.services.narrative_llm import QwenNarrativeOptimizer
 from mdapi.services.rehearsal import DoctorRehearsalService, RehearsalServiceError
 from mdapi.services.rehearsal_tts import DoctorRehearsalRealtimeTTS
 from mdapi.views import (
+    DoctorDigitalAvatarView,
+    DoctorNarrativeOpeningView,
+    DoctorPatientConsultMessageReviewView,
+    DoctorPatientConsultSessionMessagesView,
+    DoctorPatientConsultTreeView,
     DoctorRehearsalAskStreamView,
     DoctorRehearsalMessageView,
+    PatientDoctorAssetsView,
+    PatientASRTranscribeView,
     PatientConsultAskStreamView,
+    PatientConsultMessageInterruptView,
     PatientConsultSessionView,
+    PatientConsultSessionItemView,
     PatientDoctorDirectoryView,
+    _build_patient_session_title,
 )
 
 
@@ -177,6 +190,24 @@ class NarrativeKernelServiceTests(SimpleTestCase):
         self.assertIn("[KERNEL.IDENTITY]", text)
         self.assertIn("[KERNEL.CLINICAL_STYLE]", text)
         self.assertIn("[DYNAMIC.STATE]", text)
+
+    def test_build_default_opening_text(self):
+        doctor = type(
+            "DoctorStub",
+            (),
+            {
+                "id": 10,
+                "nickname": "杨渝平",
+                "profession": "运动医学科",
+                "institution": "北京大学第三医院",
+                "username": "doctor_yang",
+                "get_full_name": staticmethod(lambda: ""),
+            },
+        )()
+        text = build_default_opening_text(doctor)
+        self.assertIn("杨渝平医生", text)
+        self.assertIn("北京大学第三医院", text)
+        self.assertIn("运动医学科", text)
 
     def test_extract_negative_rules_from_comment(self):
         rules = extract_negative_rules_from_comment(
@@ -371,17 +402,21 @@ class RehearsalRealtimeTTSHelperTests(SimpleTestCase):
         text = (
             "## 处理建议\n"
             "- 先观察 24 小时\n"
-            "- 再复查\n"
+            "- 再复查[1]\n"
             "[查看指南](https://example.com)\n"
+            "依据检索结论[ref_2]调整治疗。\n"
             "`不要读出符号`"
         )
         normalized = DoctorRehearsalRealtimeTTS.normalize_markdown_for_tts(text)
         self.assertIn("先观察 24 小时", normalized)
         self.assertIn("再复查", normalized)
         self.assertIn("查看指南", normalized)
+        self.assertIn("依据检索结论调整治疗。", normalized)
         self.assertNotIn("- 先观察", normalized)
         self.assertNotIn("##", normalized)
         self.assertNotIn("https://example.com", normalized)
+        self.assertNotIn("[1]", normalized)
+        self.assertNotIn("[ref_2]", normalized)
         self.assertNotIn("`", normalized)
 
     def test_append_text_pushes_each_chunk_immediately(self):
@@ -487,6 +522,136 @@ class RehearsalViewTests(TestCase):
         self.assertEqual(assistant_message.generation_status, "failed")
 
 
+class DoctorDigitalAvatarViewTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.doctor = CustomUser.objects.create_user(
+            username="doctor_avatar_tester",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+        )
+
+    def test_upload_avatar_updates_doctor_avatar_url(self):
+        image = SimpleUploadedFile(
+            "doctor-avatar.png",
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+            content_type="image/png",
+        )
+
+        class _FakeOSS:
+            @staticmethod
+            def upload_file(uploaded_file, doctor_id, prefix):  # noqa: ARG004
+                return {
+                    "object_key": "doctor-digital-human/avatars/demo.png",
+                    "oss_url": "https://oss.example.com/doctor-digital-human/avatars/demo.png",
+                    "etag": "etag-1",
+                    "size_bytes": uploaded_file.size,
+                    "content_type": "image/png",
+                }
+
+        request = self.factory.post(
+            "/api/doctor/digital-human/avatar/",
+            {"image": image},
+            format="multipart",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()):
+            response = DoctorDigitalAvatarView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["data"]["avatar"],
+            "https://oss.example.com/doctor-digital-human/avatars/demo.png",
+        )
+        self.doctor.refresh_from_db()
+        self.assertEqual(
+            self.doctor.avatar,
+            "https://oss.example.com/doctor-digital-human/avatars/demo.png",
+        )
+
+
+class DoctorNarrativeOpeningViewTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.doctor = CustomUser.objects.create_user(
+            username="doctor_opening_tester",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+        )
+
+    def test_get_opening_returns_default_text(self):
+        request = self.factory.get("/api/doctor/narrative-kernel/opening/")
+        force_authenticate(request, user=self.doctor)
+
+        response = DoctorNarrativeOpeningView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("doctor_opening_tester医生", response.data["data"]["text"])
+        self.assertIsNone(response.data["data"]["audio_url"])
+        kernel = DoctorNarrativeKernel.objects.filter(doctor=self.doctor).first()
+        self.assertIsNotNone(kernel)
+
+    def test_put_opening_generates_audio_and_updates_kernel_payload(self):
+        class _FakeOSS:
+            @staticmethod
+            def upload_file(uploaded_file, doctor_id, prefix):  # noqa: ARG004
+                return {
+                    "object_key": "doctor-digital-human/openings/test.wav",
+                    "oss_url": "https://oss.example.com/doctor-digital-human/openings/test.wav",
+                    "etag": "etag-opening-1",
+                    "size_bytes": uploaded_file.size,
+                    "content_type": "audio/wav",
+                }
+
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        request = self.factory.put(
+            "/api/doctor/narrative-kernel/opening/",
+            {"text": "您好，我是测试医生，很高兴为您服务。"},
+            format="json",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()), patch(
+            "mdapi.views._synthesize_doctor_opening_audio_wav",
+            return_value={
+                "audio_bytes": b"RIFF....WAVE",
+                "content_type": "audio/wav",
+                "sample_rate": 24000,
+                "channels": 1,
+                "stats": {},
+            },
+        ):
+            response = DoctorNarrativeOpeningView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["data"]["opening"]["text"],
+            "您好，我是测试医生，很高兴为您服务。",
+        )
+        self.assertEqual(
+            response.data["data"]["opening"]["audio_url"],
+            "https://signed.example.com/doctor-digital-human/openings/test.wav",
+        )
+
+        kernel = DoctorNarrativeKernel.objects.get(doctor=self.doctor)
+        self.assertEqual(
+            kernel.payload.get("OPENING", {}).get("text"),
+            "您好，我是测试医生，很高兴为您服务。",
+        )
+        self.assertEqual(
+            kernel.payload.get("OPENING", {}).get("audio_object_key"),
+            "doctor-digital-human/openings/test.wav",
+        )
+
+
 class PatientConsultViewTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
@@ -550,6 +715,174 @@ class PatientConsultViewTests(TestCase):
                 title="首次问诊",
             ).exists()
         )
+
+    def test_patient_doctor_assets_contains_opening_data(self):
+        kernel, _ = DoctorNarrativeKernel.objects.get_or_create(
+            doctor=self.available_doctor,
+            defaults={
+                "schema_version": "1.0",
+                "kernel_name": "doctor_narrative_kernel",
+                "revision": 1,
+                "payload": {"KERNEL": {"IDENTITY": {"NAME": "医生"}}},
+                "compiled_prompt": "[KERNEL.IDENTITY]\nNAME: 医生",
+            },
+        )
+        kernel.payload = {
+            **(kernel.payload if isinstance(kernel.payload, dict) else {}),
+            "OPENING": {
+                "text": "您好，我是示例医生。",
+                "audio_object_key": "doctor-digital-human/openings/demo.wav",
+                "audio_oss_url": "https://oss.example.com/doctor-digital-human/openings/demo.wav",
+                "audio_content_type": "audio/wav",
+            },
+        }
+        kernel.save(update_fields=["payload", "updated_at"])
+
+        class _FakeOSS:
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        request = self.factory.get(f"/api/patient/doctors/{self.available_doctor.id}/assets/")
+        force_authenticate(request, user=self.patient)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()):
+            response = PatientDoctorAssetsView.as_view()(
+                request,
+                doctor_id=self.available_doctor.id,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        opening = response.data["data"]["opening"]
+        self.assertEqual(opening["text"], "您好，我是示例医生。")
+        self.assertEqual(
+            opening["audio_url"],
+            "https://signed.example.com/doctor-digital-human/openings/demo.wav",
+        )
+
+    def test_patient_asr_transcribe_success(self):
+        audio = SimpleUploadedFile(
+            "patient-question.webm",
+            b"webm-audio-data",
+            content_type="audio/webm",
+        )
+
+        class _FakeASRService:
+            @staticmethod
+            def transcribe(uploaded_file, audio_mime_type=""):  # noqa: ARG004
+                return {
+                    "text": "我最近跑步后膝盖疼。",
+                    "model": "qwen3-asr-flash",
+                }
+
+        request = self.factory.post(
+            "/api/patient/asr/transcribe/",
+            {"audio": audio},
+            format="multipart",
+        )
+        force_authenticate(request, user=self.patient)
+
+        with patch("mdapi.views.get_qwen_asr_service", return_value=_FakeASRService()):
+            response = PatientASRTranscribeView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["text"], "我最近跑步后膝盖疼。")
+        self.assertEqual(response.data["data"]["model"], "qwen3-asr-flash")
+
+    def test_pin_patient_session(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title="置顶会话测试",
+            status="active",
+        )
+
+        request = self.factory.patch(
+            f"/api/patient/sessions/{session.id}/",
+            {"is_pinned": True},
+            format="json",
+        )
+        force_authenticate(request, user=self.patient)
+
+        response = PatientConsultSessionItemView.as_view()(request, session_id=session.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["data"]["is_pinned"])
+        self.assertIsNotNone(response.data["data"]["pinned_at"])
+        session.refresh_from_db()
+        self.assertTrue(session.is_pinned)
+        self.assertIsNotNone(session.pinned_at)
+
+    def test_soft_delete_patient_session(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title="删除会话测试",
+            status="active",
+        )
+        message = PatientConsultMessage.objects.create(
+            session=session,
+            patient=self.patient,
+            doctor=self.available_doctor,
+            role="user",
+            turn_index=1,
+            generation_status="succeeded",
+            content="测试消息",
+            content_markdown="测试消息",
+            model_name=None,
+        )
+
+        request = self.factory.delete(f"/api/patient/sessions/{session.id}/")
+        force_authenticate(request, user=self.patient)
+
+        response = PatientConsultSessionItemView.as_view()(request, session_id=session.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(PatientConsultSession.objects.filter(id=session.id).exists())
+        self.assertFalse(PatientConsultMessage.objects.filter(id=message.id).exists())
+        deleted_session = PatientConsultSession.all_objects.get(id=session.id)
+        deleted_message = PatientConsultMessage.all_objects.get(id=message.id)
+        self.assertTrue(deleted_session.is_deleted)
+        self.assertTrue(deleted_message.is_deleted)
+
+    def test_interrupt_patient_generating_message(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title="中断会话测试",
+            status="active",
+        )
+        message = PatientConsultMessage.objects.create(
+            session=session,
+            patient=self.patient,
+            doctor=self.available_doctor,
+            role="assistant",
+            turn_index=1,
+            generation_status="generating",
+            content="[生成中]",
+            content_markdown="[生成中]",
+            model_name="qwen-max-latest",
+        )
+
+        request = self.factory.post(
+            f"/api/patient/sessions/{session.id}/messages/{message.id}/interrupt/",
+            {"partial_content": "这是中断前的部分回答。"},
+            format="json",
+        )
+        force_authenticate(request, user=self.patient)
+
+        response = PatientConsultMessageInterruptView.as_view()(
+            request,
+            session_id=session.id,
+            message_id=message.id,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        message.refresh_from_db()
+        self.assertEqual(message.generation_status, "succeeded")
+        self.assertEqual(message.content, "这是中断前的部分回答。")
+        self.assertTrue(isinstance(message.meta, dict))
+        self.assertTrue(message.meta.get("interrupted"))
 
     def test_patient_ask_stream_defaults_enable_audio_true(self):
         session = PatientConsultSession.objects.create(
@@ -679,3 +1012,213 @@ class PatientConsultViewTests(TestCase):
         self.assertIsNotNone(assistant_message)
         self.assertEqual(assistant_message.generation_status, "succeeded")
         self.assertEqual(assistant_message.content, "您好，已收到您的问题。")
+
+    def test_patient_first_question_updates_session_title_with_truncation(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title=f"{self.available_doctor.username}问诊-20260212-000000",
+        )
+        question = "最近膝盖疼痛三周，尤其上下楼更明显，是否需要做核磁共振检查？"
+
+        class _FakeRehearsalService:
+            answer_model = "qwen-max-latest"
+            history_limit = 12
+
+            @staticmethod
+            def build_ranked_candidates(question, knowledge_items):  # noqa: ARG004
+                return []
+
+            @staticmethod
+            def select_file_ids_with_qwen_max(*, question, candidates):  # noqa: ARG004
+                return {"selected_file_ids": [], "reason": "no-match"}
+
+            @staticmethod
+            def build_long_grounding_answer(*, question, selected_file_ids):  # noqa: ARG004
+                return {"answer": "", "sources": []}
+
+            @staticmethod
+            def build_final_messages(
+                narrative_kernel_prompt,  # noqa: ARG004
+                grounding_answer,  # noqa: ARG004
+                history_messages,  # noqa: ARG004
+                question,  # noqa: ARG004
+            ):
+                return [
+                    {"role": "system", "content": "system"},
+                    {"role": "user", "content": question},
+                ]
+
+            @staticmethod
+            def stream_final_answer(*, messages, forced_search):  # noqa: ARG004
+                yield {"type": "delta", "delta": "已收到。"}
+                yield {
+                    "type": "done",
+                    "content": "已收到。",
+                    "usage": {
+                        "input_tokens": 11,
+                        "output_tokens": 7,
+                        "total_tokens": 18,
+                    },
+                    "search_sources": [],
+                }
+
+        request = self.factory.post(
+            f"/api/patient/sessions/{session.id}/ask/stream/",
+            {"question": question, "enable_audio": False},
+            format="json",
+        )
+        force_authenticate(request, user=self.patient)
+
+        with patch(
+            "mdapi.views.get_rehearsal_service",
+            return_value=_FakeRehearsalService(),
+        ):
+            response = PatientConsultAskStreamView.as_view()(request, session_id=session.id)
+            for _ in response.streaming_content:
+                pass
+
+        self.assertEqual(response.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(session.title, _build_patient_session_title(question))
+
+
+class DoctorPatientConsultReviewTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.doctor = CustomUser.objects.create_user(
+            username="doctor_reviewer",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+        )
+        self.other_doctor = CustomUser.objects.create_user(
+            username="doctor_reviewer_other",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+        )
+        self.patient = CustomUser.objects.create_user(
+            username="patient_for_review",
+            password="pass12345",
+            is_doctor=False,
+            is_active=True,
+        )
+        self.session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.doctor,
+            title="随访会话",
+            status="active",
+        )
+        self.user_message = PatientConsultMessage.objects.create(
+            session=self.session,
+            patient=self.patient,
+            doctor=self.doctor,
+            role="user",
+            turn_index=1,
+            generation_status="succeeded",
+            review_status="approved",
+            content="我最近膝盖会疼",
+            content_markdown="我最近膝盖会疼",
+            model_name=None,
+        )
+        self.assistant_message = PatientConsultMessage.objects.create(
+            session=self.session,
+            patient=self.patient,
+            doctor=self.doctor,
+            role="assistant",
+            turn_index=1,
+            generation_status="succeeded",
+            review_status="pending",
+            reply_to=self.user_message,
+            content="建议先休息两周。",
+            content_markdown="建议先休息两周。",
+            model_name="qwen-max-latest",
+        )
+
+    def test_tree_returns_patient_group_and_pending_count(self):
+        request = self.factory.get("/api/doctor/patient-consults/tree/")
+        force_authenticate(request, user=self.doctor)
+
+        response = DoctorPatientConsultTreeView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertEqual(payload["session_count"], 1)
+        self.assertEqual(payload["pending_count"], 1)
+        self.assertEqual(len(payload["patients"]), 1)
+        node = payload["patients"][0]
+        self.assertEqual(node["patient"]["id"], self.patient.id)
+        self.assertEqual(node["pending_count"], 1)
+        self.assertEqual(node["session_count"], 1)
+
+    def test_session_messages_returns_review_stats(self):
+        request = self.factory.get(
+            f"/api/doctor/patient-consults/sessions/{self.session.id}/messages/",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        response = DoctorPatientConsultSessionMessagesView.as_view()(
+            request,
+            session_id=self.session.id,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertEqual(payload["session"]["id"], self.session.id)
+        self.assertEqual(payload["patient"]["id"], self.patient.id)
+        self.assertEqual(len(payload["messages"]), 2)
+        self.assertEqual(payload["stats"]["pending"], 1)
+        self.assertEqual(payload["stats"]["approved"], 0)
+        self.assertEqual(payload["stats"]["approved_edited"], 0)
+
+    def test_review_message_approve_edited_updates_history_content(self):
+        request = self.factory.post(
+            f"/api/doctor/patient-consults/messages/{self.assistant_message.id}/review/",
+            {
+                "action": "approve_edited",
+                "edited_markdown": "建议先减少跑步，并进行股四头肌力量训练。",
+                "review_note": "更具体可执行",
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        response = DoctorPatientConsultMessageReviewView.as_view()(
+            request,
+            message_id=self.assistant_message.id,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assistant_message.refresh_from_db()
+        self.assertEqual(self.assistant_message.review_status, "approved_edited")
+        self.assertEqual(
+            self.assistant_message.content,
+            "建议先减少跑步，并进行股四头肌力量训练。",
+        )
+        self.assertEqual(
+            self.assistant_message.content_markdown,
+            "建议先减少跑步，并进行股四头肌力量训练。",
+        )
+        self.assertEqual(
+            self.assistant_message.edited_markdown,
+            "建议先减少跑步，并进行股四头肌力量训练。",
+        )
+        self.assertEqual(self.assistant_message.review_note, "更具体可执行")
+
+    def test_review_message_for_other_doctor_denied(self):
+        request = self.factory.post(
+            f"/api/doctor/patient-consults/messages/{self.assistant_message.id}/review/",
+            {"action": "approve"},
+            format="json",
+        )
+        force_authenticate(request, user=self.other_doctor)
+
+        response = DoctorPatientConsultMessageReviewView.as_view()(
+            request,
+            message_id=self.assistant_message.id,
+        )
+
+        self.assertEqual(response.status_code, 404)

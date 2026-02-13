@@ -27,6 +27,7 @@ class DoctorRehearsalRealtimeTTS:
     ORDERED_LIST_RE = re.compile(r"(^|\n)\s*\d+\.\s+")
     TASK_LIST_RE = re.compile(r"\[(?:x|X| )\]\s*")
     HR_RE = re.compile(r"(^|\n)\s*[-*_]{3,}\s*($|\n)")
+    CITATION_RE = re.compile(r"\[(?:ref_)?\d{1,3}\]")
 
     def __init__(
         self,
@@ -109,11 +110,15 @@ class DoctorRehearsalRealtimeTTS:
         normalized = cls.ORDERED_LIST_RE.sub(r"\1", normalized)
         normalized = cls.TASK_LIST_RE.sub("", normalized)
         normalized = cls.HR_RE.sub(r"\1", normalized)
+        # 联网搜索引用角标（如 [1] / [ref_1]）不应进入语音朗读。
+        normalized = cls.CITATION_RE.sub("", normalized)
         normalized = normalized.replace("`", "")
         normalized = normalized.replace("**", "").replace("__", "")
         normalized = normalized.replace("*", "").replace("_", "")
         normalized = normalized.replace("~~", "")
         normalized = normalized.replace("|", " ")
+        normalized = re.sub(r"[ \t]{2,}", " ", normalized)
+        normalized = re.sub(r"[ \t]+([，。！？!?；;：:,])", r"\1", normalized)
         normalized = re.sub(r"\n{3,}", "\n\n", normalized)
         return normalized
 

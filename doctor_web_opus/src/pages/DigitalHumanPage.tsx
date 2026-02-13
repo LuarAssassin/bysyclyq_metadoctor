@@ -16,6 +16,8 @@ import {
   Play,
   RefreshCw,
   Trash2,
+  Upload,
+  UserCircle,
   Volume2,
 } from 'lucide-react'
 import dayjs from 'dayjs'
@@ -36,6 +38,12 @@ function fmtDuration(sec: number) {
 }
 
 export default function DigitalHumanPage() {
+  // Avatar
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const avatarRef = useRef<HTMLInputElement>(null)
+
   // Voice
   const [voices, setVoices] = useState<VoiceProfile[]>([])
   const [voiceLoading, setVoiceLoading] = useState(false)
@@ -69,6 +77,15 @@ export default function DigitalHumanPage() {
 
   const hasRunning = videos.some((v) => ['submitted', 'running'].includes(v.task_status))
 
+  const loadAvatar = async () => {
+    try {
+      const data = await digitalHumanApi.getAvatar()
+      setAvatarUrl(data.avatar || null)
+    } catch (e) {
+      toast.error(toErrorMessage(e))
+    }
+  }
+
   const loadVoices = async () => {
     setVoiceLoading(true)
     try { setVoices(await digitalHumanApi.listVoice()) } catch (e) { toast.error(toErrorMessage(e)) }
@@ -81,9 +98,25 @@ export default function DigitalHumanPage() {
     finally { setVideoLoading(false) }
   }, [])
 
-  const refreshAll = () => Promise.all([loadVoices(), loadVideos()])
+  const refreshAll = () => Promise.all([loadAvatar(), loadVoices(), loadVideos()])
   useEffect(() => { refreshAll() }, []) // eslint-disable-line
   usePolling(loadVideos, 4000, hasRunning)
+
+  const submitAvatar = async () => {
+    if (!avatarFile) { toast.warning('请先选择头像图片'); return }
+    setUploadingAvatar(true)
+    try {
+      const res = await digitalHumanApi.uploadAvatar(avatarFile)
+      setAvatarUrl(res.data.avatar || null)
+      toast.success(res.message)
+      setAvatarFile(null)
+      if (avatarRef.current) avatarRef.current.value = ''
+    } catch (e) {
+      toast.error(toErrorMessage(e))
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   /* ── 录音控制 ─────────────── */
 
@@ -247,6 +280,42 @@ export default function DigitalHumanPage() {
           <RefreshCw className="w-3.5 h-3.5" /> 刷新素材
         </button>
       </PageHeader>
+
+      <GlassCard title="医生头像（患者端展示）" extra={<StatusBadge variant="info"><ImagePlus className="w-3 h-3" />支持 JPG/PNG/WebP</StatusBadge>}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="w-20 h-20 rounded-2xl border border-alpine-100 bg-alpine-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="doctor-avatar" className="w-full h-full object-cover" />
+            ) : (
+              <UserCircle className="w-9 h-9 text-alpine-300" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0 space-y-2">
+            <button
+              onClick={() => avatarRef.current?.click()}
+              className="w-full h-10 rounded-xl border border-dashed border-alpine-200 hover:border-ice-300 text-sm text-alpine-500 flex items-center justify-center gap-2 transition-colors"
+            >
+              <ImagePlus className="w-4 h-4" />
+              {avatarFile ? avatarFile.name : '选择医生头像图片'}
+            </button>
+            <input
+              ref={avatarRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.webp,.bmp,image/*"
+              className="hidden"
+              onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+            />
+            <button
+              onClick={submitAvatar}
+              disabled={uploadingAvatar || !avatarFile}
+              className="w-full h-10 rounded-xl bg-ice-500 hover:bg-ice-600 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+            >
+              {uploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploadingAvatar ? '上传中...' : '上传并替换头像'}
+            </button>
+          </div>
+        </div>
+      </GlassCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Voice Create */}

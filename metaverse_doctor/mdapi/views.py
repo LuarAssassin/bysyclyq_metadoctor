@@ -1,9 +1,13 @@
+import base64
+import io
 import json
 import mimetypes
 import urllib.parse
 import urllib.request
 import uuid
+import wave
 from django.conf import settings
+from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db.models import Count, Q
 from django.http import StreamingHttpResponse
@@ -52,10 +56,16 @@ from mdapi.services.narrative_kernel import (
     DEFAULT_SCHEMA_VERSION,
     apply_annotation_update,
     apply_negative_rules_update,
+    build_default_opening_text,
     build_default_narrative_payload,
     deep_merge_dict,
     remove_negative_rules,
     render_narrative_kernel_dsl,
+)
+from mdapi.services.asr import (
+    QwenASRConfigurationError,
+    QwenASRError,
+    get_qwen_asr_service,
 )
 from mdapi.services.knowledge_queue import KnowledgeQueueError, get_knowledge_queue
 from mdapi.services.narrative_llm import (
@@ -76,6 +86,7 @@ from mdapi.services.oss import (
     OSSConfigurationError,
     OSSReadError,
     OSSUploadError,
+    extract_object_key_from_url,
     get_oss_client,
 )
 from mdapi.services.qwen import (
@@ -189,6 +200,34 @@ def _build_video_play_url(
         return video.video_oss_url or None
 
 
+def _build_avatar_play_url(
+    avatar_url: str | None,
+    *,
+    oss_client=None,
+    expires: int | None = None,
+) -> str | None:
+    raw_url = str(avatar_url or "").strip()
+    if not raw_url:
+        return None
+
+    object_key = extract_object_key_from_url(
+        raw_url,
+        required_prefix="doctor-digital-human/avatars",
+    )
+    if not object_key:
+        return raw_url
+
+    expire_seconds = int(
+        expires
+        or getattr(settings, "OSS_AVATAR_SIGNED_URL_EXPIRE_SECONDS", 24 * 60 * 60)
+    )
+    try:
+        client = oss_client or get_oss_client()
+        return client.build_signed_get_url(object_key, expires=max(expire_seconds, 60))
+    except (OSSConfigurationError, OSSReadError, AttributeError):
+        return raw_url
+
+
 def _resolve_latest_doctor_voice(doctor) -> tuple[str, str, str]:
     latest_voice = (
         DoctorVoiceProfile.objects.filter(doctor=doctor, status="ready")
@@ -209,6 +248,149 @@ def _resolve_latest_doctor_voice(doctor) -> tuple[str, str, str]:
     )
 
 
+def _to_int_or_none(value):
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_opening_payload(payload: dict | None) -> dict:
+    if isinstance(payload, dict):
+        opening = payload.get("OPENING")
+        if isinstance(opening, dict):
+            return opening
+    return {}
+
+
+def _build_opening_audio_play_url(
+    opening_payload: dict,
+    *,
+    oss_client=None,
+    expires: int = 1800,
+) -> str | None:
+    object_key = str(opening_payload.get("audio_object_key") or "").strip()
+    fallback_url = str(opening_payload.get("audio_oss_url") or "").strip()
+    if object_key:
+        try:
+            client = oss_client or get_oss_client()
+            return client.build_signed_get_url(object_key, expires=expires)
+        except (OSSConfigurationError, OSSReadError):
+            return fallback_url or None
+    return fallback_url or None
+
+
+def _build_doctor_opening_data(
+    doctor: CustomUser,
+    payload: dict | None,
+    *,
+    oss_client=None,
+    voice_meta: tuple[str, str, str] | None = None,
+) -> dict:
+    opening_payload = _extract_opening_payload(payload if isinstance(payload, dict) else {})
+    default_text = build_default_opening_text(doctor)
+    text = str(opening_payload.get("text") or "").strip() or default_text
+    voice_id, tts_model, voice_name = voice_meta or _resolve_latest_doctor_voice(doctor)
+    resolved_voice_id = str(opening_payload.get("voice_id") or voice_id or "").strip() or None
+    resolved_tts_model = str(opening_payload.get("tts_model") or tts_model or "").strip() or None
+    resolved_voice_name = str(opening_payload.get("voice_name") or voice_name or "").strip() or None
+    return {
+        "text": text,
+        "default_text": default_text,
+        "has_custom_text": text.strip() != default_text.strip(),
+        "audio_url": _build_opening_audio_play_url(opening_payload, oss_client=oss_client),
+        "audio_oss_url": str(opening_payload.get("audio_oss_url") or "").strip() or None,
+        "audio_content_type": str(opening_payload.get("audio_content_type") or "").strip() or None,
+        "audio_size_bytes": _to_int_or_none(opening_payload.get("audio_size_bytes")),
+        "audio_updated_at": str(opening_payload.get("audio_updated_at") or "").strip() or None,
+        "updated_at": str(opening_payload.get("updated_at") or "").strip() or None,
+        "voice_id": resolved_voice_id,
+        "tts_model": resolved_tts_model,
+        "voice_name": resolved_voice_name,
+    }
+
+
+def _pcm16_to_wav_bytes(
+    pcm_bytes: bytes,
+    *,
+    sample_rate: int = 24000,
+    channels: int = 1,
+) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as wav_file:
+        wav_file.setnchannels(max(1, int(channels)))
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(max(8000, int(sample_rate)))
+        wav_file.writeframes(pcm_bytes)
+    return output.getvalue()
+
+
+def _synthesize_doctor_opening_audio_wav(
+    *,
+    text: str,
+    voice_id: str,
+    tts_model: str,
+) -> dict:
+    normalized_text = DoctorRehearsalRealtimeTTS.normalize_markdown_for_tts(text).strip()
+    if not normalized_text:
+        raise RehearsalRealtimeTTSError("开场白文本为空，无法生成语音")
+
+    tts_bridge = DoctorRehearsalRealtimeTTS(
+        api_key=getattr(settings, "DASHSCOPE_API_KEY", ""),
+        model=tts_model,
+        voice_id=voice_id,
+        ws_url=getattr(
+            settings,
+            "QWEN_TTS_REALTIME_WS_URL",
+            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+        ),
+    )
+
+    audio_chunks: list[bytes] = []
+    stats: dict = {}
+    try:
+        tts_bridge.start()
+        tts_bridge.append_text(normalized_text)
+        tts_bridge.finish()
+        for audio_event in tts_bridge.drain_until_done(max_wait_seconds=20.0):
+            event_type = str(audio_event.get("type") or "")
+            if event_type == "audio_delta":
+                delta = str(audio_event.get("delta") or "")
+                if not delta:
+                    continue
+                try:
+                    audio_chunks.append(base64.b64decode(delta))
+                except Exception:  # noqa: BLE001
+                    continue
+            elif event_type == "error":
+                error_text = str(audio_event.get("message") or "实时语音生成失败")
+                raise RehearsalRealtimeTTSError(error_text)
+        stats = tts_bridge.get_stats()
+    finally:
+        tts_bridge.close()
+
+    if stats.get("error"):
+        raise RehearsalRealtimeTTSError(str(stats.get("error")))
+    if not audio_chunks:
+        raise RehearsalRealtimeTTSError("实时语音未返回音频数据")
+
+    pcm_bytes = b"".join(audio_chunks)
+    wav_bytes = _pcm16_to_wav_bytes(
+        pcm_bytes,
+        sample_rate=int(stats.get("sample_rate") or 24000),
+        channels=int(stats.get("channels") or 1),
+    )
+    return {
+        "audio_bytes": wav_bytes,
+        "content_type": "audio/wav",
+        "sample_rate": int(stats.get("sample_rate") or 24000),
+        "channels": int(stats.get("channels") or 1),
+        "stats": stats,
+    }
+
+
 def _get_available_doctor(doctor_id: int) -> CustomUser | None:
     return (
         CustomUser.objects.filter(
@@ -220,6 +402,50 @@ def _get_available_doctor(doctor_id: int) -> CustomUser | None:
         .order_by("-updated_at")
         .first()
     )
+
+
+def _build_patient_session_title(question: str, max_chars: int = 24) -> str:
+    text = " ".join(str(question or "").split())
+    if not text:
+        return "问诊会话"
+    limit = max(8, int(max_chars))
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 1].rstrip()}…"
+
+
+_PATIENT_STREAM_CANCEL_FLAGS: dict[str, bool] = {}
+
+
+def _patient_stream_cancel_key(message_id: int) -> str:
+    return f"mdapi:patient:stream:cancel:{int(message_id)}"
+
+
+def _mark_patient_stream_cancelled(message_id: int):
+    key = _patient_stream_cancel_key(message_id)
+    try:
+        cache.set(key, "1", timeout=600)
+    except Exception:  # noqa: BLE001
+        _PATIENT_STREAM_CANCEL_FLAGS[key] = True
+
+
+def _is_patient_stream_cancelled(message_id: int) -> bool:
+    key = _patient_stream_cancel_key(message_id)
+    try:
+        if cache.get(key):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    return bool(_PATIENT_STREAM_CANCEL_FLAGS.get(key))
+
+
+def _clear_patient_stream_cancel_flag(message_id: int):
+    key = _patient_stream_cancel_key(message_id)
+    try:
+        cache.delete(key)
+    except Exception:  # noqa: BLE001
+        pass
+    _PATIENT_STREAM_CANCEL_FLAGS.pop(key, None)
 
 
 class DoctorKnowledgeView(APIView):
@@ -566,8 +792,12 @@ class DoctorDigitalVoiceView(APIView):
             )
 
         preferred_name = (request.data.get("preferred_name") or "").strip()
+        # DashScope 音色复刻 prefix 限制：仅允许数字、大小写字母和下划线，不超过 10 个字符
         if not preferred_name:
-            preferred_name = f"doctor_{request.user.id}_{uuid.uuid4().hex[:8]}"
+            preferred_name = f"d{request.user.id}{uuid.uuid4().hex[:6]}"
+        # 清理非法字符并截断到 10 字符
+        import re as _re
+        preferred_name = _re.sub(r'[^a-zA-Z0-9_]', '', preferred_name)[:10]
         voice_name = (request.data.get("name") or "").strip() or preferred_name
         target_model = (
             (request.data.get("target_model") or "").strip()
@@ -628,6 +858,89 @@ class DoctorDigitalVoiceView(APIView):
         )
         data = DoctorVoiceProfileSerializer(profile).data
         return APIResponse.created(data=data, message="音色创建成功")
+
+
+class DoctorDigitalAvatarView(APIView):
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    def get(self, request):
+        oss_client = None
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
+        return APIResponse.success(
+            data={
+                "avatar": _build_avatar_play_url(
+                    request.user.avatar,
+                    oss_client=oss_client,
+                ),
+            },
+            message="获取成功",
+        )
+
+    def post(self, request):
+        image_file = request.FILES.get("image")
+        if not image_file:
+            return APIResponse.error(message="请上传头像图片（字段名: image）", code=400)
+
+        avatar_config = getattr(settings, "DIGITAL_HUMAN_AVATAR_UPLOAD_CONFIG", {})
+        max_file_size = int(avatar_config.get("MAX_FILE_SIZE", 10 * 1024 * 1024))
+        allowed_extensions = {
+            ext.lower() for ext in avatar_config.get("ALLOWED_EXTENSIONS", [])
+        }
+        allowed_mime_types = {
+            mime.lower() for mime in avatar_config.get("ALLOWED_MIME_TYPES", [])
+        }
+
+        content_type = (image_file.content_type or "").lower()
+        file_extension = Path(image_file.name or "").suffix.lower()
+        if image_file.size > max_file_size:
+            return APIResponse.error(
+                message=f"头像图片超过大小限制（最大 {max_file_size // (1024 * 1024)}MB）",
+                code=400,
+            )
+        if (allowed_extensions or allowed_mime_types) and not (
+            file_extension in allowed_extensions or content_type in allowed_mime_types
+        ):
+            supported = ", ".join(sorted(allowed_extensions))
+            return APIResponse.error(
+                message=f"头像图片格式不支持，支持扩展名: {supported}",
+                code=400,
+            )
+        if not content_type.startswith("image/"):
+            return APIResponse.error(message="上传文件不是图片类型", code=400)
+
+        try:
+            oss_client = get_oss_client()
+            upload_result = oss_client.upload_file(
+                image_file,
+                doctor_id=request.user.id,
+                prefix="doctor-digital-human/avatars",
+            )
+        except (OSSConfigurationError, OSSUploadError) as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        request.user.avatar = upload_result["oss_url"]
+        request.user.save(update_fields=["avatar", "updated_at"])
+
+        signed_avatar_url = _build_avatar_play_url(
+            request.user.avatar,
+            oss_client=oss_client,
+        )
+        return APIResponse.success(
+            data={
+                "avatar": signed_avatar_url,
+                "content_type": upload_result.get("content_type"),
+                "size_bytes": upload_result.get("size_bytes"),
+            },
+            message="医生头像上传成功",
+        )
 
 
 class DoctorAvatarVideoView(APIView):
@@ -1038,6 +1351,126 @@ class DoctorNarrativeKernelView(APIView):
         )
         data = DoctorNarrativeKernelSerializer(kernel).data
         return APIResponse.success(data=data, message="叙事底座已局部更新")
+
+
+class DoctorNarrativeOpeningView(APIView):
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    def get(self, request):
+        kernel, _ = _get_or_create_doctor_narrative_kernel(request.user)
+
+        oss_client = None
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
+        opening = _build_doctor_opening_data(
+            request.user,
+            kernel.payload if isinstance(kernel.payload, dict) else {},
+            oss_client=oss_client,
+        )
+        return APIResponse.success(data=opening, message="获取成功")
+
+    def put(self, request):
+        text = (request.data.get("text") or "").strip()
+        if not text:
+            text = build_default_opening_text(request.user)
+        if len(text) > 1000:
+            return APIResponse.error(message="开场白长度不能超过 1000 字", code=400)
+
+        note = (request.data.get("note") or "").strip()
+        kernel, _ = _get_or_create_doctor_narrative_kernel(request.user)
+        voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(request.user)
+
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        try:
+            audio_result = _synthesize_doctor_opening_audio_wav(
+                text=text,
+                voice_id=voice_id,
+                tts_model=tts_model,
+            )
+            timestamp = timezone.now().strftime("%Y%m%d-%H%M%S")
+            audio_file = ContentFile(
+                audio_result["audio_bytes"],
+                name=f"doctor-opening-{timestamp}.wav",
+            )
+            audio_file.content_type = audio_result["content_type"]
+            upload_result = oss_client.upload_file(
+                audio_file,
+                doctor_id=request.user.id,
+                prefix="doctor-digital-human/openings",
+            )
+        except RehearsalRealtimeTTSError as exc:
+            return APIResponse.error(
+                message=f"开场白语音生成失败: {exc}",
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except OSSUploadError as exc:
+            return APIResponse.error(
+                message=f"开场白语音上传失败: {exc}",
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        payload = kernel.payload if isinstance(kernel.payload, dict) else {}
+        opening_payload = _extract_opening_payload(payload)
+        next_opening = {
+            **opening_payload,
+            "text": text,
+            "audio_object_key": upload_result["object_key"],
+            "audio_oss_url": upload_result["oss_url"],
+            "audio_content_type": upload_result["content_type"],
+            "audio_size_bytes": upload_result["size_bytes"],
+            "audio_etag": upload_result["etag"],
+            "audio_updated_at": timezone.now().isoformat(),
+            "voice_id": voice_id,
+            "voice_name": voice_name,
+            "tts_model": tts_model,
+            "updated_at": timezone.now().isoformat(),
+        }
+        merged_payload = {
+            **payload,
+            "OPENING": next_opening,
+        }
+        next_revision = max(1, int(kernel.revision or 0)) + 1
+        kernel.payload = merged_payload
+        kernel.compiled_prompt = render_narrative_kernel_dsl(merged_payload)
+        kernel.revision = next_revision
+        if note:
+            kernel.notes = note
+        kernel.save(
+            update_fields=[
+                "payload",
+                "compiled_prompt",
+                "revision",
+                "notes",
+                "updated_at",
+            ]
+        )
+
+        opening = _build_doctor_opening_data(
+            request.user,
+            kernel.payload if isinstance(kernel.payload, dict) else {},
+            oss_client=oss_client,
+            voice_meta=(voice_id, tts_model, voice_name),
+        )
+        return APIResponse.success(
+            data={
+                "opening": opening,
+                "kernel": DoctorNarrativeKernelSerializer(kernel).data,
+            },
+            message="开场白已保存并生成语音",
+        )
 
 
 class DoctorNarrativeAnnotationView(APIView):
@@ -1706,6 +2139,7 @@ class DoctorRehearsalAskStreamView(APIView):
                     "error",
                     {"message": str(exc), "message_id": assistant_msg.id},
                 )
+                _clear_patient_stream_cancel_flag(assistant_msg.id)
                 return
 
             if tts_bridge:
@@ -2065,6 +2499,266 @@ class DoctorRehearsalMessageFeedbackView(APIView):
         )
 
 
+class DoctorPatientConsultTreeView(APIView):
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    @staticmethod
+    def _serialize_patient(patient: CustomUser) -> dict:
+        return {
+            "id": patient.id,
+            "username": patient.username,
+            "nickname": patient.nickname,
+            "avatar": patient.avatar,
+        }
+
+    def get(self, request):
+        queryset = (
+            PatientConsultSession.objects.filter(doctor=request.user)
+            .select_related("patient")
+            .annotate(
+                pending_count=Count(
+                    "messages",
+                    filter=Q(
+                        messages__role="assistant",
+                        messages__review_status="pending",
+                    ),
+                ),
+                total_message_count=Count("messages"),
+            )
+            .order_by("-is_pinned", "-pinned_at", "-last_message_at", "-updated_at")
+        )
+
+        patient_tree: dict[int, dict] = {}
+        total_pending_count = 0
+        session_count = 0
+
+        for session in queryset:
+            session_count += 1
+            pending_count = int(getattr(session, "pending_count", 0) or 0)
+            total_pending_count += pending_count
+
+            patient_id = session.patient_id
+            if patient_id not in patient_tree:
+                patient_tree[patient_id] = {
+                    "patient": self._serialize_patient(session.patient),
+                    "pending_count": 0,
+                    "session_count": 0,
+                    "sessions": [],
+                }
+
+            patient_node = patient_tree[patient_id]
+            patient_node["pending_count"] += pending_count
+            patient_node["session_count"] += 1
+            patient_node["sessions"].append(
+                {
+                    "id": session.id,
+                    "title": session.title,
+                    "status": session.status,
+                    "is_pinned": session.is_pinned,
+                    "pinned_at": session.pinned_at,
+                    "summary": session.summary,
+                    "last_message_at": session.last_message_at,
+                    "created_at": session.created_at,
+                    "updated_at": session.updated_at,
+                    "pending_count": pending_count,
+                    "total_message_count": int(
+                        getattr(session, "total_message_count", 0) or 0
+                    ),
+                }
+            )
+
+        return APIResponse.success(
+            data={
+                "patients": list(patient_tree.values()),
+                "session_count": session_count,
+                "pending_count": total_pending_count,
+            },
+            message="获取成功",
+        )
+
+
+class DoctorPatientConsultSessionMessagesView(APIView):
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    def get(self, request, session_id):
+        session = (
+            PatientConsultSession.objects.filter(
+                id=session_id,
+                doctor=request.user,
+            )
+            .select_related("patient")
+            .first()
+        )
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        raw_limit = request.query_params.get("limit", 100)
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            limit = 100
+        limit = max(1, min(limit, 300))
+
+        queryset = list(
+            PatientConsultMessage.objects.filter(session=session)
+            .order_by("-created_at")[:limit]
+        )
+        queryset.reverse()
+
+        stats = PatientConsultMessage.objects.filter(
+            session=session,
+            role="assistant",
+        ).aggregate(
+            pending=Count("id", filter=Q(review_status="pending")),
+            approved=Count("id", filter=Q(review_status="approved")),
+            approved_edited=Count("id", filter=Q(review_status="approved_edited")),
+            rejected=Count("id", filter=Q(review_status="rejected")),
+        )
+
+        return APIResponse.success(
+            data={
+                "session": {
+                    "id": session.id,
+                    "title": session.title,
+                    "status": session.status,
+                    "is_pinned": session.is_pinned,
+                    "pinned_at": session.pinned_at,
+                    "summary": session.summary,
+                    "last_message_at": session.last_message_at,
+                    "created_at": session.created_at,
+                    "updated_at": session.updated_at,
+                },
+                "patient": {
+                    "id": session.patient.id,
+                    "username": session.patient.username,
+                    "nickname": session.patient.nickname,
+                    "avatar": session.patient.avatar,
+                },
+                "messages": PatientConsultMessageSerializer(queryset, many=True).data,
+                "stats": {
+                    "pending": int(stats.get("pending") or 0),
+                    "approved": int(stats.get("approved") or 0),
+                    "approved_edited": int(stats.get("approved_edited") or 0),
+                    "rejected": int(stats.get("rejected") or 0),
+                },
+            },
+            message="获取成功",
+        )
+
+
+class DoctorPatientConsultMessageReviewView(APIView):
+    permission_classes = [IsAuthenticated, IsDoctor]
+
+    VALID_ACTIONS = {"approve", "approve_edited", "pending", "reject"}
+
+    def post(self, request, message_id):
+        message = (
+            PatientConsultMessage.objects.filter(
+                id=message_id,
+                doctor=request.user,
+                role="assistant",
+            )
+            .select_related("session")
+            .first()
+        )
+        if not message:
+            return APIResponse.not_found(message="问诊回答消息不存在")
+        if message.generation_status != "succeeded":
+            return APIResponse.error(message="仅可审核已完成生成的回答消息", code=400)
+
+        action = str(request.data.get("action") or "").strip().lower()
+        if action not in self.VALID_ACTIONS:
+            return APIResponse.error(
+                message="action 仅支持 approve/approve_edited/pending/reject",
+                code=400,
+            )
+
+        review_note_raw = request.data.get("review_note")
+        if review_note_raw is not None and not isinstance(review_note_raw, str):
+            return APIResponse.error(message="review_note 必须是字符串", code=400)
+        review_note = (review_note_raw or "").strip() or None
+
+        edited_markdown_raw = request.data.get("edited_markdown")
+        if edited_markdown_raw is not None and not isinstance(edited_markdown_raw, str):
+            return APIResponse.error(message="edited_markdown 必须是字符串", code=400)
+        edited_markdown = (
+            edited_markdown_raw.strip()
+            if isinstance(edited_markdown_raw, str)
+            else None
+        )
+
+        now = timezone.now()
+        update_fields = ["review_note", "updated_at"]
+
+        if action == "approve_edited":
+            final_markdown = edited_markdown
+            if final_markdown is None:
+                final_markdown = (message.edited_markdown or "").strip()
+            if not final_markdown:
+                return APIResponse.error(
+                    message="编辑后通过时，edited_markdown 不能为空",
+                    code=400,
+                )
+
+            message.edited_markdown = final_markdown
+            message.edited_at = now
+            message.content = final_markdown
+            message.content_markdown = final_markdown
+            message.review_status = "approved_edited"
+            message.reviewed_at = now
+            update_fields.extend(
+                [
+                    "edited_markdown",
+                    "edited_at",
+                    "content",
+                    "content_markdown",
+                    "review_status",
+                    "reviewed_at",
+                ]
+            )
+        else:
+            if edited_markdown is not None:
+                message.edited_markdown = edited_markdown or None
+                message.edited_at = now if edited_markdown else None
+                update_fields.extend(["edited_markdown", "edited_at"])
+
+            if action == "approve":
+                message.review_status = "approved"
+                message.reviewed_at = now
+                update_fields.extend(["review_status", "reviewed_at"])
+            elif action == "pending":
+                message.review_status = "pending"
+                message.reviewed_at = None
+                update_fields.extend(["review_status", "reviewed_at"])
+            elif action == "reject":
+                message.review_status = "rejected"
+                message.reviewed_at = now
+                update_fields.extend(["review_status", "reviewed_at"])
+
+        message.review_note = review_note
+        message.save(update_fields=list(dict.fromkeys(update_fields)))
+
+        pending_count = PatientConsultMessage.objects.filter(
+            session_id=message.session_id,
+            role="assistant",
+            review_status="pending",
+        ).count()
+
+        action_text_map = {
+            "approve": "审核通过",
+            "approve_edited": "编辑后通过",
+            "pending": "已设置为待审核",
+            "reject": "已驳回",
+        }
+        return APIResponse.success(
+            data={
+                "message": PatientConsultMessageSerializer(message).data,
+                "pending_count": pending_count,
+            },
+            message=action_text_map.get(action, "已更新"),
+        )
+
+
 class PatientDoctorDirectoryView(APIView):
     permission_classes = [IsAuthenticated, IsPatient]
 
@@ -2086,6 +2780,7 @@ class PatientDoctorAssetsView(APIView):
         if not doctor:
             return APIResponse.not_found(message="医生不存在或当前不可服务")
 
+        kernel, _ = _get_or_create_doctor_narrative_kernel(doctor)
         voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(doctor)
         video_queryset = list(
             DoctorAvatarVideo.objects.filter(
@@ -2125,10 +2820,82 @@ class PatientDoctorAssetsView(APIView):
             "tts_model": tts_model,
             "voice_id": voice_id,
             "voice_name": voice_name,
+            "opening": _build_doctor_opening_data(
+                doctor,
+                kernel.payload if isinstance(kernel.payload, dict) else {},
+                oss_client=oss_client,
+                voice_meta=(voice_id, tts_model, voice_name),
+            ),
             "video_urls": video_urls,
             "videos": videos,
         }
         return APIResponse.success(data=data, message="获取成功")
+
+
+class PatientASRTranscribeView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def post(self, request):
+        audio_file = request.FILES.get("audio")
+        if not audio_file:
+            return APIResponse.error(message="请上传音频文件（字段名: audio）", code=400)
+
+        upload_config = getattr(settings, "PATIENT_ASR_UPLOAD_CONFIG", {})
+        max_file_size = int(upload_config.get("MAX_FILE_SIZE", 12 * 1024 * 1024))
+        allowed_extensions = {
+            ext.lower() for ext in upload_config.get("ALLOWED_EXTENSIONS", [])
+        }
+        allowed_mime_types = {
+            mime.lower() for mime in upload_config.get("ALLOWED_MIME_TYPES", [])
+        }
+
+        content_type = (audio_file.content_type or "").lower()
+        file_extension = Path(audio_file.name or "").suffix.lower()
+        if audio_file.size > max_file_size:
+            return APIResponse.error(
+                message=f"音频文件超过大小限制（最大 {max_file_size // (1024 * 1024)}MB）",
+                code=400,
+            )
+        if (allowed_extensions or allowed_mime_types) and not (
+            file_extension in allowed_extensions or content_type in allowed_mime_types
+        ):
+            supported = ", ".join(sorted(allowed_extensions))
+            return APIResponse.error(
+                message=f"音频类型不支持，支持扩展名: {supported}",
+                code=400,
+            )
+        if not (
+            content_type.startswith("audio/")
+            or content_type in {"video/webm"}
+            or file_extension in allowed_extensions
+        ):
+            return APIResponse.error(message="上传文件不是有效音频类型", code=400)
+
+        try:
+            asr_service = get_qwen_asr_service()
+            asr_result = asr_service.transcribe(audio_file, content_type)
+        except QwenASRConfigurationError as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except QwenASRError as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return APIResponse.success(
+            data={
+                "text": asr_result.get("text", ""),
+                "model": asr_result.get("model", ""),
+                "content_type": content_type or None,
+                "size_bytes": audio_file.size,
+            },
+            message="语音识别成功",
+        )
 
 
 class PatientConsultSessionView(APIView):
@@ -2136,7 +2903,7 @@ class PatientConsultSessionView(APIView):
 
     def get(self, request):
         queryset = PatientConsultSession.objects.filter(patient=request.user).order_by(
-            "-last_message_at", "-updated_at"
+            "-is_pinned", "-pinned_at", "-last_message_at", "-updated_at"
         )
         serializer = PatientConsultSessionSerializer(queryset, many=True)
         return APIResponse.success(data=serializer.data, message="获取成功")
@@ -2168,6 +2935,60 @@ class PatientConsultSessionView(APIView):
         return APIResponse.created(data=data, message="患者问诊会话已创建")
 
 
+class PatientConsultSessionItemView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    @staticmethod
+    def _get_session(patient, session_id: int) -> PatientConsultSession | None:
+        return (
+            PatientConsultSession.objects.filter(
+                id=session_id,
+                patient=patient,
+            )
+            .select_related("doctor")
+            .first()
+        )
+
+    def patch(self, request, session_id):
+        session = self._get_session(request.user, session_id)
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        if "is_pinned" not in request.data:
+            return APIResponse.error(message="is_pinned 不能为空", code=400)
+
+        is_pinned = _parse_bool(request.data.get("is_pinned"), default=False)
+        session.is_pinned = is_pinned
+        session.pinned_at = timezone.now() if is_pinned else None
+        session.save(update_fields=["is_pinned", "pinned_at", "updated_at"])
+
+        return APIResponse.success(
+            data=PatientConsultSessionSerializer(session).data,
+            message="会话置顶状态已更新",
+        )
+
+    def delete(self, request, session_id):
+        session = self._get_session(request.user, session_id)
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        now = timezone.now()
+        PatientConsultMessage.objects.filter(session=session).update(
+            is_deleted=True,
+            deleted_at=now,
+            updated_at=now,
+        )
+        PatientConsultSession.all_objects.filter(
+            id=session.id,
+            patient=request.user,
+        ).update(
+            is_deleted=True,
+            deleted_at=now,
+            updated_at=now,
+        )
+        return APIResponse.success(message="会话已删除", data=None)
+
+
 class PatientConsultMessageView(APIView):
     permission_classes = [IsAuthenticated, IsPatient]
 
@@ -2197,6 +3018,65 @@ class PatientConsultMessageView(APIView):
                 "messages": serializer.data,
             },
             message="获取成功",
+        )
+
+
+class PatientConsultMessageInterruptView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def post(self, request, session_id, message_id):
+        session = (
+            PatientConsultSession.objects.filter(id=session_id, patient=request.user)
+            .select_related("doctor")
+            .first()
+        )
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        message = (
+            PatientConsultMessage.objects.filter(
+                id=message_id,
+                session=session,
+                role="assistant",
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if not message:
+            return APIResponse.not_found(message="回答消息不存在")
+
+        partial_content = request.data.get("partial_content")
+        if partial_content is not None and not isinstance(partial_content, str):
+            return APIResponse.error(message="partial_content 必须是字符串", code=400)
+        partial_text = partial_content if isinstance(partial_content, str) else ""
+
+        _mark_patient_stream_cancelled(message.id)
+
+        meta_data = message.meta if isinstance(message.meta, dict) else {}
+        meta_data["interrupted"] = True
+        meta_data["interrupted_at"] = timezone.now().isoformat()
+
+        update_fields = ["meta", "updated_at"]
+        if message.generation_status == "generating":
+            message.generation_status = "succeeded"
+            update_fields.append("generation_status")
+        if partial_content is not None:
+            message.content = partial_text
+            message.content_markdown = partial_text
+            update_fields.extend(["content", "content_markdown"])
+        if message.error_message:
+            message.error_message = None
+            update_fields.append("error_message")
+
+        message.meta = meta_data
+        message.save(update_fields=update_fields)
+
+        session.last_message_at = timezone.now()
+        session.save(update_fields=["last_message_at", "updated_at"])
+
+        return APIResponse.success(
+            data=PatientConsultMessageSerializer(message).data,
+            message="已停止生成并保存当前内容",
         )
 
 
@@ -2250,6 +3130,15 @@ class PatientConsultAskStreamView(APIView):
         turn_index = (
             PatientConsultMessage.objects.filter(session=session).count() // 2
         ) + 1
+        title_updated = False
+        if turn_index == 1:
+            doctor_name = session.doctor.nickname or session.doctor.username
+            auto_prefix = f"{doctor_name}问诊-"
+            current_title = (session.title or "").strip()
+            if (not current_title) or current_title.startswith(auto_prefix):
+                session.title = _build_patient_session_title(question)
+                title_updated = True
+
         user_msg = PatientConsultMessage.objects.create(
             session=session,
             patient=request.user,
@@ -2257,6 +3146,7 @@ class PatientConsultAskStreamView(APIView):
             role="user",
             turn_index=turn_index,
             generation_status="succeeded",
+            review_status="approved",
             content=question,
             content_markdown=question,
             model_name=None,
@@ -2269,14 +3159,19 @@ class PatientConsultAskStreamView(APIView):
             role="assistant",
             turn_index=turn_index,
             generation_status="generating",
+            review_status="pending",
             reply_to=user_msg,
             content="[生成中]",
             content_markdown="[生成中]",
             model_name=rehearsal.answer_model,
         )
+        _clear_patient_stream_cancel_flag(assistant_msg.id)
 
         session.last_message_at = timezone.now()
-        session.save(update_fields=["last_message_at", "updated_at"])
+        session_update_fields = ["last_message_at", "updated_at"]
+        if title_updated:
+            session_update_fields.append("title")
+        session.save(update_fields=session_update_fields)
 
         kernel, _ = _get_or_create_doctor_narrative_kernel(session.doctor)
         knowledge_queryset = (
@@ -2338,6 +3233,8 @@ class PatientConsultAskStreamView(APIView):
             full_content = ""
             usage_data = {}
             search_sources = []
+            interrupted = False
+            stream_closed = False
             audio_status = "disabled"
             audio_error = ""
             voice_id = ""
@@ -2355,63 +3252,78 @@ class PatientConsultAskStreamView(APIView):
             }
             tts_error_emitted = False
 
-            if enable_audio:
-                voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(session.doctor)
-                try:
-                    tts_bridge = DoctorRehearsalRealtimeTTS(
-                        api_key=getattr(settings, "DASHSCOPE_API_KEY", ""),
-                        model=tts_model,
-                        voice_id=voice_id,
-                        ws_url=getattr(
-                            settings,
-                            "QWEN_TTS_REALTIME_WS_URL",
-                            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
-                        ),
-                    )
-                    tts_bridge.start()
-                    audio_status = "streaming"
-                except RehearsalRealtimeTTSError as exc:
-                    audio_status = "failed"
-                    audio_error = str(exc)
-                    tts_bridge = None
-
-            yield _to_sse_event(
-                "start",
-                {
-                    "session_id": session.id,
-                    "question_message_id": user_msg.id,
-                    "answer_message_id": assistant_msg.id,
-                    "doctor_id": session.doctor_id,
-                    "selected_file_ids": selected_file_ids,
-                    "selected_file_meta": selected_meta,
-                    "grounding_sources": grounding_result["sources"],
-                    "audio": {
-                        "enabled": enable_audio,
-                        "status": audio_status,
-                        "voice_id": voice_id or None,
-                        "voice_name": voice_name or None,
-                        "tts_model": tts_model or None,
-                        "audio_format": "pcm16",
-                        "sample_rate": 24000,
-                        "channels": 1,
-                    },
-                },
-            )
-            if audio_error:
-                yield _to_sse_event(
-                    "audio_error",
-                    {
-                        "message_id": assistant_msg.id,
-                        "message": audio_error,
-                    },
-                )
-                tts_error_emitted = True
+            def _audio_payload() -> dict:
+                return {
+                    "enabled": enable_audio,
+                    "status": audio_status,
+                    "voice_id": voice_id or None,
+                    "voice_name": voice_name or None,
+                    "tts_model": tts_model or None,
+                    "error": audio_error or None,
+                    **audio_stats,
+                }
 
             try:
+                if enable_audio:
+                    voice_id, tts_model, voice_name = _resolve_latest_doctor_voice(session.doctor)
+                    try:
+                        tts_bridge = DoctorRehearsalRealtimeTTS(
+                            api_key=getattr(settings, "DASHSCOPE_API_KEY", ""),
+                            model=tts_model,
+                            voice_id=voice_id,
+                            ws_url=getattr(
+                                settings,
+                                "QWEN_TTS_REALTIME_WS_URL",
+                                "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                            ),
+                        )
+                        tts_bridge.start()
+                        audio_status = "streaming"
+                    except RehearsalRealtimeTTSError as exc:
+                        audio_status = "failed"
+                        audio_error = str(exc)
+                        tts_bridge = None
+
+                yield _to_sse_event(
+                    "start",
+                    {
+                        "session_id": session.id,
+                        "question_message_id": user_msg.id,
+                        "answer_message_id": assistant_msg.id,
+                        "doctor_id": session.doctor_id,
+                        "selected_file_ids": selected_file_ids,
+                        "selected_file_meta": selected_meta,
+                        "grounding_sources": grounding_result["sources"],
+                        "audio": {
+                            "enabled": enable_audio,
+                            "status": audio_status,
+                            "voice_id": voice_id or None,
+                            "voice_name": voice_name or None,
+                            "tts_model": tts_model or None,
+                            "audio_format": "pcm16",
+                            "sample_rate": 24000,
+                            "channels": 1,
+                        },
+                    },
+                )
+                if audio_error:
+                    yield _to_sse_event(
+                        "audio_error",
+                        {
+                            "message_id": assistant_msg.id,
+                            "message": audio_error,
+                        },
+                    )
+                    tts_error_emitted = True
+
                 for event in rehearsal.stream_final_answer(
                     messages=final_messages,
                     forced_search=forced_search,
                 ):
+                    if _is_patient_stream_cancelled(assistant_msg.id):
+                        interrupted = True
+                        break
+
                     if event.get("type") == "delta":
                         delta = str(event.get("delta", "") or "")
                         if delta:
@@ -2469,6 +3381,7 @@ class PatientConsultAskStreamView(APIView):
                         full_content = str(event.get("content", full_content) or "")
                         usage_data = event.get("usage", {}) or {}
                         search_sources = event.get("search_sources", []) or []
+                        break
             except RehearsalServiceError as exc:
                 if tts_bridge:
                     try:
@@ -2489,15 +3402,7 @@ class PatientConsultAskStreamView(APIView):
                 assistant_msg.grounding_sources = grounding_result["sources"]
                 assistant_msg.meta = {
                     "selector_reason": selected.get("reason", ""),
-                    "audio": {
-                        "enabled": enable_audio,
-                        "status": audio_status,
-                        "voice_id": voice_id or None,
-                        "voice_name": voice_name or None,
-                        "tts_model": tts_model or None,
-                        "error": audio_error or None,
-                        **audio_stats,
-                    },
+                    "audio": _audio_payload(),
                 }
                 assistant_msg.save(
                     update_fields=[
@@ -2515,6 +3420,88 @@ class PatientConsultAskStreamView(APIView):
                     "error",
                     {"message": str(exc), "message_id": assistant_msg.id},
                 )
+                _clear_patient_stream_cancel_flag(assistant_msg.id)
+                return
+            except (GeneratorExit, BrokenPipeError, ConnectionResetError):
+                interrupted = True
+                stream_closed = True
+
+            if interrupted:
+                if tts_bridge:
+                    try:
+                        tts_bridge.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    audio_stats = tts_bridge.get_stats()
+                    if audio_stats.get("error"):
+                        audio_error = str(audio_stats.get("error"))
+                        audio_status = "failed"
+                elif enable_audio and audio_status != "failed":
+                    audio_status = "stopped"
+
+                final_partial = full_content.strip()
+                if not final_partial and assistant_msg.content not in {"", "[生成中]"}:
+                    final_partial = assistant_msg.content
+
+                meta_data = assistant_msg.meta if isinstance(assistant_msg.meta, dict) else {}
+                meta_data.update(
+                    {
+                        "selector_reason": selected.get("reason", ""),
+                        "interrupted": True,
+                        "interrupted_at": timezone.now().isoformat(),
+                        "audio": _audio_payload(),
+                    }
+                )
+
+                assistant_msg.generation_status = "succeeded"
+                assistant_msg.content = final_partial
+                assistant_msg.content_markdown = final_partial
+                assistant_msg.model_name = rehearsal.answer_model
+                assistant_msg.selected_file_ids = selected_file_ids
+                assistant_msg.selected_file_meta = selected_meta
+                assistant_msg.grounding_answer = grounding_result["answer"]
+                assistant_msg.grounding_sources = grounding_result["sources"]
+                assistant_msg.search_sources = search_sources
+                assistant_msg.input_tokens = usage_data.get("input_tokens")
+                assistant_msg.output_tokens = usage_data.get("output_tokens")
+                assistant_msg.total_tokens = usage_data.get("total_tokens")
+                assistant_msg.meta = meta_data
+                assistant_msg.error_message = None
+                assistant_msg.save(
+                    update_fields=[
+                        "generation_status",
+                        "content",
+                        "content_markdown",
+                        "model_name",
+                        "selected_file_ids",
+                        "selected_file_meta",
+                        "grounding_answer",
+                        "grounding_sources",
+                        "search_sources",
+                        "input_tokens",
+                        "output_tokens",
+                        "total_tokens",
+                        "meta",
+                        "error_message",
+                        "updated_at",
+                    ]
+                )
+                session.last_message_at = timezone.now()
+                session.save(update_fields=["last_message_at", "updated_at"])
+
+                if not stream_closed:
+                    yield _to_sse_event(
+                        "done",
+                        {
+                            "message_id": assistant_msg.id,
+                            "usage": usage_data,
+                            "search_sources": search_sources,
+                            "selected_file_ids": selected_file_ids,
+                            "interrupted": True,
+                            "audio": _audio_payload(),
+                        },
+                    )
+                _clear_patient_stream_cancel_flag(assistant_msg.id)
                 return
 
             if tts_bridge:
@@ -2582,15 +3569,8 @@ class PatientConsultAskStreamView(APIView):
             assistant_msg.total_tokens = usage_data.get("total_tokens")
             assistant_msg.meta = {
                 "selector_reason": selected.get("reason", ""),
-                "audio": {
-                    "enabled": enable_audio,
-                    "status": audio_status,
-                    "voice_id": voice_id or None,
-                    "voice_name": voice_name or None,
-                    "tts_model": tts_model or None,
-                    "error": audio_error or None,
-                    **audio_stats,
-                },
+                "interrupted": False,
+                "audio": _audio_payload(),
             }
             assistant_msg.error_message = None
             assistant_msg.save(
@@ -2622,17 +3602,12 @@ class PatientConsultAskStreamView(APIView):
                     "usage": usage_data,
                     "search_sources": search_sources,
                     "selected_file_ids": selected_file_ids,
-                    "audio": {
-                        "enabled": enable_audio,
-                        "status": audio_status,
-                        "voice_id": voice_id or None,
-                        "voice_name": voice_name or None,
-                        "tts_model": tts_model or None,
-                        "error": audio_error or None,
-                        **audio_stats,
-                    },
+                    "interrupted": False,
+                    "audio": _audio_payload(),
                 },
             )
+            _clear_patient_stream_cancel_flag(assistant_msg.id)
+            return
 
         response = StreamingHttpResponse(
             event_stream(),

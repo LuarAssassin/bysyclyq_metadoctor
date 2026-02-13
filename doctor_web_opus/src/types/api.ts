@@ -120,6 +120,10 @@ export interface VoiceProfile {
   updated_at: string
 }
 
+export interface DoctorAvatarProfile {
+  avatar: string | null
+}
+
 export interface AvatarVideo {
   id: number
   image_file_name: string
@@ -172,6 +176,26 @@ export interface NarrativeKernel {
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+export interface NarrativeOpening {
+  text: string
+  default_text: string
+  has_custom_text: boolean
+  audio_url: string | null
+  audio_oss_url: string | null
+  audio_content_type: string | null
+  audio_size_bytes: number | null
+  audio_updated_at: string | null
+  updated_at: string | null
+  voice_id: string | null
+  tts_model: string | null
+  voice_name: string | null
+}
+
+export interface NarrativeOpeningSaveResult {
+  opening: NarrativeOpening
+  kernel: NarrativeKernel
 }
 
 export interface NarrativeAnnotation {
@@ -294,6 +318,102 @@ export interface FeedbackApplyResult {
   feedback: RehearsalFeedback
   annotation: NarrativeAnnotation
   kernel: NarrativeKernel
+}
+
+/* ============================
+   患者问诊审核
+   ============================ */
+
+export type ConsultReviewStatus = 'pending' | 'approved' | 'approved_edited' | 'rejected' | string
+
+export interface DoctorConsultPatientSummary {
+  id: number
+  username: string
+  nickname: string | null
+  avatar: string | null
+}
+
+export interface DoctorConsultSessionNode {
+  id: number
+  title: string
+  status: 'active' | 'archived' | string
+  is_pinned: boolean
+  pinned_at: string | null
+  summary: string | null
+  last_message_at: string | null
+  created_at: string
+  updated_at: string
+  pending_count: number
+  total_message_count: number
+}
+
+export interface DoctorConsultPatientNode {
+  patient: DoctorConsultPatientSummary
+  pending_count: number
+  session_count: number
+  sessions: DoctorConsultSessionNode[]
+}
+
+export interface DoctorConsultTreePayload {
+  patients: DoctorConsultPatientNode[]
+  session_count: number
+  pending_count: number
+}
+
+export interface DoctorConsultMessage {
+  id: number
+  session: number
+  role: 'user' | 'assistant' | string
+  turn_index: number
+  generation_status: 'generating' | 'succeeded' | 'failed' | string
+  review_status: ConsultReviewStatus
+  reviewed_at: string | null
+  review_note: string | null
+  reply_to: number | null
+  content: string
+  content_markdown: string | null
+  edited_markdown: string | null
+  edited_at: string | null
+  model_name: string | null
+  selected_file_ids: string[]
+  selected_file_meta: Array<Record<string, unknown>>
+  grounding_answer: string | null
+  grounding_sources: Array<Record<string, unknown>>
+  search_sources: Array<Record<string, unknown>>
+  input_tokens: number | null
+  output_tokens: number | null
+  total_tokens: number | null
+  error_message: string | null
+  meta: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DoctorConsultSessionMessagesPayload {
+  session: {
+    id: number
+    title: string
+    status: 'active' | 'archived' | string
+    is_pinned: boolean
+    pinned_at: string | null
+    summary: string | null
+    last_message_at: string | null
+    created_at: string
+    updated_at: string
+  }
+  patient: DoctorConsultPatientSummary
+  messages: DoctorConsultMessage[]
+  stats: {
+    pending: number
+    approved: number
+    approved_edited: number
+    rejected: number
+  }
+}
+
+export interface DoctorConsultReviewResult {
+  message: DoctorConsultMessage
+  pending_count: number
 }
 
 /* ============================

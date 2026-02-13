@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn'
 import {
   BookOpen,
   BrainCircuit,
+  ClipboardCheck,
   LogOut,
   Menu,
   MessageSquareText,
@@ -21,6 +22,7 @@ const navItems = [
   { path: '/digital-human', label: '数字人素材', icon: Video },
   { path: '/narrative-kernel', label: '叙事底座', icon: BrainCircuit },
   { path: '/rehearsal', label: 'AI 问诊演练', icon: MessageSquareText },
+  { path: '/consult-review', label: '患者问诊审核', icon: ClipboardCheck },
 ]
 
 const routeTitles: Record<string, string> = {
@@ -28,6 +30,7 @@ const routeTitles: Record<string, string> = {
   '/digital-human': '数字人素材中心',
   '/narrative-kernel': '医生叙事底座中心',
   '/rehearsal': 'AI 问诊演练场',
+  '/consult-review': '患者问诊审核中心',
 }
 
 export default function MainLayout() {

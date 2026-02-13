@@ -47,12 +47,14 @@ export const askPatientStream = async (
   sessionId: number,
   payload: AskPayload,
   handlers: StreamHandlers,
+  options?: { signal?: AbortSignal },
 ): Promise<void> => {
   const doFetch = (token: string) =>
     fetch(resolveUrl(`/patient/sessions/${sessionId}/ask/stream/`), {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+      signal: options?.signal,
     })
 
   const access = getAccessToken()
