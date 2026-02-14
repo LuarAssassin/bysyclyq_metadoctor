@@ -17,9 +17,44 @@ export interface PatientProfile {
   created_at: string
 }
 
+export interface UserProfile {
+  id: number
+  username: string
+  nickname: string | null
+  email: string | null
+  phone: string | null
+  gender: 'M' | 'F' | 'U' | string
+  birthday: string | null
+  age: number | null
+  institution: string | null
+  profession: string | null
+  address: string | null
+  avatar: string | null
+  is_doctor: boolean
+  doctor_apply_status: 'pending' | 'approved' | 'rejected' | string
+  doctor_applied_at: string | null
+  doctor_reviewed_at: string | null
+  doctor_review_note: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface LoginTokens {
   refresh: string
   access: string
+}
+
+export interface PatientCodeSendResult {
+  channel: 'sms' | 'email'
+  target: string
+  expire_seconds: number
+}
+
+export interface PatientCodeLoginPayload extends LoginTokens {
+  profile: UserProfile
+  created: boolean
+  login_channel: 'sms' | 'email'
+  login_target: string
 }
 
 export interface RefreshTokenPayload {

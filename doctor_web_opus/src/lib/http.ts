@@ -78,7 +78,10 @@ apiClient.interceptors.response.use(
     const skip =
       url.includes('/auth/login/') ||
       url.includes('/auth/token/refresh/') ||
-      url.includes('/auth/doctor/register/')
+      url.includes('/auth/doctor/register/') ||
+      url.includes('/auth/doctor/code/send/') ||
+      url.includes('/auth/doctor/code/register/') ||
+      url.includes('/auth/doctor/code/login/')
     if (error.response?.status !== 401 || !original || original._retry || skip)
       throw error
 

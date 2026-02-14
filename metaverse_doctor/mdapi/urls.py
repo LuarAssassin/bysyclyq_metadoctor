@@ -2,11 +2,18 @@ from django.urls import path
 
 from mdapi.auth_views import (
     CustomTokenRefreshView,
+    DoctorAuthCodeLoginView,
+    DoctorAuthCodeRegisterView,
+    DoctorAuthCodeSendView,
     DoctorApplicationListView,
     DoctorApplicationReviewView,
     DoctorRegisterView,
     DoctorTokenObtainPairView,
+    PatientAuthCodeLoginView,
+    PatientAuthCodeSendView,
     PatientRegisterView,
+    UserProfileAvatarView,
+    UserProfileView,
 )
 from mdapi.views import (
     DoctorDigitalAvatarView,
@@ -45,8 +52,35 @@ from mdapi.views import (
 urlpatterns = [
     path("auth/login/", DoctorTokenObtainPairView.as_view(), name="auth-login"),
     path("auth/token/refresh/", CustomTokenRefreshView.as_view(), name="auth-refresh"),
+    path("auth/me/", UserProfileView.as_view(), name="auth-me"),
+    path("auth/me/avatar/", UserProfileAvatarView.as_view(), name="auth-me-avatar"),
     path("auth/doctor/register/", DoctorRegisterView.as_view(), name="doctor-register"),
     path("auth/patient/register/", PatientRegisterView.as_view(), name="patient-register"),
+    path(
+        "auth/patient/code/send/",
+        PatientAuthCodeSendView.as_view(),
+        name="patient-auth-code-send",
+    ),
+    path(
+        "auth/patient/code/login/",
+        PatientAuthCodeLoginView.as_view(),
+        name="patient-auth-code-login",
+    ),
+    path(
+        "auth/doctor/code/send/",
+        DoctorAuthCodeSendView.as_view(),
+        name="doctor-auth-code-send",
+    ),
+    path(
+        "auth/doctor/code/register/",
+        DoctorAuthCodeRegisterView.as_view(),
+        name="doctor-auth-code-register",
+    ),
+    path(
+        "auth/doctor/code/login/",
+        DoctorAuthCodeLoginView.as_view(),
+        name="doctor-auth-code-login",
+    ),
     path(
         "auth/doctor/applications/",
         DoctorApplicationListView.as_view(),

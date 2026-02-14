@@ -207,6 +207,7 @@ def _build_video_play_url(
 def _build_avatar_play_url(
     avatar_url: str | None,
     *,
+    required_prefix: str | None = "doctor-digital-human/avatars",
     oss_client=None,
     expires: int | None = None,
 ) -> str | None:
@@ -216,7 +217,7 @@ def _build_avatar_play_url(
 
     object_key = extract_object_key_from_url(
         raw_url,
-        required_prefix="doctor-digital-human/avatars",
+        required_prefix=required_prefix,
     )
     if not object_key:
         return raw_url
@@ -2482,15 +2483,24 @@ class DoctorPatientConsultTreeView(APIView):
     permission_classes = [IsAuthenticated, IsDoctor]
 
     @staticmethod
-    def _serialize_patient(patient: CustomUser) -> dict:
+    def _serialize_patient(patient: CustomUser, *, oss_client=None) -> dict:
         return {
             "id": patient.id,
             "username": patient.username,
             "nickname": patient.nickname,
-            "avatar": patient.avatar,
+            "avatar": _build_avatar_play_url(
+                patient.avatar,
+                required_prefix="patient-avatars",
+                oss_client=oss_client,
+            ),
         }
 
     def get(self, request):
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
         queryset = (
             PatientConsultSession.objects.filter(doctor=request.user)
             .select_related("patient")
@@ -2519,7 +2529,10 @@ class DoctorPatientConsultTreeView(APIView):
             patient_id = session.patient_id
             if patient_id not in patient_tree:
                 patient_tree[patient_id] = {
-                    "patient": self._serialize_patient(session.patient),
+                    "patient": self._serialize_patient(
+                        session.patient,
+                        oss_client=oss_client,
+                    ),
                     "pending_count": 0,
                     "session_count": 0,
                     "sessions": [],
@@ -2560,6 +2573,11 @@ class DoctorPatientConsultSessionMessagesView(APIView):
     permission_classes = [IsAuthenticated, IsDoctor]
 
     def get(self, request, session_id):
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
         session = (
             PatientConsultSession.objects.filter(
                 id=session_id,
@@ -2611,7 +2629,11 @@ class DoctorPatientConsultSessionMessagesView(APIView):
                     "id": session.patient.id,
                     "username": session.patient.username,
                     "nickname": session.patient.nickname,
-                    "avatar": session.patient.avatar,
+                    "avatar": _build_avatar_play_url(
+                        session.patient.avatar,
+                        required_prefix="patient-avatars",
+                        oss_client=oss_client,
+                    ),
                 },
                 "messages": PatientConsultMessageSerializer(queryset, many=True).data,
                 "stats": {

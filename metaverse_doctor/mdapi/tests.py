@@ -11,6 +11,15 @@ from mdapi.models import (
     PatientConsultMessage,
     PatientConsultSession,
 )
+from mdapi.auth_views import (
+    DoctorAuthCodeLoginView,
+    DoctorAuthCodeRegisterView,
+    DoctorAuthCodeSendView,
+    PatientAuthCodeLoginView,
+    PatientAuthCodeSendView,
+    UserProfileAvatarView,
+    UserProfileView,
+)
 from mdapi.services.digital_human import (
     DigitalHumanServiceError,
     QwenDigitalHumanService,
@@ -342,6 +351,506 @@ class QwenKnowledgeExtractorTests(SimpleTestCase):
             )
 
         self.assertTrue(getattr(ctx.exception, "raw_output", ""))
+
+
+class UserProfileViewTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.user = CustomUser.objects.create_user(
+            username="profile_patient_tester",
+            password="pass12345",
+            is_doctor=False,
+            is_active=True,
+            nickname="初始昵称",
+            phone="13800001111",
+            email="initial@example.com",
+            gender="U",
+            institution="初始机构",
+            profession="初始职业",
+            address="初始地址",
+        )
+        self.doctor = CustomUser.objects.create_user(
+            username="profile_doctor_tester",
+            password="pass12345",
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+            nickname="医生昵称",
+            phone="13700009999",
+            email="doctor-initial@example.com",
+        )
+
+    def test_get_current_user_profile(self):
+        request = self.factory.get("/api/auth/me/")
+        force_authenticate(request, user=self.user)
+
+        response = UserProfileView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["username"], self.user.username)
+        self.assertEqual(response.data["data"]["nickname"], "初始昵称")
+
+    def test_patch_profile_patient_cannot_modify_phone_or_email(self):
+        request = self.factory.patch(
+            "/api/auth/me/",
+            {
+                "username": "should_not_change",
+                "nickname": "更新昵称",
+                "phone": "13900002222",
+                "email": "updated@example.com",
+                "gender": "F",
+                "institution": "更新机构",
+                "profession": "更新职业",
+                "address": "更新地址",
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+
+        response = UserProfileView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "profile_patient_tester")
+        self.assertEqual(self.user.nickname, "更新昵称")
+        self.assertEqual(self.user.phone, "13800001111")
+        self.assertEqual(self.user.email, "initial@example.com")
+        self.assertEqual(self.user.gender, "F")
+        self.assertEqual(self.user.institution, "更新机构")
+        self.assertEqual(self.user.profession, "更新职业")
+        self.assertEqual(self.user.address, "更新地址")
+
+    def test_patch_profile_doctor_cannot_modify_phone_or_email(self):
+        request = self.factory.patch(
+            "/api/auth/me/",
+            {
+                "phone": "13999990000",
+                "email": "doctor-updated@example.com",
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        response = UserProfileView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.doctor.refresh_from_db()
+        self.assertEqual(self.doctor.phone, "13700009999")
+        self.assertEqual(self.doctor.email, "doctor-initial@example.com")
+
+    def test_upload_avatar_for_patient_uses_patient_prefix(self):
+        image = SimpleUploadedFile(
+            "patient-avatar.png",
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+            content_type="image/png",
+        )
+        captured = {}
+
+        class _FakeOSS:
+            @staticmethod
+            def upload_file(uploaded_file, doctor_id, prefix):  # noqa: ARG004
+                captured["prefix"] = prefix
+                return {
+                    "object_key": "patient-avatars/1/demo.png",
+                    "oss_url": "https://oss.example.com/patient-avatars/1/demo.png",
+                    "etag": "etag-patient-1",
+                    "size_bytes": uploaded_file.size,
+                    "content_type": "image/png",
+                }
+
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        request = self.factory.post(
+            "/api/auth/me/avatar/",
+            {"image": image},
+            format="multipart",
+        )
+        force_authenticate(request, user=self.user)
+
+        with patch("mdapi.auth_views.get_oss_client", return_value=_FakeOSS()):
+            response = UserProfileAvatarView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured.get("prefix"), "patient-avatars")
+        self.user.refresh_from_db()
+        self.assertEqual(
+            self.user.avatar,
+            "https://oss.example.com/patient-avatars/1/demo.png",
+        )
+        self.assertIn("https://signed.example.com/", response.data["data"]["avatar"])
+
+    def test_upload_avatar_for_doctor_uses_doctor_prefix(self):
+        image = SimpleUploadedFile(
+            "doctor-avatar.png",
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+            content_type="image/png",
+        )
+        captured = {}
+
+        class _FakeOSS:
+            @staticmethod
+            def upload_file(uploaded_file, doctor_id, prefix):  # noqa: ARG004
+                captured["prefix"] = prefix
+                return {
+                    "object_key": "doctor-digital-human/avatars/2/demo.png",
+                    "oss_url": "https://oss.example.com/doctor-digital-human/avatars/2/demo.png",
+                    "etag": "etag-doctor-1",
+                    "size_bytes": uploaded_file.size,
+                    "content_type": "image/png",
+                }
+
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        request = self.factory.post(
+            "/api/auth/me/avatar/",
+            {"image": image},
+            format="multipart",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        with patch("mdapi.auth_views.get_oss_client", return_value=_FakeOSS()):
+            response = UserProfileAvatarView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured.get("prefix"), "doctor-digital-human/avatars")
+        self.doctor.refresh_from_db()
+        self.assertEqual(
+            self.doctor.avatar,
+            "https://oss.example.com/doctor-digital-human/avatars/2/demo.png",
+        )
+        self.assertIn("https://signed.example.com/", response.data["data"]["avatar"])
+
+
+class PatientAuthCodeLoginTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.existing_patient = CustomUser.objects.create_user(
+            username="patient_code_login_existing",
+            password=None,
+            is_doctor=False,
+            is_active=True,
+            phone="13812345678",
+            nickname="老用户",
+        )
+
+    def test_send_code_success(self):
+        request = self.factory.post(
+            "/api/auth/patient/code/send/",
+            {"channel": "sms", "target": "13812345678"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.send_code",
+            return_value={
+                "channel": "sms",
+                "target": "13812345678",
+                "expire_seconds": 300,
+            },
+        ):
+            response = PatientAuthCodeSendView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["channel"], "sms")
+        self.assertEqual(response.data["data"]["target"], "13812345678")
+
+    def test_login_with_code_uses_existing_patient(self):
+        request = self.factory.post(
+            "/api/auth/patient/code/login/",
+            {"channel": "sms", "target": "13812345678", "code": "123456"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ), patch(
+            "mdapi.auth_views._issue_tokens_for_user",
+            return_value={"access": "access-token", "refresh": "refresh-token"},
+        ):
+            response = PatientAuthCodeLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertFalse(payload["created"])
+        self.assertEqual(payload["profile"]["id"], self.existing_patient.id)
+        self.assertEqual(payload["access"], "access-token")
+        self.assertEqual(payload["refresh"], "refresh-token")
+
+    def test_login_with_code_creates_new_patient(self):
+        request = self.factory.post(
+            "/api/auth/patient/code/login/",
+            {
+                "channel": "email",
+                "target": "new_patient@example.com",
+                "code": "654321",
+                "nickname": "新患者",
+            },
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ), patch(
+            "mdapi.auth_views._issue_tokens_for_user",
+            return_value={"access": "access-token-2", "refresh": "refresh-token-2"},
+        ):
+            response = PatientAuthCodeLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertTrue(payload["created"])
+        self.assertEqual(payload["profile"]["email"], "new_patient@example.com")
+        self.assertEqual(payload["profile"]["nickname"], "新患者")
+        self.assertEqual(payload["access"], "access-token-2")
+        self.assertEqual(payload["refresh"], "refresh-token-2")
+
+        user = CustomUser.objects.filter(
+            is_doctor=False,
+            email="new_patient@example.com",
+        ).first()
+        self.assertIsNotNone(user)
+
+    def test_login_with_invalid_code_returns_400(self):
+        request = self.factory.post(
+            "/api/auth/patient/code/login/",
+            {"channel": "sms", "target": "13812345678", "code": "000000"},
+            format="json",
+        )
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=False,
+        ):
+            response = PatientAuthCodeLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("验证码错误或已过期", response.data["message"])
+
+
+class DoctorAuthCodeLoginTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.pending_doctor = CustomUser.objects.create_user(
+            username="doctor_code_pending",
+            password=None,
+            is_doctor=True,
+            is_active=False,
+            doctor_apply_status="pending",
+            phone="13911112222",
+            nickname="待审医生",
+            institution="某医院",
+            profession="骨科",
+        )
+        self.rejected_doctor = CustomUser.objects.create_user(
+            username="doctor_code_rejected",
+            password=None,
+            is_doctor=True,
+            is_active=False,
+            doctor_apply_status="rejected",
+            phone="13933334444",
+            nickname="被拒医生",
+            institution="某医院",
+            profession="骨科",
+        )
+        self.patient_user = CustomUser.objects.create_user(
+            username="patient_conflict_user",
+            password=None,
+            is_doctor=False,
+            is_active=True,
+            phone="13955556666",
+            email="patient_conflict@example.com",
+            nickname="患者冲突用户",
+        )
+        self.approved_doctor = CustomUser.objects.create_user(
+            username="doctor_code_approved",
+            password=None,
+            is_doctor=True,
+            is_active=True,
+            doctor_apply_status="approved",
+            email="approved_doctor@example.com",
+            nickname="审核通过医生",
+            institution="某医院",
+            profession="骨科",
+        )
+
+    def test_send_code_success(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/send/",
+            {"channel": "sms", "target": "13911112222"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.send_code",
+            return_value={
+                "channel": "sms",
+                "target": "13911112222",
+                "expire_seconds": 300,
+            },
+        ):
+            response = DoctorAuthCodeSendView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["data"]["target"], "13911112222")
+
+    def test_register_by_code_creates_pending_doctor(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/register/",
+            {
+                "channel": "email",
+                "target": "new_doctor@example.com",
+                "code": "123456",
+                "nickname": "新医生",
+                "institution": "北医三院",
+                "profession": "运动医学",
+            },
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ):
+            response = DoctorAuthCodeRegisterView.as_view()(request)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data["data"]["created"])
+        doctor = CustomUser.objects.filter(
+            is_doctor=True,
+            email="new_doctor@example.com",
+        ).first()
+        self.assertIsNotNone(doctor)
+        if doctor:
+            self.assertEqual(doctor.doctor_apply_status, "pending")
+            self.assertFalse(doctor.is_active)
+
+    def test_login_by_code_pending_doctor_blocked(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/login/",
+            {"channel": "sms", "target": "13911112222", "code": "123456"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ):
+            response = DoctorAuthCodeLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("审核中", response.data["message"])
+
+    def test_login_by_code_approved_doctor_success(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/login/",
+            {"channel": "email", "target": "approved_doctor@example.com", "code": "123456"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ), patch(
+            "mdapi.auth_views._issue_tokens_for_user",
+            return_value={"access": "doctor-access", "refresh": "doctor-refresh"},
+        ):
+            response = DoctorAuthCodeLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertEqual(payload["access"], "doctor-access")
+        self.assertEqual(payload["refresh"], "doctor-refresh")
+        self.assertEqual(payload["profile"]["id"], self.approved_doctor.id)
+
+    def test_register_by_code_existing_pending_doctor_returns_existing(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/register/",
+            {
+                "channel": "sms",
+                "target": "13911112222",
+                "code": "123456",
+                "nickname": "待审医生更新昵称",
+                "institution": "更新机构",
+                "profession": "更新专业",
+            },
+            format="json",
+        )
+
+        before_count = CustomUser.objects.filter(is_doctor=True).count()
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ):
+            response = DoctorAuthCodeRegisterView.as_view()(request)
+        after_count = CustomUser.objects.filter(is_doctor=True).count()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["data"]["created"])
+        self.assertFalse(response.data["data"]["resubmitted"])
+        self.pending_doctor.refresh_from_db()
+        self.assertEqual(self.pending_doctor.nickname, "待审医生更新昵称")
+        self.assertEqual(self.pending_doctor.institution, "更新机构")
+        self.assertEqual(self.pending_doctor.profession, "更新专业")
+        self.assertEqual(before_count, after_count)
+
+    def test_register_by_code_rejected_doctor_can_resubmit(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/register/",
+            {
+                "channel": "sms",
+                "target": "13933334444",
+                "code": "123456",
+                "nickname": "重提医生",
+            },
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ):
+            response = DoctorAuthCodeRegisterView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["data"]["created"])
+        self.assertTrue(response.data["data"]["resubmitted"])
+        self.rejected_doctor.refresh_from_db()
+        self.assertEqual(self.rejected_doctor.doctor_apply_status, "pending")
+        self.assertFalse(self.rejected_doctor.is_active)
+
+    def test_register_by_code_allows_patient_identity_reuse(self):
+        request = self.factory.post(
+            "/api/auth/doctor/code/register/",
+            {
+                "channel": "sms",
+                "target": "13955556666",
+                "code": "123456",
+                "nickname": "冲突医生",
+            },
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views.PatientAuthCodeService.verify_code",
+            return_value=True,
+        ):
+            response = DoctorAuthCodeRegisterView.as_view()(request)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data["data"]["created"])
+        doctor = CustomUser.objects.filter(
+            is_doctor=True,
+            phone="13955556666",
+        ).first()
+        self.assertIsNotNone(doctor)
+        if doctor:
+            self.assertEqual(doctor.doctor_apply_status, "pending")
+            self.assertFalse(doctor.is_active)
 
 
 class RehearsalServiceHelperTests(SimpleTestCase):
@@ -1217,6 +1726,28 @@ class DoctorPatientConsultReviewTests(TestCase):
         self.assertEqual(node["pending_count"], 1)
         self.assertEqual(node["session_count"], 1)
 
+    def test_tree_returns_signed_patient_avatar_url(self):
+        self.patient.avatar = "https://oss.example.com/patient-avatars/99/avatar.png"
+        self.patient.save(update_fields=["avatar", "updated_at"])
+
+        class _FakeOSS:
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        request = self.factory.get("/api/doctor/patient-consults/tree/")
+        force_authenticate(request, user=self.doctor)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()):
+            response = DoctorPatientConsultTreeView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        node = response.data["data"]["patients"][0]
+        self.assertEqual(
+            node["patient"]["avatar"],
+            "https://signed.example.com/patient-avatars/99/avatar.png",
+        )
+
     def test_session_messages_returns_review_stats(self):
         request = self.factory.get(
             f"/api/doctor/patient-consults/sessions/{self.session.id}/messages/",
@@ -1236,6 +1767,32 @@ class DoctorPatientConsultReviewTests(TestCase):
         self.assertEqual(payload["stats"]["pending"], 1)
         self.assertEqual(payload["stats"]["approved"], 0)
         self.assertEqual(payload["stats"]["approved_edited"], 0)
+
+    def test_session_messages_returns_signed_patient_avatar_url(self):
+        self.patient.avatar = "https://oss.example.com/patient-avatars/99/avatar.png"
+        self.patient.save(update_fields=["avatar", "updated_at"])
+
+        class _FakeOSS:
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        request = self.factory.get(
+            f"/api/doctor/patient-consults/sessions/{self.session.id}/messages/",
+        )
+        force_authenticate(request, user=self.doctor)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()):
+            response = DoctorPatientConsultSessionMessagesView.as_view()(
+                request,
+                session_id=self.session.id,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["data"]["patient"]["avatar"],
+            "https://signed.example.com/patient-avatars/99/avatar.png",
+        )
 
     def test_review_message_approve_edited_updates_history_content(self):
         request = self.factory.post(

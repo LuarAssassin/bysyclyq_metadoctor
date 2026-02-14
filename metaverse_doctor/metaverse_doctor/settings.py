@@ -472,6 +472,32 @@ PATIENT_ASR_UPLOAD_CONFIG = {
     ],
 }
 
+# 腾讯云（短信/邮件）配置
+TENCENT_REGION = os.getenv("TENCENT_REGION", "ap-hongkong").strip() or "ap-hongkong"
+TENCENT_EMAIL = {
+    "SECRET_ID": os.getenv("TENCENT_SECRET_ID", "").strip(),
+    "SECRET_KEY": os.getenv("TENCENT_SECRET_KEY", "").strip(),
+    "REGION": TENCENT_REGION,
+    "FROM_EMAIL": os.getenv("TENCENT_FROM_EMAIL", "").strip(),
+    "TEMPLATE_ID": os.getenv("TENCENT_TEMPLATE_ID", "").strip(),
+    "TEMPLATE_CODE_KEY": os.getenv("TENCENT_TEMPLATE_CODE_KEY", "code").strip() or "code",
+    "TEMPLATE_EXPIRE_KEY": os.getenv("TENCENT_TEMPLATE_EXPIRE_KEY", "expire_minutes").strip(),
+    "SUBJECT": os.getenv("TENCENT_EMAIL_SUBJECT", "登录验证码").strip() or "登录验证码",
+}
+TENCENT_CLOUD_SMS = {
+    "SECRET_ID": os.getenv("TENCENT_CLOUD_SMS_SECRET_ID", "").strip(),
+    "SECRET_KEY": os.getenv("TENCENT_CLOUD_SMS_SECRET_KEY", "").strip(),
+    "APP_ID": os.getenv("TENCENT_CLOUD_SMS_APP_ID", "").strip(),
+    "SIGN_NAME": os.getenv("TENCENT_CLOUD_SMS_SIGN_NAME", "").strip(),
+    "TEMPLATE_ID": os.getenv("TENCENT_CLOUD_SMS_TEMPLATE_ID", "").strip(),
+    "REGION": os.getenv("TENCENT_CLOUD_SMS_REGION", "ap-guangzhou").strip() or "ap-guangzhou",
+}
+PATIENT_AUTH_CODE_CONFIG = {
+    "EXPIRE_SECONDS": int(os.getenv("PATIENT_AUTH_CODE_EXPIRE_SECONDS", 300)),
+    "SEND_INTERVAL_SECONDS": int(os.getenv("PATIENT_AUTH_CODE_SEND_INTERVAL_SECONDS", 60)),
+    "MAX_VERIFY_RETRIES": int(os.getenv("PATIENT_AUTH_CODE_MAX_VERIFY_RETRIES", 5)),
+}
+
 # knowledge extract queue
 KNOWLEDGE_EXTRACT_QUEUE_KEY = os.getenv(
     "KNOWLEDGE_EXTRACT_QUEUE_KEY", "mdapi:knowledge_extract_queue"

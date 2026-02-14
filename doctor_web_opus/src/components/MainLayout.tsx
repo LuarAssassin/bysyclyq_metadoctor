@@ -23,6 +23,7 @@ const navItems = [
   { path: '/narrative-kernel', label: '叙事底座', icon: BrainCircuit },
   { path: '/rehearsal', label: 'AI 问诊演练', icon: MessageSquareText },
   { path: '/consult-review', label: '患者问诊审核', icon: ClipboardCheck },
+  { path: '/profile', label: '个人资料', icon: UserRound },
 ]
 
 const routeTitles: Record<string, string> = {
@@ -31,6 +32,7 @@ const routeTitles: Record<string, string> = {
   '/narrative-kernel': '医生叙事底座中心',
   '/rehearsal': 'AI 问诊演练场',
   '/consult-review': '患者问诊审核中心',
+  '/profile': '个人资料管理',
 }
 
 export default function MainLayout() {

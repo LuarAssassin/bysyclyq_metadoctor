@@ -165,6 +165,13 @@ function extensionFromMimeType(mimeType: string): string {
   return 'webm'
 }
 
+function formatRecordDuration(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds || 0))
+  const minutes = Math.floor(safe / 60)
+  const seconds = safe % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
 /* ── Component ─────────────────── */
 
 export default function ChatPage() {
@@ -195,8 +202,15 @@ export default function ChatPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const mediaChunksRef = useRef<Blob[]>([])
+  const recordingWaveCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const recordingAnalyserRef = useRef<AnalyserNode | null>(null)
+  const recordingAudioCtxRef = useRef<AudioContext | null>(null)
+  const recordingWaveAnimRef = useRef(0)
+  const recordingWaveDataRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
+  const recordingStartedAtRef = useRef<number | null>(null)
   const openingAudioRef = useRef<HTMLAudioElement | null>(null)
   const openingAutoPlayedRef = useRef(false)
+  const [recordSec, setRecordSec] = useState(0)
 
   // Audio
   const [audioMuted, setAudioMuted] = useState(false)
@@ -216,6 +230,113 @@ export default function ChatPage() {
     el.style.height = `${next}px`
     el.style.overflowY = el.scrollHeight > 120 ? 'auto' : 'hidden'
   }
+
+  const stopRecordingVisualization = useCallback((options?: { resetDuration?: boolean }) => {
+    const resetDuration = options?.resetDuration ?? true
+    cancelAnimationFrame(recordingWaveAnimRef.current)
+    recordingWaveAnimRef.current = 0
+    recordingAnalyserRef.current = null
+    recordingWaveDataRef.current = null
+    recordingStartedAtRef.current = null
+    if (recordingAudioCtxRef.current) {
+      void recordingAudioCtxRef.current.close().catch(() => {
+        // noop
+      })
+      recordingAudioCtxRef.current = null
+    }
+
+    const canvas = recordingWaveCanvasRef.current
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect()
+      const dpr = Math.max(1, window.devicePixelRatio || 1)
+      const width = Math.max(1, Math.floor(rect.width * dpr))
+      const height = Math.max(1, Math.floor(rect.height * dpr))
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width
+        canvas.height = height
+      }
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        ctx.clearRect(0, 0, rect.width, rect.height)
+      }
+    }
+
+    if (resetDuration) setRecordSec(0)
+  }, [])
+
+  const drawRecordingWave = useCallback(() => {
+    const canvas = recordingWaveCanvasRef.current
+    if (!canvas) return
+    const analyser = recordingAnalyserRef.current
+
+    const rect = canvas.getBoundingClientRect()
+    const widthCss = Math.max(1, rect.width)
+    const heightCss = Math.max(1, rect.height)
+    const dpr = Math.max(1, window.devicePixelRatio || 1)
+    const widthPx = Math.floor(widthCss * dpr)
+    const heightPx = Math.floor(heightCss * dpr)
+    if (canvas.width !== widthPx || canvas.height !== heightPx) {
+      canvas.width = widthPx
+      canvas.height = heightPx
+    }
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    const bg = ctx.createLinearGradient(0, 0, widthCss, 0)
+    bg.addColorStop(0, 'rgba(224, 242, 254, 0.75)')
+    bg.addColorStop(1, 'rgba(240, 249, 255, 0.88)')
+    ctx.fillStyle = bg
+    ctx.fillRect(0, 0, widthCss, heightCss)
+
+    ctx.beginPath()
+    ctx.moveTo(0, heightCss / 2)
+    ctx.lineTo(widthCss, heightCss / 2)
+    ctx.strokeStyle = 'rgba(14, 165, 233, 0.14)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+
+    const wave = ctx.createLinearGradient(0, 0, widthCss, 0)
+    wave.addColorStop(0, 'rgba(14, 165, 233, 0.82)')
+    wave.addColorStop(1, 'rgba(6, 182, 212, 0.72)')
+
+    let pointCount = 96
+    let data: Uint8Array<ArrayBuffer> | null = null
+    if (analyser) {
+      const timeDomainLength = analyser.fftSize
+      pointCount = Math.max(8, timeDomainLength)
+      if (!recordingWaveDataRef.current || recordingWaveDataRef.current.length !== timeDomainLength) {
+        recordingWaveDataRef.current = new Uint8Array(new ArrayBuffer(timeDomainLength))
+      }
+      data = recordingWaveDataRef.current
+      analyser.getByteTimeDomainData(data)
+    }
+
+    ctx.beginPath()
+    const now = performance.now()
+    const centerY = heightCss / 2
+    const simAmp = heightCss * (0.14 + 0.05 * Math.sin(now / 700))
+    for (let i = 0; i < pointCount; i += 1) {
+      const x = (i / (pointCount - 1)) * widthCss
+      const y = data
+        ? (data[i] / 255) * heightCss
+        : centerY + Math.sin((now / 170) + i * 0.34) * simAmp
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.strokeStyle = wave
+    ctx.lineWidth = 2
+    ctx.lineJoin = 'round'
+    ctx.lineCap = 'round'
+    ctx.shadowColor = 'rgba(14, 165, 233, 0.22)'
+    ctx.shadowBlur = 8
+    ctx.stroke()
+    ctx.shadowBlur = 0
+
+    recordingWaveAnimRef.current = requestAnimationFrame(drawRecordingWave)
+  }, [])
 
   const stopOpeningAudio = () => {
     if (openingAudioRef.current) {
@@ -245,6 +366,30 @@ export default function ChatPage() {
 
   useEffect(() => { resizeInput() }, [question])
 
+  useEffect(() => {
+    if (!recording) return
+    if (!recordingStartedAtRef.current) {
+      recordingStartedAtRef.current = performance.now()
+    }
+    setRecordSec(0)
+    const timer = window.setInterval(() => {
+      const startedAt = recordingStartedAtRef.current
+      if (!startedAt) return
+      const elapsed = Math.max(0, Math.floor((performance.now() - startedAt) / 1000))
+      setRecordSec(elapsed)
+    }, 200)
+    return () => window.clearInterval(timer)
+  }, [recording])
+
+  useEffect(() => {
+    if (!recording) return
+    const rafId = requestAnimationFrame(() => {
+      cancelAnimationFrame(recordingWaveAnimRef.current)
+      drawRecordingWave()
+    })
+    return () => cancelAnimationFrame(rafId)
+  }, [recording, drawRecordingWave])
+
   // 清理
   useEffect(() => () => {
     streamAbortRef.current?.abort()
@@ -259,9 +404,10 @@ export default function ChatPage() {
     mediaRecorderRef.current = null
     mediaStreamRef.current = null
     mediaChunksRef.current = []
+    stopRecordingVisualization()
     stopOpeningAudio()
     playerRef.current?.stop()
-  }, [])
+  }, [stopRecordingVisualization])
 
   /* ── 加载数据 ────────────────── */
 
@@ -373,9 +519,33 @@ export default function ChatPage() {
         ? new MediaRecorder(stream, { mimeType: preferredMime })
         : new MediaRecorder(stream)
 
+      stopRecordingVisualization()
+
       mediaChunksRef.current = []
       mediaStreamRef.current = stream
       mediaRecorderRef.current = recorder
+
+      const audioCtxCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (audioCtxCtor) {
+        try {
+          const audioCtx = new audioCtxCtor()
+          if (audioCtx.state === 'suspended') {
+            await audioCtx.resume().catch(() => {
+              // noop
+            })
+          }
+          const source = audioCtx.createMediaStreamSource(stream)
+          const analyser = audioCtx.createAnalyser()
+          analyser.fftSize = 1024
+          analyser.smoothingTimeConstant = 0.84
+          source.connect(analyser)
+          recordingAudioCtxRef.current = audioCtx
+          recordingAnalyserRef.current = analyser
+          recordingStartedAtRef.current = performance.now()
+        } catch {
+          stopRecordingVisualization({ resetDuration: false })
+        }
+      }
 
       recorder.ondataavailable = (event: BlobEvent) => {
         if (event.data && event.data.size > 0) {
@@ -389,11 +559,13 @@ export default function ChatPage() {
         mediaRecorderRef.current = null
         mediaStreamRef.current = null
         mediaChunksRef.current = []
+        stopRecordingVisualization()
         setRecording(false)
       }
 
       recorder.onstop = async () => {
         setRecording(false)
+        stopRecordingVisualization({ resetDuration: false })
         stream.getTracks().forEach((track) => track.stop())
         mediaStreamRef.current = null
 
@@ -403,6 +575,7 @@ export default function ChatPage() {
         mediaChunksRef.current = []
 
         if (!blob.size) {
+          setRecordSec(0)
           toast.warning('未检测到有效语音，请重试')
           return
         }
@@ -425,13 +598,19 @@ export default function ChatPage() {
         } catch (error) {
           toast.error(toErrorMessage(error))
         } finally {
+          setRecordSec(0)
           setTranscribing(false)
         }
       }
 
       recorder.start(250)
       setRecording(true)
+      requestAnimationFrame(() => {
+        cancelAnimationFrame(recordingWaveAnimRef.current)
+        drawRecordingWave()
+      })
     } catch (error) {
+      stopRecordingVisualization()
       toast.error(toErrorMessage(error))
     }
   }
@@ -442,6 +621,7 @@ export default function ChatPage() {
       mediaRecorderRef.current?.stop()
     } catch {
       setRecording(false)
+      stopRecordingVisualization()
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
       mediaRecorderRef.current = null
       mediaStreamRef.current = null
@@ -854,6 +1034,53 @@ export default function ChatPage() {
 
       {/* ── 输入区 ─────────────── */}
       <div className="flex-shrink-0 px-3 pt-2 pb-[calc(var(--safe-bottom)+10px)] bg-gradient-to-t from-white/95 via-white/85 to-transparent">
+        {(recording || transcribing) && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-2.5 rounded-2xl border border-frost-100/80 bg-white/92 px-3 py-2 shadow-[0_10px_24px_rgba(14,165,233,0.12)] backdrop-blur-sm"
+          >
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                {recording ? (
+                  <span className="pulse-dot shrink-0" style={{ transform: 'scale(0.78)' }} />
+                ) : (
+                  <Loader2 className="w-3.5 h-3.5 text-frost-500 animate-spin shrink-0" />
+                )}
+                <span className="text-[11px] font-medium text-slate-600 truncate">
+                  {recording ? '正在聆听，请继续描述症状' : '语音识别中，马上填入输入框'}
+                </span>
+              </div>
+              {(recording || recordSec > 0) && (
+                <span className="text-[10px] font-mono text-frost-500">{formatRecordDuration(recordSec)}</span>
+              )}
+            </div>
+
+            <div className="h-11 rounded-xl overflow-hidden border border-frost-100/70 bg-gradient-to-r from-snow-50 to-white">
+              {recording ? (
+                <canvas
+                  ref={recordingWaveCanvasRef}
+                  className="w-full h-full"
+                />
+              ) : (
+                <div className="w-full h-full px-2.5 flex items-center gap-1.5">
+                  {Array.from({ length: 16 }).map((_, idx) => (
+                    <span
+                      key={idx}
+                      className="flex-1 rounded-full bg-gradient-to-t from-frost-300/75 to-frost-500/85 animate-pulse"
+                      style={{
+                        height: `${30 + ((idx * 17) % 46)}%`,
+                        animationDelay: `${idx * 65}ms`,
+                        animationDuration: '1s',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => toast.info('上传功能即将上线')}

@@ -8,8 +8,8 @@ interface AuthState {
   username: string
   isAuthenticated: boolean
 
-  login: (username: string, password: string) => Promise<void>
-  register: (p: { username: string; password: string; nickname?: string; phone?: string; email?: string }) => Promise<void>
+  sendCode: (channel: 'sms' | 'email', target: string) => Promise<{ expireSeconds: number; target: string }>
+  loginByCode: (p: { channel: 'sms' | 'email'; target: string; code: string; nickname?: string }) => Promise<void>
   logout: () => void
   syncFromStorage: () => void
 }
@@ -20,16 +20,25 @@ export const useAuthStore = create<AuthState>((set) => ({
   username: getUsername(),
   isAuthenticated: !!getAccessToken(),
 
-  login: async (u, p) => {
-    const res = await authApi.login({ username: u, password: p })
-    const tokens = res.data
-    setTokens(tokens.access, tokens.refresh)
-    setUsername(u)
-    set({ accessToken: tokens.access, refreshToken: tokens.refresh, username: u, isAuthenticated: true })
+  sendCode: async (channel, target) => {
+    const res = await authApi.sendCode({ channel, target })
+    return {
+      expireSeconds: res.data.expire_seconds,
+      target: res.data.target,
+    }
   },
 
-  register: async (params) => {
-    await authApi.register(params)
+  loginByCode: async (params) => {
+    const res = await authApi.loginByCode(params)
+    const data = res.data
+    setTokens(data.access, data.refresh)
+    setUsername(data.login_target)
+    set({
+      accessToken: data.access,
+      refreshToken: data.refresh,
+      username: data.login_target,
+      isAuthenticated: true,
+    })
   },
 
   logout: () => {

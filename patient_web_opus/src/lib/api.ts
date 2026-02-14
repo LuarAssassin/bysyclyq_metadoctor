@@ -4,10 +4,13 @@ import type {
   DoctorInfo,
   LoginTokens,
   MessageListPayload,
+  PatientCodeLoginPayload,
+  PatientCodeSendResult,
   PatientAsrResult,
   PatientProfile,
   PatientSession,
   RefreshTokenPayload,
+  UserProfile,
 } from '@/types/api'
 
 /* ── 认证 ─────────────────────── */
@@ -19,8 +22,39 @@ export const authApi = {
   login: (p: { username: string; password: string }) =>
     requestApi<LoginTokens>({ method: 'POST', url: '/auth/login/', data: p }),
 
+  sendCode: (p: { channel: 'sms' | 'email'; target: string }) =>
+    requestApi<PatientCodeSendResult>({
+      method: 'POST',
+      url: '/auth/patient/code/send/',
+      data: p,
+    }),
+
+  loginByCode: (p: { channel: 'sms' | 'email'; target: string; code: string; nickname?: string }) =>
+    requestApi<PatientCodeLoginPayload>({
+      method: 'POST',
+      url: '/auth/patient/code/login/',
+      data: p,
+    }),
+
   refreshToken: (refresh: string) =>
     requestData<RefreshTokenPayload>({ method: 'POST', url: '/auth/token/refresh/', data: { refresh } }),
+}
+
+export const userApi = {
+  getMe: () =>
+    requestData<UserProfile>({ method: 'GET', url: '/auth/me/' }),
+
+  uploadAvatar: (image: File) => {
+    const fd = new FormData()
+    fd.append('image', image)
+    return requestApi<UserProfile>({ method: 'POST', url: '/auth/me/avatar/', data: fd })
+  },
+
+  updateMe: (payload: Partial<Pick<
+    UserProfile,
+    'nickname' | 'email' | 'phone' | 'gender' | 'birthday' | 'institution' | 'profession' | 'address'
+  >>) =>
+    requestApi<UserProfile>({ method: 'PATCH', url: '/auth/me/', data: payload }),
 }
 
 /* ── 医生目录 ─────────────────── */

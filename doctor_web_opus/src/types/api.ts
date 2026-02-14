@@ -25,7 +25,7 @@ export interface DoctorApplication {
   id: number
   username: string
   nickname: string | null
-  email: string
+  email: string | null
   phone: string | null
   institution: string | null
   profession: string | null
@@ -41,8 +41,42 @@ export interface LoginTokens {
   access: string
 }
 
+export interface DoctorCodeSendResult {
+  channel: 'sms' | 'email'
+  target: string
+  expire_seconds: number
+}
+
+export interface DoctorCodeLoginPayload extends LoginTokens {
+  profile: UserProfile
+  login_channel: 'sms' | 'email'
+  login_target: string
+}
+
 export interface RefreshTokenPayload {
   access: string
+}
+
+export interface UserProfile {
+  id: number
+  username: string
+  nickname: string | null
+  email: string | null
+  phone: string | null
+  gender: 'M' | 'F' | 'U' | string
+  birthday: string | null
+  age: number | null
+  institution: string | null
+  profession: string | null
+  address: string | null
+  avatar: string | null
+  is_doctor: boolean
+  doctor_apply_status: 'pending' | 'approved' | 'rejected' | string
+  doctor_applied_at: string | null
+  doctor_reviewed_at: string | null
+  doctor_review_note: string | null
+  created_at: string
+  updated_at: string
 }
 
 /* ============================

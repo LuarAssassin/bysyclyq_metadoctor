@@ -2,6 +2,8 @@ import { requestApi, requestData } from './http'
 import type {
   AvatarVideo,
   AvatarVideoBatchResult,
+  DoctorCodeLoginPayload,
+  DoctorCodeSendResult,
   DoctorConsultReviewResult,
   DoctorConsultSessionMessagesPayload,
   DoctorConsultTreePayload,
@@ -27,6 +29,7 @@ import type {
   RehearsalPlaybackAssets,
   RehearsalSession,
   RefreshTokenPayload,
+  UserProfile,
   VoiceProfile,
 } from '@/types/api'
 
@@ -35,6 +38,33 @@ import type {
    ============================ */
 
 export const authApi = {
+  sendCode: (p: { channel: 'sms' | 'email'; target: string }) =>
+    requestApi<DoctorCodeSendResult>({
+      method: 'POST',
+      url: '/auth/doctor/code/send/',
+      data: p,
+    }),
+
+  registerByCode: (p: {
+    channel: 'sms' | 'email'
+    target: string
+    code: string
+    nickname: string
+    institution?: string
+    profession?: string
+  }) => requestApi<DoctorApplication>({
+    method: 'POST',
+    url: '/auth/doctor/code/register/',
+    data: p,
+  }),
+
+  loginByCode: (p: { channel: 'sms' | 'email'; target: string; code: string }) =>
+    requestApi<DoctorCodeLoginPayload>({
+      method: 'POST',
+      url: '/auth/doctor/code/login/',
+      data: p,
+    }),
+
   register: (p: {
     username: string
     password: string
@@ -50,6 +80,23 @@ export const authApi = {
 
   refreshToken: (refresh: string) =>
     requestData<RefreshTokenPayload>({ method: 'POST', url: '/auth/token/refresh/', data: { refresh } }),
+}
+
+export const userApi = {
+  getMe: () =>
+    requestData<UserProfile>({ method: 'GET', url: '/auth/me/' }),
+
+  uploadAvatar: (image: File) => {
+    const fd = new FormData()
+    fd.append('image', image)
+    return requestApi<UserProfile>({ method: 'POST', url: '/auth/me/avatar/', data: fd })
+  },
+
+  updateMe: (payload: Partial<Pick<
+    UserProfile,
+    'nickname' | 'email' | 'phone' | 'gender' | 'birthday' | 'institution' | 'profession' | 'address'
+  >>) =>
+    requestApi<UserProfile>({ method: 'PATCH', url: '/auth/me/', data: payload }),
 }
 
 /* ============================

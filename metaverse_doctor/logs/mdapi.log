@@ -16,3 +16,30 @@ WARNING 2026-02-13 02:49:58,132 qwen-long multi-file fallback to single-file mer
 WARNING 2026-02-13 03:03:04,501 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
 WARNING 2026-02-13 03:41:28,247 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
 WARNING 2026-02-13 22:19:20,730 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
+WARNING 2026-02-14 01:46:26,039 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
+INFO 2026-02-14 01:48:51,727 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 01:49:32,578 验证码发送成功: channel=email, target=icemecandy1224@gmail.com
+INFO 2026-02-14 01:50:17,781 验证码发送成功: channel=email, target=751077703@qq.com
+WARNING 2026-02-14 02:10:22,380 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-b]'}}
+INFO 2026-02-14 02:12:10,923 验证码发送成功: channel=email, target=icemecandy1224@gmail.com
+INFO 2026-02-14 02:12:30,818 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 02:15:08,630 验证码发送成功: channel=sms, target=13909282921
+INFO 2026-02-14 02:16:21,663 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 05:27:23,188 doctor code register created account: channel=email target=new_doctor@example.com doctor_id=4
+INFO 2026-02-14 05:27:23,190 doctor code register resolved existing account: channel=sms target=13911112222 doctor_id=1 action=already_pending
+INFO 2026-02-14 05:27:23,192 doctor code register resolved existing account: channel=sms target=13933334444 doctor_id=2 action=reapplied
+INFO 2026-02-14 11:50:33,536 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 11:53:23,243 doctor code register resolved existing account: channel=sms target=17611495325 doctor_id=5 action=already_pending
+INFO 2026-02-14 12:00:42,854 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 12:02:11,865 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 12:02:46,357 doctor code register created account: channel=sms target=17611495325 doctor_id=15
+INFO 2026-02-14 12:05:58,900 doctor code register created account: channel=email target=new_doctor@example.com doctor_id=5
+INFO 2026-02-14 12:05:58,902 doctor code register resolved existing account: channel=sms target=13911112222 doctor_id=1 action=already_pending
+INFO 2026-02-14 12:05:58,904 doctor code register resolved existing account: channel=sms target=13933334444 doctor_id=2 action=reapplied
+INFO 2026-02-14 13:43:55,871 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 13:45:33,666 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 13:48:44,120 验证码发送成功: channel=sms, target=17611495325
+INFO 2026-02-14 13:55:33,782 doctor code register created account: channel=sms target=13955556666 doctor_id=5
+INFO 2026-02-14 13:55:33,784 doctor code register created account: channel=email target=new_doctor@example.com doctor_id=5
+INFO 2026-02-14 13:55:33,786 doctor code register resolved existing account: channel=sms target=13911112222 doctor_id=1 action=already_pending
+INFO 2026-02-14 13:55:33,788 doctor code register resolved existing account: channel=sms target=13933334444 doctor_id=2 action=reapplied
