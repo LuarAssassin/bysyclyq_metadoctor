@@ -1,6 +1,10 @@
 import logging
+import json
 from pathlib import Path
 import uuid
+from urllib import error as url_error
+from urllib import parse as url_parse
+from urllib import request as url_request
 
 from django.conf import settings
 from django.utils import timezone
@@ -20,6 +24,7 @@ from mdapi.auth_serializers import (
     DoctorTokenObtainPairSerializer,
     PatientAuthCodeLoginSerializer,
     PatientAuthCodeSendSerializer,
+    PatientGoogleLoginSerializer,
     PatientRegisterSerializer,
     UserProfileSerializer,
 )
@@ -115,6 +120,62 @@ def _find_doctor_by_identity(channel: str, target: str) -> CustomUser | None:
 
 def _generate_doctor_username() -> str:
     return f"doctor_{timezone.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+
+def _allowed_google_client_ids() -> list[str]:
+    raw = str(getattr(settings, "GOOGLE_CLIENT_ID", "") or "").strip()
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def _verify_google_identity_token(credential: str) -> dict:
+    client_ids = _allowed_google_client_ids()
+    if not client_ids:
+        raise RuntimeError("Google 登录尚未配置，请联系管理员")
+
+    token = str(credential or "").strip()
+    if not token:
+        raise ValueError("Google 凭证不能为空")
+
+    query = url_parse.urlencode({"id_token": token})
+    verify_url = f"https://oauth2.googleapis.com/tokeninfo?{query}"
+
+    try:
+        with url_request.urlopen(verify_url, timeout=8) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except url_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        message = "Google 身份校验失败"
+        if detail:
+            try:
+                parsed = json.loads(detail)
+                message = str(
+                    parsed.get("error_description")
+                    or parsed.get("error")
+                    or message
+                )
+            except json.JSONDecodeError:
+                message = detail[:200]
+        raise ValueError(message) from exc
+    except (url_error.URLError, TimeoutError) as exc:
+        raise ValueError("Google 身份校验网络异常，请稍后重试") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError("Google 身份校验响应解析失败") from exc
+
+    audience = str(payload.get("aud") or "").strip()
+    if audience not in client_ids:
+        raise ValueError("Google 客户端不匹配，请刷新页面后重试")
+
+    email = str(payload.get("email") or "").strip().lower()
+    email_verified = str(payload.get("email_verified") or "").strip().lower()
+    if email_verified not in {"true", "1"}:
+        raise ValueError("Google 邮箱未验证，暂不支持登录")
+    if not email:
+        raise ValueError("Google 账号未返回邮箱")
+
+    return {
+        "email": email,
+        "name": str(payload.get("name") or "").strip(),
+    }
 
 
 class DoctorRegisterView(APIView):
@@ -240,6 +301,78 @@ class PatientAuthCodeLoginView(APIView):
                 "created": created,
                 "login_channel": channel,
                 "login_target": target,
+            },
+            message="登录成功",
+        )
+
+
+class PatientGoogleLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PatientGoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        credential = serializer.validated_data["credential"]
+
+        try:
+            google_profile = _verify_google_identity_token(credential)
+        except RuntimeError as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        except ValueError as exc:
+            return APIResponse.error(message=str(exc), code=400)
+
+        email = str(google_profile.get("email") or "").strip().lower()
+        nickname = str(google_profile.get("name") or "").strip()
+
+        try:
+            user = _find_patient_by_identity("email", email)
+        except ValueError as exc:
+            return APIResponse.error(message=str(exc), code=409, status_code=status.HTTP_409_CONFLICT)
+
+        created = False
+        if not user:
+            username = _generate_patient_username()
+            while CustomUser.all_objects.filter(username=username).exists():
+                username = _generate_patient_username()
+            user = CustomUser.objects.create_user(
+                username=username,
+                password=None,
+                is_doctor=False,
+                is_active=True,
+                nickname=nickname or _default_patient_nickname("email", email),
+                email=email,
+            )
+            created = True
+        else:
+            update_fields = ["updated_at"]
+            if not user.is_active:
+                user.is_active = True
+                update_fields.append("is_active")
+            if not (user.email or "").strip():
+                user.email = email
+                update_fields.append("email")
+            if nickname and not (user.nickname or "").strip():
+                user.nickname = nickname
+                update_fields.append("nickname")
+            if update_fields:
+                user.save(update_fields=update_fields)
+
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
+        return APIResponse.success(
+            data={
+                **_issue_tokens_for_user(user),
+                "profile": _serialize_profile(user, oss_client=oss_client),
+                "created": created,
+                "login_channel": "google",
+                "login_target": email,
             },
             message="登录成功",
         )

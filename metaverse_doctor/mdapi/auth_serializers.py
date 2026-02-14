@@ -126,6 +126,16 @@ class PatientAuthCodeLoginSerializer(PatientAuthCodeSendSerializer):
         return code
 
 
+class PatientGoogleLoginSerializer(serializers.Serializer):
+    credential = serializers.CharField(max_length=8192)
+
+    def validate_credential(self, value):
+        credential = str(value or "").strip()
+        if not credential:
+            raise serializers.ValidationError("Google credential 不能为空")
+        return credential
+
+
 class DoctorAuthCodeSendSerializer(PatientAuthCodeSendSerializer):
     pass
 

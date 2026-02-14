@@ -11,6 +11,7 @@ from mdapi.auth_views import (
     DoctorTokenObtainPairView,
     PatientAuthCodeLoginView,
     PatientAuthCodeSendView,
+    PatientGoogleLoginView,
     PatientRegisterView,
     UserProfileAvatarView,
     UserProfileView,
@@ -65,6 +66,11 @@ urlpatterns = [
         "auth/patient/code/login/",
         PatientAuthCodeLoginView.as_view(),
         name="patient-auth-code-login",
+    ),
+    path(
+        "auth/patient/google/login/",
+        PatientGoogleLoginView.as_view(),
+        name="patient-google-login",
     ),
     path(
         "auth/doctor/code/send/",

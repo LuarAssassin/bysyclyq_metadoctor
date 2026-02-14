@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth'
@@ -9,6 +9,20 @@ type Channel = 'sms' | 'email'
 
 const PHONE_RE = /^1\d{10}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const SOCIAL_LOGIN_MAX_WIDTH = 360
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (config: Record<string, unknown>) => void
+          renderButton: (element: HTMLElement, options: Record<string, unknown>) => void
+        }
+      }
+    }
+  }
+}
 
 export default function LoginPage() {
   const [channel, setChannel] = useState<Channel>('sms')
@@ -17,16 +31,125 @@ export default function LoginPage() {
   const [nickname, setNickname] = useState('')
   const [sendingCode, setSendingCode] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [googleBusy, setGoogleBusy] = useState(false)
+  const [googleReady, setGoogleReady] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  const [socialButtonWidth, setSocialButtonWidth] = useState(320)
   const sendCode = useAuthStore((s) => s.sendCode)
   const loginByCode = useAuthStore((s) => s.loginByCode)
+  const loginByGoogle = useAuthStore((s) => s.loginByGoogle)
   const nav = useNavigate()
+  const googleButtonRef = useRef<HTMLDivElement | null>(null)
+  const socialButtonsRef = useRef<HTMLDivElement | null>(null)
+  const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim()
 
   useEffect(() => {
     if (countdown <= 0) return
     const timer = window.setTimeout(() => setCountdown((prev) => Math.max(0, prev - 1)), 1000)
     return () => window.clearTimeout(timer)
   }, [countdown])
+
+  useEffect(() => {
+    if (!googleClientId) return
+    const container = socialButtonsRef.current
+    if (!container) return
+
+    const updateWidth = () => {
+      const measured = Math.floor(container.getBoundingClientRect().width)
+      if (measured > 0) {
+        setSocialButtonWidth(measured)
+      }
+    }
+
+    updateWidth()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth)
+      return () => {
+        window.removeEventListener('resize', updateWidth)
+      }
+    }
+
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(container)
+    return () => {
+      observer.disconnect()
+    }
+  }, [googleClientId])
+
+  useEffect(() => {
+    if (!googleClientId) return
+    let cancelled = false
+
+    const renderGoogleButton = () => {
+      if (cancelled) return
+      const googleId = window.google?.accounts?.id
+      const mount = googleButtonRef.current
+      if (!googleId || !mount) return
+      googleId.initialize({
+        client_id: googleClientId,
+        callback: (response: Record<string, unknown>) => {
+          const credential = String(response?.credential || '').trim()
+          if (!credential) {
+            toast.error('Google 登录凭证为空，请重试')
+            return
+          }
+          setGoogleBusy(true)
+          void loginByGoogle(credential)
+            .then(() => {
+              toast.success('Google 登录成功')
+              nav('/doctors', { replace: true })
+            })
+            .catch((err) => {
+              toast.error(toErrorMessage(err))
+            })
+            .finally(() => {
+              if (!cancelled) setGoogleBusy(false)
+            })
+        },
+        cancel_on_tap_outside: true,
+      })
+      mount.innerHTML = ''
+      googleId.renderButton(mount, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'pill',
+        width: socialButtonWidth,
+        locale: 'zh-CN',
+      })
+      setGoogleReady(true)
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>('script[data-google-gsi="1"]')
+    if (existing) {
+      if (window.google?.accounts?.id) {
+        renderGoogleButton()
+      } else {
+        existing.addEventListener('load', renderGoogleButton, { once: true })
+      }
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.dataset.googleGsi = '1'
+    script.onload = renderGoogleButton
+    script.onerror = () => {
+      if (!cancelled) {
+        toast.error('Google 登录脚本加载失败')
+      }
+    }
+    document.head.appendChild(script)
+    return () => {
+      cancelled = true
+    }
+  }, [googleClientId, loginByGoogle, nav, socialButtonWidth])
 
   const targetLabel = useMemo(() => (channel === 'sms' ? '手机号' : '邮箱'), [channel])
   const targetPlaceholder = useMemo(
@@ -35,6 +158,7 @@ export default function LoginPage() {
   )
 
   const normalizedTarget = useMemo(() => target.trim(), [target])
+  const hasSocialLogin = Boolean(googleClientId)
 
   const validateTarget = () => {
     if (!normalizedTarget) {
@@ -184,6 +308,34 @@ export default function LoginPage() {
         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
         {loading ? '登录中…' : '登 录'}
       </button>
+
+      {hasSocialLogin && (
+        <div className="pt-1">
+          <div className="relative mb-3">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200/80" />
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-white/70 px-2 text-[11px] text-slate-400">Google login</span>
+            </div>
+          </div>
+          <div
+            ref={socialButtonsRef}
+            className="w-full mx-auto"
+            style={{ maxWidth: `${SOCIAL_LOGIN_MAX_WIDTH}px` }}
+          >
+            <div ref={googleButtonRef} className="w-full min-h-[40px]" />
+          </div>
+          {!googleReady && (
+            <p className="text-center text-[11px] text-slate-400 mt-1">
+              正在加载 Google 登录…
+            </p>
+          )}
+          {googleBusy && (
+            <p className="text-center text-[11px] text-frost-500 mt-1">Google 登录处理中…</p>
+          )}
+        </div>
+      )}
     </form>
   )
 }

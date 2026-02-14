@@ -10,6 +10,7 @@ interface AuthState {
 
   sendCode: (channel: 'sms' | 'email', target: string) => Promise<{ expireSeconds: number; target: string }>
   loginByCode: (p: { channel: 'sms' | 'email'; target: string; code: string; nickname?: string }) => Promise<void>
+  loginByGoogle: (credential: string) => Promise<void>
   logout: () => void
   syncFromStorage: () => void
 }
@@ -30,6 +31,19 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   loginByCode: async (params) => {
     const res = await authApi.loginByCode(params)
+    const data = res.data
+    setTokens(data.access, data.refresh)
+    setUsername(data.login_target)
+    set({
+      accessToken: data.access,
+      refreshToken: data.refresh,
+      username: data.login_target,
+      isAuthenticated: true,
+    })
+  },
+
+  loginByGoogle: async (credential) => {
+    const res = await authApi.googleLogin(credential)
     const data = res.data
     setTokens(data.access, data.refresh)
     setUsername(data.login_target)

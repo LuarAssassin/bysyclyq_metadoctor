@@ -17,6 +17,7 @@ from mdapi.auth_views import (
     DoctorAuthCodeSendView,
     PatientAuthCodeLoginView,
     PatientAuthCodeSendView,
+    PatientGoogleLoginView,
     UserProfileAvatarView,
     UserProfileView,
 )
@@ -630,6 +631,111 @@ class PatientAuthCodeLoginTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("验证码错误或已过期", response.data["message"])
+
+
+class PatientGoogleLoginTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.existing_patient = CustomUser.objects.create_user(
+            username="patient_google_existing",
+            password=None,
+            is_doctor=False,
+            is_active=True,
+            email="patient_google_existing@example.com",
+            nickname="已有患者",
+        )
+
+    def test_google_login_creates_patient(self):
+        request = self.factory.post(
+            "/api/auth/patient/google/login/",
+            {"credential": "google-id-token"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views._verify_google_identity_token",
+            return_value={
+                "email": "new_google_patient@example.com",
+                "name": "谷歌新用户",
+            },
+        ), patch(
+            "mdapi.auth_views._issue_tokens_for_user",
+            return_value={"access": "google-access", "refresh": "google-refresh"},
+        ):
+            response = PatientGoogleLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertTrue(payload["created"])
+        self.assertEqual(payload["login_channel"], "google")
+        self.assertEqual(payload["login_target"], "new_google_patient@example.com")
+        self.assertEqual(payload["access"], "google-access")
+        self.assertEqual(payload["refresh"], "google-refresh")
+        user = CustomUser.objects.filter(
+            is_doctor=False,
+            email="new_google_patient@example.com",
+        ).first()
+        self.assertIsNotNone(user)
+        if user:
+            self.assertEqual(user.nickname, "谷歌新用户")
+
+    def test_google_login_reuses_existing_patient(self):
+        request = self.factory.post(
+            "/api/auth/patient/google/login/",
+            {"credential": "google-id-token"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views._verify_google_identity_token",
+            return_value={
+                "email": "patient_google_existing@example.com",
+                "name": "新的昵称",
+            },
+        ), patch(
+            "mdapi.auth_views._issue_tokens_for_user",
+            return_value={"access": "google-access-existing", "refresh": "google-refresh-existing"},
+        ):
+            response = PatientGoogleLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertFalse(payload["created"])
+        self.assertEqual(payload["profile"]["id"], self.existing_patient.id)
+        self.existing_patient.refresh_from_db()
+        self.assertEqual(self.existing_patient.nickname, "已有患者")
+
+    def test_google_login_invalid_credential_returns_400(self):
+        request = self.factory.post(
+            "/api/auth/patient/google/login/",
+            {"credential": "invalid-google-token"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views._verify_google_identity_token",
+            side_effect=ValueError("Google 身份校验失败"),
+        ):
+            response = PatientGoogleLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Google 身份校验失败", response.data["message"])
+
+    def test_google_login_not_configured_returns_500(self):
+        request = self.factory.post(
+            "/api/auth/patient/google/login/",
+            {"credential": "google-id-token"},
+            format="json",
+        )
+
+        with patch(
+            "mdapi.auth_views._verify_google_identity_token",
+            side_effect=RuntimeError("Google 登录尚未配置，请联系管理员"),
+        ):
+            response = PatientGoogleLoginView.as_view()(request)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("Google 登录尚未配置", response.data["message"])
 
 
 class DoctorAuthCodeLoginTests(TestCase):

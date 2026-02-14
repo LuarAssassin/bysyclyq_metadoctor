@@ -36,6 +36,13 @@ export const authApi = {
       data: p,
     }),
 
+  googleLogin: (credential: string) =>
+    requestApi<PatientCodeLoginPayload>({
+      method: 'POST',
+      url: '/auth/patient/google/login/',
+      data: { credential },
+    }),
+
   refreshToken: (refresh: string) =>
     requestData<RefreshTokenPayload>({ method: 'POST', url: '/auth/token/refresh/', data: { refresh } }),
 }

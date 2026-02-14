@@ -43,3 +43,6 @@ INFO 2026-02-14 13:55:33,782 doctor code register created account: channel=sms t
 INFO 2026-02-14 13:55:33,784 doctor code register created account: channel=email target=new_doctor@example.com doctor_id=5
 INFO 2026-02-14 13:55:33,786 doctor code register resolved existing account: channel=sms target=13911112222 doctor_id=1 action=already_pending
 INFO 2026-02-14 13:55:33,788 doctor code register resolved existing account: channel=sms target=13933334444 doctor_id=2 action=reapplied
+WARNING 2026-02-14 14:46:07,222 qwen-long multi-file fallback to single-file merge. error=qwen-long 知识归纳失败: Error code: 400 - {'error': {'message': 'Invalid file [id:file-fe-5bce54b4f23c4deea78ce29e]', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_parameter_error'}, 'id': 'chatcmpl-b047a5cf-bc71-9290-bbd8-cb3e75509e4d', 'request_id': 'b047a5cf-bc71-9290-bbd8-cb3e75509e4d'}
+WARNING 2026-02-14 14:47:11,129 drain_until_done: TTS 未在 15.0s 内返回 session.finished，已超时退出 (已收到 191 个音频分片)
+INFO 2026-02-14 22:34:14,297 验证码发送成功: channel=sms, target=17611495325

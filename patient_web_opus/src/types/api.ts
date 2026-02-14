@@ -53,7 +53,7 @@ export interface PatientCodeSendResult {
 export interface PatientCodeLoginPayload extends LoginTokens {
   profile: UserProfile
   created: boolean
-  login_channel: 'sms' | 'email'
+  login_channel: 'sms' | 'email' | 'google'
   login_target: string
 }
 

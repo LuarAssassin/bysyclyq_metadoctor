@@ -498,6 +498,10 @@ PATIENT_AUTH_CODE_CONFIG = {
     "MAX_VERIFY_RETRIES": int(os.getenv("PATIENT_AUTH_CODE_MAX_VERIFY_RETRIES", 5)),
 }
 
+# Google 登录配置（患者端）
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+
 # knowledge extract queue
 KNOWLEDGE_EXTRACT_QUEUE_KEY = os.getenv(
     "KNOWLEDGE_EXTRACT_QUEUE_KEY", "mdapi:knowledge_extract_queue"
