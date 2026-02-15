@@ -7,6 +7,7 @@ import type {
   PatientCodeLoginPayload,
   PatientCodeSendResult,
   PatientAsrResult,
+  PatientAttachmentUploadPayload,
   PatientProfile,
   PatientSession,
   RefreshTokenPayload,
@@ -106,6 +107,16 @@ export const sessionApi = {
     return requestData<PatientAsrResult>({
       method: 'POST',
       url: '/patient/asr/transcribe/',
+      data: fd,
+    })
+  },
+
+  uploadAttachments: (sessionId: number, files: File[]) => {
+    const fd = new FormData()
+    files.forEach((file) => fd.append('files', file))
+    return requestData<PatientAttachmentUploadPayload>({
+      method: 'POST',
+      url: `/patient/sessions/${sessionId}/attachments/`,
       data: fd,
     })
   },

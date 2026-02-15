@@ -21,6 +21,7 @@ export interface StreamHandlers {
 
 export interface AskPayload {
   question: string
+  attachment_ids?: string[]
   forced_search?: boolean
   enable_audio?: boolean
 }

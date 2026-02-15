@@ -54,6 +54,7 @@ def _normalize_content(content: Any) -> str:
 class DoctorRehearsalService:
     DEFAULT_SELECTOR_MODEL = "qwen3-max-2026-01-23"
     DEFAULT_LONG_MODEL = "qwen-long"
+    DEFAULT_VL_MODEL = "qwen3-vl-plus"
     DEFAULT_ANSWER_MODEL = "qwen-max-latest"
 
     DEFAULT_SELECT_SYSTEM_PROMPT = (
@@ -98,6 +99,11 @@ class DoctorRehearsalService:
         "回答要先结论后解释，并给出明确下一步建议。"
         "若涉及风险场景，必须提示线下就医。"
     )
+    DEFAULT_VL_ATTACHMENT_PROMPT = (
+        "用户上传了医学相关图片，请结合图片内容回答问题。"
+        "输出简洁结论与依据；若图片信息不足，请明确写出不确定点。"
+        "不要编造图片中不存在的信息。"
+    )
 
     def __init__(self):
         self.api_key = getattr(settings, "DASHSCOPE_API_KEY", "")
@@ -120,6 +126,9 @@ class DoctorRehearsalService:
         )
         self.long_model = getattr(
             settings, "QWEN_REHEARSAL_LONG_MODEL", self.DEFAULT_LONG_MODEL
+        )
+        self.vl_model = getattr(
+            settings, "QWEN_REHEARSAL_VL_MODEL", self.DEFAULT_VL_MODEL
         )
         self.answer_model = getattr(
             settings, "QWEN_REHEARSAL_ANSWER_MODEL", self.DEFAULT_ANSWER_MODEL
@@ -169,6 +178,10 @@ class DoctorRehearsalService:
         self.answer_system_prompt = self._load_prompt_text(
             "qwen/rehearsal_answer_system.txt",
             self.DEFAULT_ANSWER_SYSTEM_PROMPT,
+        )
+        self.vl_attachment_prompt = self._load_prompt_text(
+            "qwen/rehearsal_attachment_vl_prompt.txt",
+            self.DEFAULT_VL_ATTACHMENT_PROMPT,
         )
 
     @staticmethod
@@ -434,6 +447,184 @@ class DoctorRehearsalService:
         return {
             "answer": "\n\n".join(merged_parts),
             "sources": merged_sources,
+        }
+
+    def _run_vl_grounding_for_images(
+        self,
+        *,
+        question: str,
+        image_urls: list[str],
+    ) -> str:
+        normalized_urls = [
+            str(url or "").strip()
+            for url in image_urls
+            if str(url or "").strip()
+        ]
+        if not normalized_urls:
+            return ""
+
+        prompt = (
+            f"{self.vl_attachment_prompt}\n\n"
+            f"用户问题：{question}\n"
+            "请基于图片给出医疗相关结论和建议。"
+        )
+        content = [{"image": url} for url in normalized_urls]
+        content.append({"text": prompt})
+
+        try:
+            response = self.dashscope.MultiModalConversation.call(
+                api_key=self.api_key,
+                model=self.vl_model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": content,
+                    }
+                ],
+                result_format="message",
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise RehearsalServiceError(f"qwen-vl 图片分析失败: {exc}") from exc
+
+        status_code = int(_obj_get(response, "status_code", 200) or 200)
+        if status_code != 200:
+            code = _obj_get(response, "code", "")
+            message = _obj_get(response, "message", "")
+            raise RehearsalServiceError(
+                f"qwen-vl 图片分析失败: status={status_code}, code={code}, message={message}"
+            )
+
+        output = _obj_get(response, "output", {}) or {}
+        choices = _obj_get(output, "choices", []) or []
+        if not choices:
+            raise RehearsalServiceError("qwen-vl 图片分析失败: 未返回 choices")
+
+        message_obj = _obj_get(choices[0], "message", {}) or {}
+        answer_text = _normalize_content(_obj_get(message_obj, "content", ""))
+        if not answer_text:
+            raise RehearsalServiceError("qwen-vl 图片分析失败: 输出为空")
+        return answer_text
+
+    @staticmethod
+    def _strip_internal_source_sections(text: str) -> str:
+        normalized = str(text or "").strip()
+        if not normalized:
+            return ""
+
+        knowledge_match = re.search(
+            r"\[\s*KNOWLEDGE\s*\](.*?)\[\s*/\s*KNOWLEDGE\s*\]",
+            normalized,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if knowledge_match:
+            normalized = (knowledge_match.group(1) or "").strip()
+        else:
+            normalized = re.sub(
+                r"\[\s*SOURCES\s*\][\s\S]*?\[\s*/\s*SOURCES\s*\]",
+                "",
+                normalized,
+                flags=re.IGNORECASE,
+            )
+
+        normalized = re.sub(
+            r"\[\s*/?\s*(?:PATIENT_IMAGE_NOTES|PATIENT_DOCUMENT_NOTES|KNOWLEDGE|SOURCES)\s*\]",
+            "",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        normalized = re.sub(r"fileid://[A-Za-z0-9._-]+", "", normalized)
+
+        cleaned_lines: list[str] = []
+        for line in normalized.splitlines():
+            line_text = line.strip()
+            if not line_text:
+                continue
+            if "fileid://" in line_text:
+                continue
+            cleaned_lines.append(line_text)
+
+        return "\n".join(cleaned_lines).strip()
+
+    def build_attachment_grounding_answer(
+        self,
+        *,
+        question: str,
+        attachments: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not attachments:
+            return {"answer": "", "sources": []}
+
+        image_urls: list[str] = []
+        doc_file_ids: list[str] = []
+        source_ids: list[str] = []
+        for item in attachments:
+            file_id = str(item.get("file_id") or "").strip()
+            file_kind = str(item.get("file_kind") or "").strip().lower()
+            if file_id:
+                source_ids.append(file_id)
+            if file_kind == "image":
+                image_url = str(
+                    item.get("signed_url")
+                    or item.get("preview_url")
+                    or item.get("file_url")
+                    or ""
+                ).strip()
+                if image_url:
+                    image_urls.append(image_url)
+                continue
+            if file_kind == "document" and file_id:
+                doc_file_ids.append(file_id)
+
+        sections: list[str] = []
+        errors: list[str] = []
+
+        if image_urls:
+            try:
+                image_answer = self._run_vl_grounding_for_images(
+                    question=question,
+                    image_urls=image_urls,
+                )
+                cleaned_image_answer = self._strip_internal_source_sections(image_answer)
+                if cleaned_image_answer:
+                    sections.append(f"图片信息摘要：\n{cleaned_image_answer}")
+            except RehearsalServiceError as exc:
+                errors.append(str(exc))
+
+        if doc_file_ids:
+            try:
+                doc_result = self.build_long_grounding_answer(
+                    question=question,
+                    selected_file_ids=doc_file_ids,
+                )
+                doc_answer = self._strip_internal_source_sections(
+                    str(doc_result.get("answer", "") or "")
+                )
+                if doc_answer:
+                    sections.append(f"文档信息摘要：\n{doc_answer}")
+                source_ids.extend(
+                    [
+                        str(file_id).strip()
+                        for file_id in doc_result.get("sources", []) or []
+                        if str(file_id).strip()
+                    ]
+                )
+            except RehearsalServiceError as exc:
+                errors.append(str(exc))
+
+        if not sections and errors:
+            raise RehearsalServiceError("；".join(errors))
+
+        dedup_sources: list[str] = []
+        seen = set()
+        for source_id in source_ids:
+            if not source_id or source_id in seen:
+                continue
+            seen.add(source_id)
+            dedup_sources.append(source_id)
+
+        return {
+            "answer": "\n\n".join(sections).strip(),
+            "sources": dedup_sources,
         }
 
     def build_final_messages(

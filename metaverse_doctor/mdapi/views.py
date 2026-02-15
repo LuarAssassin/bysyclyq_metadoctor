@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import mimetypes
+import re
 import urllib.parse
 import urllib.request
 import uuid
@@ -420,6 +421,9 @@ def _build_patient_session_title(question: str, max_chars: int = 24) -> str:
 
 
 _PATIENT_STREAM_CANCEL_FLAGS: dict[str, bool] = {}
+_PATIENT_ATTACHMENT_CACHE_FALLBACK: dict[str, dict] = {}
+_CITATION_TOKEN_PATTERN = re.compile(r"\[(?:\^)?\d{1,3}\]")
+_FOOTNOTE_DEFINITION_PATTERN = re.compile(r"^\s*\[\^\d+\]:.*$", re.MULTILINE)
 
 
 def _patient_stream_cancel_key(message_id: int) -> str:
@@ -451,6 +455,181 @@ def _clear_patient_stream_cancel_flag(message_id: int):
     except Exception:  # noqa: BLE001
         pass
     _PATIENT_STREAM_CANCEL_FLAGS.pop(key, None)
+
+
+def _strip_non_clickable_footnotes(
+    text: str,
+    *,
+    search_sources: list | None = None,
+) -> str:
+    content = str(text or "")
+    if not content.strip():
+        return ""
+
+    if isinstance(search_sources, list) and search_sources:
+        return content
+
+    cleaned = _FOOTNOTE_DEFINITION_PATTERN.sub("", content)
+    cleaned = _CITATION_TOKEN_PATTERN.sub("", cleaned)
+
+    normalized_lines: list[str] = []
+    for line in cleaned.splitlines():
+        line_text = line.rstrip()
+        if re.fullmatch(r"\s*(?:来源|参考来源|references?)\s*[:：]?\s*", line_text, re.IGNORECASE):
+            continue
+        normalized_lines.append(line_text)
+
+    cleaned_text = "\n".join(normalized_lines)
+    cleaned_text = re.sub(r"[ \t]{2,}", " ", cleaned_text)
+    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+    return cleaned_text.strip()
+
+
+def _patient_attachment_cache_key(patient_id: int, session_id: int, attachment_id: str) -> str:
+    return (
+        f"mdapi:patient:attachment:{int(patient_id)}:"
+        f"{int(session_id)}:{str(attachment_id).strip()}"
+    )
+
+
+def _store_patient_attachment_cache(
+    *,
+    patient_id: int,
+    session_id: int,
+    attachment_id: str,
+    payload: dict,
+    timeout: int,
+):
+    key = _patient_attachment_cache_key(patient_id, session_id, attachment_id)
+    try:
+        cache.set(key, payload, timeout=max(int(timeout or 0), 60))
+    except Exception:  # noqa: BLE001
+        _PATIENT_ATTACHMENT_CACHE_FALLBACK[key] = payload
+
+
+def _load_patient_attachment_cache(
+    *,
+    patient_id: int,
+    session_id: int,
+    attachment_id: str,
+) -> dict | None:
+    key = _patient_attachment_cache_key(patient_id, session_id, attachment_id)
+    payload = None
+    try:
+        payload = cache.get(key)
+    except Exception:  # noqa: BLE001
+        payload = None
+    if not payload:
+        payload = _PATIENT_ATTACHMENT_CACHE_FALLBACK.get(key)
+    if isinstance(payload, dict):
+        return dict(payload)
+    return None
+
+
+def _parse_patient_attachment_ids(raw_value) -> list[str]:
+    if raw_value is None:
+        return []
+
+    parsed = raw_value
+    if isinstance(raw_value, str):
+        text = raw_value.strip()
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except Exception:  # noqa: BLE001
+            parsed = [text]
+
+    if not isinstance(parsed, list):
+        return []
+
+    values: list[str] = []
+    seen = set()
+    for item in parsed:
+        attachment_id = str(item or "").strip()
+        if not attachment_id or attachment_id in seen:
+            continue
+        seen.add(attachment_id)
+        values.append(attachment_id)
+    return values[:10]
+
+
+def _build_patient_attachment_summary_text(attachments: list[dict]) -> str:
+    if not attachments:
+        return ""
+    lines: list[str] = []
+    for item in attachments:
+        if not isinstance(item, dict):
+            continue
+        file_name = str(item.get("file_name") or "").strip() or "未命名附件"
+        file_kind = str(item.get("file_kind") or "").strip().lower()
+        label = "图片" if file_kind == "image" else "文档"
+        lines.append(f"- {label}：{file_name}")
+    if not lines:
+        return ""
+    return "\n[附件]\n" + "\n".join(lines)
+
+
+def _build_patient_attachment_access_url(
+    attachment: dict,
+    *,
+    oss_client=None,
+    expires: int = 1800,
+) -> str | None:
+    object_key = str(attachment.get("object_key") or "").strip()
+    fallback_url = str(
+        attachment.get("oss_url")
+        or attachment.get("file_url")
+        or attachment.get("preview_url")
+        or ""
+    ).strip()
+    if not object_key:
+        return fallback_url or None
+
+    try:
+        client = oss_client or get_oss_client()
+        return client.build_signed_get_url(object_key, expires=max(int(expires or 0), 60))
+    except (OSSConfigurationError, OSSReadError, AttributeError, ValueError):
+        return fallback_url or None
+
+
+def _hydrate_patient_message_payload_with_attachments(
+    message_payload: dict,
+    *,
+    oss_client=None,
+) -> dict:
+    if not isinstance(message_payload, dict):
+        return message_payload
+
+    meta = message_payload.get("meta")
+    if not isinstance(meta, dict):
+        return message_payload
+
+    attachments = meta.get("attachments")
+    if not isinstance(attachments, list):
+        return message_payload
+
+    hydrated_attachments = []
+    for item in attachments:
+        if not isinstance(item, dict):
+            continue
+        attachment_data = dict(item)
+        file_url = _build_patient_attachment_access_url(
+            attachment_data,
+            oss_client=oss_client,
+        )
+        if file_url:
+            attachment_data["file_url"] = file_url
+            if str(attachment_data.get("file_kind") or "").strip().lower() == "image":
+                attachment_data["preview_url"] = file_url
+        hydrated_attachments.append(attachment_data)
+
+    hydrated_meta = dict(meta)
+    hydrated_meta["attachments"] = hydrated_attachments
+
+    payload = dict(message_payload)
+    payload["meta"] = hydrated_meta
+    return payload
 
 
 class DoctorKnowledgeView(APIView):
@@ -1938,6 +2117,18 @@ class DoctorRehearsalAskStreamView(APIView):
             history_messages=history_messages,
             question=question,
         )
+        if attachment_grounding_inputs:
+            final_messages.insert(
+                1,
+                {
+                    "role": "system",
+                    "content": (
+                        "输出限制：不要出现内部标识（如 PATIENT_IMAGE_NOTES、"
+                        "PATIENT_DOCUMENT_NOTES、KNOWLEDGE、SOURCES、fileid://）。"
+                        "不要在正文追加“来源/出处”段落；联网来源由前端单独展示。"
+                    ),
+                },
+            )
 
         def event_stream():
             full_content = ""
@@ -2611,6 +2802,14 @@ class DoctorPatientConsultSessionMessagesView(APIView):
             approved_edited=Count("id", filter=Q(review_status="approved_edited")),
             rejected=Count("id", filter=Q(review_status="rejected")),
         )
+        messages_data = PatientConsultMessageSerializer(queryset, many=True).data
+        messages_data = [
+            _hydrate_patient_message_payload_with_attachments(
+                item,
+                oss_client=oss_client,
+            )
+            for item in messages_data
+        ]
 
         return APIResponse.success(
             data={
@@ -2635,7 +2834,7 @@ class DoctorPatientConsultSessionMessagesView(APIView):
                         oss_client=oss_client,
                     ),
                 },
-                "messages": PatientConsultMessageSerializer(queryset, many=True).data,
+                "messages": messages_data,
                 "stats": {
                     "pending": int(stats.get("pending") or 0),
                     "approved": int(stats.get("approved") or 0),
@@ -2899,6 +3098,181 @@ class PatientASRTranscribeView(APIView):
         )
 
 
+class PatientConsultAttachmentUploadView(APIView):
+    permission_classes = [IsAuthenticated, IsPatient]
+
+    def post(self, request, session_id):
+        session = (
+            PatientConsultSession.objects.filter(id=session_id, patient=request.user)
+            .select_related("doctor")
+            .first()
+        )
+        if not session:
+            return APIResponse.not_found(message="问诊会话不存在")
+
+        files = request.FILES.getlist("files")
+        if not files:
+            single_file = request.FILES.get("file")
+            if single_file:
+                files = [single_file]
+        if not files:
+            return APIResponse.error(message="请至少上传一个附件", code=400)
+
+        upload_config = getattr(settings, "PATIENT_CONSULT_ATTACHMENT_UPLOAD_CONFIG", {})
+        max_batch_count = int(upload_config.get("MAX_BATCH_COUNT", 5))
+        max_file_size = int(upload_config.get("MAX_FILE_SIZE", 20 * 1024 * 1024))
+        image_max_file_size = int(upload_config.get("IMAGE_MAX_FILE_SIZE", 10 * 1024 * 1024))
+        cache_ttl_seconds = int(upload_config.get("CACHE_TTL_SECONDS", 30 * 24 * 60 * 60))
+        allowed_types = {
+            content_type.lower()
+            for group in upload_config.get("ALLOWED_TYPES", {}).values()
+            for content_type in group
+        }
+        allowed_extensions = {
+            ext.lower()
+            for group in upload_config.get("ALLOWED_EXTENSIONS", {}).values()
+            for ext in group
+        }
+        image_types = {
+            content_type.lower()
+            for content_type in upload_config.get("ALLOWED_TYPES", {}).get("images", [])
+        }
+        image_extensions = {
+            ext.lower()
+            for ext in upload_config.get("ALLOWED_EXTENSIONS", {}).get("images", [])
+        }
+
+        if len(files) > max_batch_count:
+            return APIResponse.error(
+                message=f"单次最多上传 {max_batch_count} 个附件",
+                code=400,
+            )
+
+        for upload in files:
+            content_type = (upload.content_type or "").lower()
+            file_extension = Path(upload.name or "").suffix.lower()
+
+            if upload.size > max_file_size:
+                return APIResponse.error(
+                    message=f"附件 {upload.name} 超过大小限制（最大 {max_file_size // (1024 * 1024)}MB）",
+                    code=400,
+                )
+
+            is_image = (
+                content_type.startswith("image/")
+                or content_type in image_types
+                or file_extension in image_extensions
+            )
+            if is_image and upload.size > image_max_file_size:
+                return APIResponse.error(
+                    message=f"图片附件 {upload.name} 超过大小限制（最大 {image_max_file_size // (1024 * 1024)}MB）",
+                    code=400,
+                )
+
+            mime_supported = content_type in allowed_types if allowed_types else False
+            extension_supported = (
+                file_extension in allowed_extensions if allowed_extensions else False
+            )
+            if (allowed_types or allowed_extensions) and not (
+                mime_supported or extension_supported
+            ):
+                supported_exts = ", ".join(sorted(allowed_extensions))
+                return APIResponse.error(
+                    message=(
+                        f"附件 {upload.name} 类型不支持: {upload.content_type}，"
+                        f"支持扩展名: {supported_exts}"
+                    ),
+                    code=400,
+                )
+
+        try:
+            oss_client = get_oss_client()
+            extractor = get_qwen_extractor()
+        except (OSSConfigurationError, QwenConfigurationError) as exc:
+            return APIResponse.error(
+                message=str(exc),
+                code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        attachments = []
+        for upload in files:
+            content_type = (upload.content_type or "").lower()
+            file_extension = Path(upload.name or "").suffix.lower()
+            file_kind = (
+                "image"
+                if (
+                    content_type.startswith("image/")
+                    or content_type in image_types
+                    or file_extension in image_extensions
+                )
+                else "document"
+            )
+
+            try:
+                upload_result = oss_client.upload_file(
+                    upload,
+                    doctor_id=request.user.id,
+                    prefix="patient-consult/attachments",
+                )
+                qwen_file_id = extractor.upload_file(upload)
+            except (OSSUploadError, QwenExtractionError) as exc:
+                return APIResponse.error(
+                    message=str(exc),
+                    code=500,
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            attachment_id = uuid.uuid4().hex
+            created_at = timezone.now().isoformat()
+            attachment_payload = {
+                "attachment_id": attachment_id,
+                "patient_id": request.user.id,
+                "session_id": session.id,
+                "doctor_id": session.doctor_id,
+                "file_kind": file_kind,
+                "file_name": upload.name,
+                "content_type": upload_result.get("content_type") or content_type,
+                "size_bytes": int(upload_result.get("size_bytes") or 0),
+                "object_key": upload_result.get("object_key"),
+                "oss_url": upload_result.get("oss_url"),
+                "qwen_file_id": qwen_file_id,
+                "created_at": created_at,
+            }
+            _store_patient_attachment_cache(
+                patient_id=request.user.id,
+                session_id=session.id,
+                attachment_id=attachment_id,
+                payload=attachment_payload,
+                timeout=cache_ttl_seconds,
+            )
+
+            signed_url = _build_patient_attachment_access_url(
+                attachment_payload,
+                oss_client=oss_client,
+            )
+            attachments.append(
+                {
+                    "attachment_id": attachment_id,
+                    "file_kind": file_kind,
+                    "file_name": attachment_payload["file_name"],
+                    "content_type": attachment_payload["content_type"],
+                    "size_bytes": attachment_payload["size_bytes"],
+                    "file_url": signed_url,
+                    "preview_url": signed_url if file_kind == "image" else None,
+                    "created_at": created_at,
+                }
+            )
+
+        return APIResponse.success(
+            data={
+                "attachments": attachments,
+                "expire_seconds": cache_ttl_seconds,
+            },
+            message="附件上传成功",
+        )
+
+
 class PatientConsultSessionView(APIView):
     permission_classes = [IsAuthenticated, IsPatient]
 
@@ -2994,6 +3368,11 @@ class PatientConsultMessageView(APIView):
     permission_classes = [IsAuthenticated, IsPatient]
 
     def get(self, request, session_id):
+        try:
+            oss_client = get_oss_client()
+        except OSSConfigurationError:
+            oss_client = None
+
         session = PatientConsultSession.objects.filter(
             id=session_id, patient=request.user
         ).select_related("doctor").first()
@@ -3012,11 +3391,18 @@ class PatientConsultMessageView(APIView):
             .order_by("-created_at")[:limit]
         )
         queryset.reverse()
-        serializer = PatientConsultMessageSerializer(queryset, many=True)
+        messages_data = PatientConsultMessageSerializer(queryset, many=True).data
+        messages_data = [
+            _hydrate_patient_message_payload_with_attachments(
+                item,
+                oss_client=oss_client,
+            )
+            for item in messages_data
+        ]
         return APIResponse.success(
             data={
                 "session": PatientConsultSessionSerializer(session).data,
-                "messages": serializer.data,
+                "messages": messages_data,
             },
             message="获取成功",
         )
@@ -3092,10 +3478,17 @@ class PatientConsultAskStreamView(APIView):
         )
         history_messages = []
         for item in reversed(list(history_queryset)):
+            content = item.content or ""
+            if item.role == "user" and isinstance(item.meta, dict):
+                attachments = item.meta.get("attachments")
+                if isinstance(attachments, list):
+                    attachment_summary = _build_patient_attachment_summary_text(attachments)
+                    if attachment_summary and "[附件]" not in content:
+                        content += attachment_summary
             history_messages.append(
                 {
                     "role": "assistant" if item.role == "assistant" else "user",
-                    "content": item.content or "",
+                    "content": content,
                 }
             )
         return history_messages
@@ -3109,7 +3502,32 @@ class PatientConsultAskStreamView(APIView):
         if not session:
             return APIResponse.not_found(message="问诊会话不存在")
 
+        raw_attachment_ids = request.data.get("attachment_ids")
+        attachment_ids = _parse_patient_attachment_ids(raw_attachment_ids)
+        if raw_attachment_ids not in (None, "", []) and not attachment_ids:
+            return APIResponse.error(message="attachment_ids 格式错误", code=400)
+
+        attachment_payloads = []
+        missing_attachment_ids = []
+        for attachment_id in attachment_ids:
+            payload = _load_patient_attachment_cache(
+                patient_id=request.user.id,
+                session_id=session.id,
+                attachment_id=attachment_id,
+            )
+            if not payload:
+                missing_attachment_ids.append(attachment_id)
+                continue
+            attachment_payloads.append(payload)
+        if missing_attachment_ids:
+            return APIResponse.error(
+                message="部分附件已失效，请重新上传后再发送",
+                code=400,
+            )
+
         question = (request.data.get("question") or "").strip()
+        if not question and attachment_payloads:
+            question = "请结合我上传的附件，给出专业分析和建议。"
         if not question:
             return APIResponse.error(message="question 不能为空", code=400)
 
@@ -3140,6 +3558,52 @@ class PatientConsultAskStreamView(APIView):
                 session.title = _build_patient_session_title(question)
                 title_updated = True
 
+        try:
+            attachment_oss_client = get_oss_client()
+        except OSSConfigurationError:
+            attachment_oss_client = None
+
+        message_attachments = []
+        attachment_grounding_inputs = []
+        for attachment in attachment_payloads:
+            qwen_file_id = str(attachment.get("qwen_file_id") or "").strip()
+            if not qwen_file_id:
+                continue
+            file_kind = str(attachment.get("file_kind") or "").strip().lower() or "document"
+            file_name = str(attachment.get("file_name") or "").strip() or "未命名附件"
+            file_url = _build_patient_attachment_access_url(
+                attachment,
+                oss_client=attachment_oss_client,
+            )
+            attachment_item = {
+                "attachment_id": str(attachment.get("attachment_id") or "").strip(),
+                "file_kind": file_kind,
+                "file_name": file_name,
+                "content_type": attachment.get("content_type"),
+                "size_bytes": int(attachment.get("size_bytes") or 0),
+                "object_key": attachment.get("object_key"),
+                "oss_url": attachment.get("oss_url"),
+                "qwen_file_id": qwen_file_id,
+            }
+            if file_url:
+                attachment_item["file_url"] = file_url
+                if file_kind == "image":
+                    attachment_item["preview_url"] = file_url
+            message_attachments.append(attachment_item)
+            attachment_grounding_inputs.append(
+                {
+                    "file_id": qwen_file_id,
+                    "file_kind": file_kind,
+                    "file_name": file_name,
+                    "signed_url": file_url,
+                    "file_url": file_url,
+                    "preview_url": file_url if file_kind == "image" else None,
+                }
+            )
+
+        user_content = question + _build_patient_attachment_summary_text(message_attachments)
+        user_meta = {"attachments": message_attachments} if message_attachments else {}
+
         user_msg = PatientConsultMessage.objects.create(
             session=session,
             patient=request.user,
@@ -3148,9 +3612,10 @@ class PatientConsultAskStreamView(APIView):
             turn_index=turn_index,
             generation_status="succeeded",
             review_status="approved",
-            content=question,
-            content_markdown=question,
+            content=user_content,
+            content_markdown=user_content,
             model_name=None,
+            meta=user_meta,
         )
 
         assistant_msg = PatientConsultMessage.objects.create(
@@ -3175,37 +3640,65 @@ class PatientConsultAskStreamView(APIView):
         session.save(update_fields=session_update_fields)
 
         kernel, _ = _get_or_create_doctor_narrative_kernel(session.doctor)
-        knowledge_queryset = (
-            DoctorKnowledge.objects.filter(
-                doctor=session.doctor,
-                extract_status="success",
-            )
-            .exclude(qwen_file_id__isnull=True)
-            .exclude(qwen_file_id="")
-            .prefetch_related("tags")
-            .order_by("-updated_at")
-        )
-        candidates = rehearsal.build_ranked_candidates(question, knowledge_queryset)
+        selected = {"selected_file_ids": [], "reason": ""}
+        selected_file_ids: list[str] = []
+        selected_meta: list[dict] = []
 
         try:
-            selected = rehearsal.select_file_ids_with_qwen_max(
-                question=question,
-                candidates=candidates,
-            )
-            selected_file_ids = selected["selected_file_ids"]
-            selected_meta_map = {item["file_id"]: item for item in candidates}
-            selected_meta = [
-                selected_meta_map[file_id]
-                for file_id in selected_file_ids
-                if file_id in selected_meta_map
-            ]
-            if selected_file_ids:
-                grounding_result = rehearsal.build_long_grounding_answer(
+            if attachment_grounding_inputs:
+                selected_file_ids = [
+                    str(item.get("file_id") or "").strip()
+                    for item in attachment_grounding_inputs
+                    if str(item.get("file_id") or "").strip()
+                ]
+                selected_meta = [
+                    {
+                        "source": "patient_attachment",
+                        "attachment_id": item.get("attachment_id"),
+                        "file_id": item.get("qwen_file_id"),
+                        "file_name": item.get("file_name"),
+                        "file_kind": item.get("file_kind"),
+                    }
+                    for item in message_attachments
+                ]
+                selected = {
+                    "selected_file_ids": selected_file_ids,
+                    "reason": "本轮基于患者上传附件进行分析",
+                }
+                grounding_result = rehearsal.build_attachment_grounding_answer(
                     question=question,
-                    selected_file_ids=selected_file_ids,
+                    attachments=attachment_grounding_inputs,
                 )
             else:
-                grounding_result = {"answer": "", "sources": []}
+                knowledge_queryset = (
+                    DoctorKnowledge.objects.filter(
+                        doctor=session.doctor,
+                        extract_status="success",
+                    )
+                    .exclude(qwen_file_id__isnull=True)
+                    .exclude(qwen_file_id="")
+                    .prefetch_related("tags")
+                    .order_by("-updated_at")
+                )
+                candidates = rehearsal.build_ranked_candidates(question, knowledge_queryset)
+                selected = rehearsal.select_file_ids_with_qwen_max(
+                    question=question,
+                    candidates=candidates,
+                )
+                selected_file_ids = selected["selected_file_ids"]
+                selected_meta_map = {item["file_id"]: item for item in candidates}
+                selected_meta = [
+                    selected_meta_map[file_id]
+                    for file_id in selected_file_ids
+                    if file_id in selected_meta_map
+                ]
+                if selected_file_ids:
+                    grounding_result = rehearsal.build_long_grounding_answer(
+                        question=question,
+                        selected_file_ids=selected_file_ids,
+                    )
+                else:
+                    grounding_result = {"answer": "", "sources": []}
         except RehearsalServiceError as exc:
             assistant_msg.generation_status = "failed"
             assistant_msg.error_message = str(exc)
@@ -3295,6 +3788,7 @@ class PatientConsultAskStreamView(APIView):
                         "selected_file_ids": selected_file_ids,
                         "selected_file_meta": selected_meta,
                         "grounding_sources": grounding_result["sources"],
+                        "question_attachments": message_attachments,
                         "audio": {
                             "enabled": enable_audio,
                             "status": audio_status,
@@ -3382,6 +3876,10 @@ class PatientConsultAskStreamView(APIView):
                         full_content = str(event.get("content", full_content) or "")
                         usage_data = event.get("usage", {}) or {}
                         search_sources = event.get("search_sources", []) or []
+                        full_content = _strip_non_clickable_footnotes(
+                            full_content,
+                            search_sources=search_sources,
+                        )
                         break
             except RehearsalServiceError as exc:
                 if tts_bridge:
@@ -3403,6 +3901,7 @@ class PatientConsultAskStreamView(APIView):
                 assistant_msg.grounding_sources = grounding_result["sources"]
                 assistant_msg.meta = {
                     "selector_reason": selected.get("reason", ""),
+                    "question_attachments": message_attachments,
                     "audio": _audio_payload(),
                 }
                 assistant_msg.save(
@@ -3443,11 +3942,16 @@ class PatientConsultAskStreamView(APIView):
                 final_partial = full_content.strip()
                 if not final_partial and assistant_msg.content not in {"", "[生成中]"}:
                     final_partial = assistant_msg.content
+                final_partial = _strip_non_clickable_footnotes(
+                    final_partial,
+                    search_sources=search_sources,
+                )
 
                 meta_data = assistant_msg.meta if isinstance(assistant_msg.meta, dict) else {}
                 meta_data.update(
                     {
                         "selector_reason": selected.get("reason", ""),
+                        "question_attachments": message_attachments,
                         "interrupted": True,
                         "interrupted_at": timezone.now().isoformat(),
                         "audio": _audio_payload(),
@@ -3498,6 +4002,7 @@ class PatientConsultAskStreamView(APIView):
                             "usage": usage_data,
                             "search_sources": search_sources,
                             "selected_file_ids": selected_file_ids,
+                            "question_attachments": message_attachments,
                             "interrupted": True,
                             "audio": _audio_payload(),
                         },
@@ -3557,8 +4062,12 @@ class PatientConsultAskStreamView(APIView):
                 audio_status = "disabled"
 
             assistant_msg.generation_status = "succeeded"
-            assistant_msg.content = full_content
-            assistant_msg.content_markdown = full_content
+            cleaned_content = _strip_non_clickable_footnotes(
+                full_content,
+                search_sources=search_sources,
+            )
+            assistant_msg.content = cleaned_content
+            assistant_msg.content_markdown = cleaned_content
             assistant_msg.model_name = rehearsal.answer_model
             assistant_msg.selected_file_ids = selected_file_ids
             assistant_msg.selected_file_meta = selected_meta
@@ -3570,6 +4079,7 @@ class PatientConsultAskStreamView(APIView):
             assistant_msg.total_tokens = usage_data.get("total_tokens")
             assistant_msg.meta = {
                 "selector_reason": selected.get("reason", ""),
+                "question_attachments": message_attachments,
                 "interrupted": False,
                 "audio": _audio_payload(),
             }
@@ -3603,6 +4113,7 @@ class PatientConsultAskStreamView(APIView):
                     "usage": usage_data,
                     "search_sources": search_sources,
                     "selected_file_ids": selected_file_ids,
+                    "question_attachments": message_attachments,
                     "interrupted": False,
                     "audio": _audio_payload(),
                 },

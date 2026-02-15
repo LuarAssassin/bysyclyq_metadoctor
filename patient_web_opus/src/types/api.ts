@@ -161,6 +161,22 @@ export interface PatientAsrResult {
   size_bytes?: number
 }
 
+export interface PatientChatAttachment {
+  attachment_id: string
+  file_kind: 'image' | 'document' | string
+  file_name: string
+  content_type: string | null
+  size_bytes: number
+  file_url: string | null
+  preview_url: string | null
+  created_at: string
+}
+
+export interface PatientAttachmentUploadPayload {
+  attachments: PatientChatAttachment[]
+  expire_seconds: number
+}
+
 /* ── SSE 事件 ─────────────────── */
 
 export interface AudioInfo {
@@ -186,6 +202,7 @@ export interface SSEStartEvent {
   selected_file_ids: string[]
   selected_file_meta?: Array<Record<string, unknown>>
   grounding_sources?: Array<Record<string, unknown>>
+  question_attachments?: PatientChatAttachment[]
   audio?: AudioInfo
 }
 
@@ -217,6 +234,7 @@ export interface SSEDoneEvent {
   }
   search_sources?: Array<Record<string, unknown>>
   selected_file_ids?: string[]
+  question_attachments?: PatientChatAttachment[]
   audio?: AudioInfo
 }
 

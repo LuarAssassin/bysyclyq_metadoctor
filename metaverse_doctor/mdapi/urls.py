@@ -40,6 +40,7 @@ from mdapi.views import (
     DoctorPatientConsultTreeView,
     DoctorNarrativeRedlineView,
     PatientConsultAskStreamView,
+    PatientConsultAttachmentUploadView,
     PatientConsultMessageInterruptView,
     PatientConsultMessageView,
     PatientASRTranscribeView,
@@ -233,6 +234,11 @@ urlpatterns = [
         "patient/sessions/<int:session_id>/messages/<int:message_id>/interrupt/",
         PatientConsultMessageInterruptView.as_view(),
         name="patient-session-message-interrupt",
+    ),
+    path(
+        "patient/sessions/<int:session_id>/attachments/",
+        PatientConsultAttachmentUploadView.as_view(),
+        name="patient-session-attachments",
     ),
     path(
         "patient/sessions/<int:session_id>/ask/stream/",

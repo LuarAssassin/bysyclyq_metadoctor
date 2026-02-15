@@ -471,6 +471,54 @@ PATIENT_ASR_UPLOAD_CONFIG = {
         "video/webm",
     ],
 }
+PATIENT_CONSULT_ATTACHMENT_UPLOAD_CONFIG = {
+    "MAX_BATCH_COUNT": 5,
+    "MAX_FILE_SIZE": 20 * 1024 * 1024,
+    "IMAGE_MAX_FILE_SIZE": 10 * 1024 * 1024,
+    "ALLOWED_TYPES": {
+        "images": [
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/bmp",
+            "image/webp",
+        ],
+        "documents": [
+            "text/plain",
+            "text/markdown",
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/csv",
+            "application/json",
+            "application/epub+zip",
+            "application/x-mobipocket-ebook",
+        ],
+    },
+    "ALLOWED_EXTENSIONS": {
+        "images": [".jpe", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"],
+        "documents": [
+            ".txt",
+            ".md",
+            ".pdf",
+            ".doc",
+            ".docx",
+            ".xls",
+            ".xlsx",
+            ".ppt",
+            ".pptx",
+            ".csv",
+            ".json",
+            ".epub",
+            ".mobi",
+        ],
+    },
+    "CACHE_TTL_SECONDS": 30 * 24 * 60 * 60,
+}
 
 # 腾讯云（短信/邮件）配置
 TENCENT_REGION = os.getenv("TENCENT_REGION", "ap-hongkong").strip() or "ap-hongkong"

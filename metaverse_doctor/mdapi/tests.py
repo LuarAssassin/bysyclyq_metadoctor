@@ -50,12 +50,14 @@ from mdapi.views import (
     DoctorRehearsalMessageView,
     PatientDoctorAssetsView,
     PatientASRTranscribeView,
+    PatientConsultAttachmentUploadView,
     PatientConsultAskStreamView,
     PatientConsultMessageInterruptView,
     PatientConsultSessionView,
     PatientConsultSessionItemView,
     PatientDoctorDirectoryView,
     _build_patient_session_title,
+    _strip_non_clickable_footnotes,
 )
 
 
@@ -1057,6 +1059,23 @@ class RehearsalServiceHelperTests(SimpleTestCase):
         self.assertIn("[SOURCE fileid://file-a]", result["answer"])
         self.assertIn("[SOURCE fileid://file-b]", result["answer"])
 
+    def test_strip_internal_source_sections_removes_markers_and_fileid(self):
+        raw = (
+            "[PATIENT_IMAGE_NOTES]\n"
+            "图像描述如下。\n"
+            "[/PATIENT_IMAGE_NOTES]\n"
+            "[KNOWLEDGE]\n"
+            "建议复查。\n"
+            "[/KNOWLEDGE]\n"
+            "[SOURCES]\n"
+            "- fileid://file-a 来自病历\n"
+            "[/SOURCES]\n"
+        )
+        cleaned = DoctorRehearsalService._strip_internal_source_sections(raw)
+        self.assertIn("建议复查。", cleaned)
+        self.assertNotIn("PATIENT_IMAGE_NOTES", cleaned)
+        self.assertNotIn("fileid://", cleaned)
+
 
 class RehearsalRealtimeTTSHelperTests(SimpleTestCase):
     def test_extract_completed_segments_by_sentence_end(self):
@@ -1112,6 +1131,27 @@ class RehearsalRealtimeTTSHelperTests(SimpleTestCase):
         DoctorRehearsalRealtimeTTS.append_text(service, "第二段。")
 
         self.assertEqual(calls, ["第一段。", "第二段。"])
+
+
+class PatientViewHelperTests(SimpleTestCase):
+    def test_strip_non_clickable_footnotes_when_no_sources(self):
+        raw = (
+            "建议先休息与冰敷[1]。\n\n"
+            "[^1]: 这是内部标注\n"
+            "来源：\n"
+        )
+        cleaned = _strip_non_clickable_footnotes(raw, search_sources=[])
+        self.assertEqual(cleaned, "建议先休息与冰敷。")
+        self.assertNotIn("[1]", cleaned)
+        self.assertNotIn("[^1]", cleaned)
+
+    def test_strip_non_clickable_footnotes_keeps_text_with_sources(self):
+        raw = "建议先休息与冰敷[1]。"
+        cleaned = _strip_non_clickable_footnotes(
+            raw,
+            search_sources=[{"url": "https://example.com"}],
+        )
+        self.assertEqual(cleaned, raw)
 
 
 class RehearsalViewTests(TestCase):
@@ -1466,6 +1506,212 @@ class PatientConsultViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["data"]["text"], "我最近跑步后膝盖疼。")
         self.assertEqual(response.data["data"]["model"], "qwen3-asr-flash")
+
+    def test_upload_patient_consult_attachment_success(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title="附件上传会话",
+            status="active",
+        )
+        upload_file = SimpleUploadedFile(
+            "knee-report.png",
+            b"fake-image-bytes",
+            content_type="image/png",
+        )
+
+        class _FakeOSS:
+            @staticmethod
+            def upload_file(uploaded_file, doctor_id, prefix=""):  # noqa: ARG004
+                return {
+                    "object_key": f"patient-consult/attachments/{doctor_id}/demo.png",
+                    "oss_url": "https://oss.example.com/patient-consult/attachments/demo.png",
+                    "etag": "etag-demo",
+                    "size_bytes": uploaded_file.size,
+                    "content_type": "image/png",
+                }
+
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        class _FakeExtractor:
+            @staticmethod
+            def upload_file(uploaded_file):  # noqa: ARG004
+                return "file-attach-demo"
+
+        request = self.factory.post(
+            f"/api/patient/sessions/{session.id}/attachments/",
+            {"files": [upload_file]},
+            format="multipart",
+        )
+        force_authenticate(request, user=self.patient)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()), patch(
+            "mdapi.views.get_qwen_extractor",
+            return_value=_FakeExtractor(),
+        ):
+            response = PatientConsultAttachmentUploadView.as_view()(
+                request,
+                session_id=session.id,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertEqual(len(payload["attachments"]), 1)
+        attachment = payload["attachments"][0]
+        self.assertEqual(attachment["file_kind"], "image")
+        self.assertEqual(attachment["file_name"], "knee-report.png")
+        self.assertEqual(
+            attachment["file_url"],
+            f"https://signed.example.com/patient-consult/attachments/{self.patient.id}/demo.png",
+        )
+        self.assertEqual(
+            attachment["preview_url"],
+            f"https://signed.example.com/patient-consult/attachments/{self.patient.id}/demo.png",
+        )
+
+    def test_patient_ask_stream_with_attachment_uses_attachment_grounding(self):
+        session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.available_doctor,
+            title="附件问诊会话",
+            status="active",
+        )
+        upload_file = SimpleUploadedFile(
+            "joint-report.pdf",
+            b"fake-pdf",
+            content_type="application/pdf",
+        )
+
+        class _FakeOSS:
+            @staticmethod
+            def upload_file(uploaded_file, doctor_id, prefix=""):  # noqa: ARG004
+                return {
+                    "object_key": f"patient-consult/attachments/{doctor_id}/joint-report.pdf",
+                    "oss_url": "https://oss.example.com/patient-consult/attachments/joint-report.pdf",
+                    "etag": "etag-demo",
+                    "size_bytes": uploaded_file.size,
+                    "content_type": "application/pdf",
+                }
+
+            @staticmethod
+            def build_signed_get_url(object_key, expires=1800):  # noqa: ARG004
+                return f"https://signed.example.com/{object_key}"
+
+        class _FakeExtractor:
+            @staticmethod
+            def upload_file(uploaded_file):  # noqa: ARG004
+                return "file-attach-doc-1"
+
+        upload_request = self.factory.post(
+            f"/api/patient/sessions/{session.id}/attachments/",
+            {"files": [upload_file]},
+            format="multipart",
+        )
+        force_authenticate(upload_request, user=self.patient)
+
+        with patch("mdapi.views.get_oss_client", return_value=_FakeOSS()), patch(
+            "mdapi.views.get_qwen_extractor",
+            return_value=_FakeExtractor(),
+        ):
+            upload_response = PatientConsultAttachmentUploadView.as_view()(
+                upload_request,
+                session_id=session.id,
+            )
+
+        self.assertEqual(upload_response.status_code, 200)
+        attachment_id = upload_response.data["data"]["attachments"][0]["attachment_id"]
+
+        class _FakeRehearsalService:
+            answer_model = "qwen-max-latest"
+            history_limit = 12
+            attachment_called = False
+
+            @staticmethod
+            def build_ranked_candidates(question, knowledge_items):  # noqa: ARG004
+                return []
+
+            @staticmethod
+            def select_file_ids_with_qwen_max(*, question, candidates):  # noqa: ARG004
+                return {"selected_file_ids": [], "reason": "no-match"}
+
+            @staticmethod
+            def build_long_grounding_answer(*, question, selected_file_ids):  # noqa: ARG004
+                return {"answer": "", "sources": []}
+
+            @classmethod
+            def build_attachment_grounding_answer(cls, *, question, attachments):  # noqa: ARG003
+                cls.attachment_called = True
+                return {"answer": "附件已读取。", "sources": ["file-attach-doc-1"]}
+
+            @staticmethod
+            def build_final_messages(
+                narrative_kernel_prompt,  # noqa: ARG004
+                grounding_answer,  # noqa: ARG004
+                history_messages,  # noqa: ARG004
+                question,  # noqa: ARG004
+            ):
+                return [
+                    {"role": "system", "content": "system"},
+                    {"role": "user", "content": question},
+                ]
+
+            @staticmethod
+            def stream_final_answer(*, messages, forced_search):  # noqa: ARG004
+                yield {"type": "delta", "delta": "收到附件。"}
+                yield {
+                    "type": "done",
+                    "content": "收到附件。",
+                    "usage": {
+                        "input_tokens": 10,
+                        "output_tokens": 5,
+                        "total_tokens": 15,
+                    },
+                    "search_sources": [],
+                }
+
+        ask_request = self.factory.post(
+            f"/api/patient/sessions/{session.id}/ask/stream/",
+            {
+                "question": "请结合附件看看是否有问题",
+                "attachment_ids": [attachment_id],
+                "enable_audio": False,
+            },
+            format="json",
+        )
+        force_authenticate(ask_request, user=self.patient)
+
+        with patch(
+            "mdapi.views.get_rehearsal_service",
+            return_value=_FakeRehearsalService(),
+        ), patch("mdapi.views.get_oss_client", return_value=_FakeOSS()):
+            response = PatientConsultAskStreamView.as_view()(
+                ask_request,
+                session_id=session.id,
+            )
+            for _ in response.streaming_content:
+                pass
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(_FakeRehearsalService.attachment_called)
+
+        user_message = PatientConsultMessage.objects.filter(
+            session=session,
+            role="user",
+        ).latest("id")
+        self.assertTrue(isinstance(user_message.meta, dict))
+        attachments_meta = user_message.meta.get("attachments", [])
+        self.assertEqual(len(attachments_meta), 1)
+        self.assertEqual(attachments_meta[0]["file_kind"], "document")
+        self.assertIn("[附件]", user_message.content)
+
+        assistant_message = PatientConsultMessage.objects.filter(
+            session=session,
+            role="assistant",
+        ).latest("id")
+        self.assertEqual(assistant_message.generation_status, "succeeded")
+        self.assertEqual(assistant_message.selected_file_ids, ["file-attach-doc-1"])
 
     def test_pin_patient_session(self):
         session = PatientConsultSession.objects.create(
