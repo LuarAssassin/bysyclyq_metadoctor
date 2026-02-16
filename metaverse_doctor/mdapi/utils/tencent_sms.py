@@ -266,12 +266,35 @@ class PatientAuthCodeService:
 
             template = models.Template()
             template.TemplateID = int(cfg["TEMPLATE_ID"])
-            template_data = {
-                str(cfg.get("TEMPLATE_CODE_KEY") or "code"): code,
-            }
-            expire_key = str(cfg.get("TEMPLATE_EXPIRE_KEY") or "").strip()
-            if expire_key:
-                template_data[expire_key] = str(max(1, int(expire_seconds / 60)))
+
+            code_key = str(cfg.get("TEMPLATE_CODE_KEY") or "code")
+            if code_key == "code":
+                # 标准验证码模板：直接发送原始验证码
+                template_data = {code_key: code}
+                expire_key = str(cfg.get("TEMPLATE_EXPIRE_KEY") or "").strip()
+                if expire_key:
+                    template_data[expire_key] = str(max(1, int(expire_seconds / 60)))
+            else:
+                # 非标准模板（如复用"文献闹钟"等已审核模板）：
+                # 将验证码包装为可读的完整句子
+                expire_minutes = max(1, int(expire_seconds / 60))
+                template_data = {
+                    code_key: (
+                        f"您的登录验证码是：{code}，有效期 {expire_minutes} 分钟。"
+                        f"请勿将验证码告知他人。若非本人操作，请忽略本邮件。"
+                    ),
+                }
+
+            # 合并额外模板变量（JSON 字符串），用于填充模板中其他占位符
+            extra_raw = str(cfg.get("TEMPLATE_EXTRA_VARS") or "").strip()
+            if extra_raw:
+                try:
+                    extra = json.loads(extra_raw)
+                    if isinstance(extra, dict):
+                        template_data.update(extra)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             template.TemplateData = json.dumps(template_data, ensure_ascii=False)
             req.Template = template
 

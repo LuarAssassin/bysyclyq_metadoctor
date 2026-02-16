@@ -12,6 +12,7 @@ wheels/
 githubprojects/
 
 .env
+.env.production
 
 node_modules/
 

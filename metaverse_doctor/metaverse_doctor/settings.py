@@ -530,6 +530,7 @@ TENCENT_EMAIL = {
     "TEMPLATE_ID": os.getenv("TENCENT_TEMPLATE_ID", "").strip(),
     "TEMPLATE_CODE_KEY": os.getenv("TENCENT_TEMPLATE_CODE_KEY", "code").strip() or "code",
     "TEMPLATE_EXPIRE_KEY": os.getenv("TENCENT_TEMPLATE_EXPIRE_KEY", "expire_minutes").strip(),
+    "TEMPLATE_EXTRA_VARS": os.getenv("TENCENT_TEMPLATE_EXTRA_VARS", "").strip(),
     "SUBJECT": os.getenv("TENCENT_EMAIL_SUBJECT", "登录验证码").strip() or "登录验证码",
 }
 TENCENT_CLOUD_SMS = {
