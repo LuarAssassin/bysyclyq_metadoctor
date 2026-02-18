@@ -1,9 +1,33 @@
-import { defineConfig } from 'vite'
+import { defineConfig, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { execSync } from 'child_process'
+
+function appVersionPlugin(): Plugin {
+  let version = ''
+  return {
+    name: 'app-version',
+    config() {
+      try {
+        const hash = execSync('git rev-parse --short HEAD').toString().trim()
+        version = `${hash}-${Date.now()}`
+      } catch {
+        version = Date.now().toString()
+      }
+      return { define: { __APP_VERSION__: JSON.stringify(version) } }
+    },
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version }),
+      })
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), appVersionPlugin()],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
   },

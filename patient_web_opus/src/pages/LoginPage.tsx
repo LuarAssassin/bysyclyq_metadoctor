@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth'
 import { toErrorMessage } from '@/lib/http'
-import { Loader2, LogIn, Mail, MessageSquareText } from 'lucide-react'
+import { Loader2, Mail, Smartphone } from 'lucide-react'
 
 type Channel = 'sms' | 'email'
 
@@ -29,6 +29,7 @@ export default function LoginPage() {
   const [target, setTarget] = useState('')
   const [code, setCode] = useState('')
   const [nickname, setNickname] = useState('')
+  const [showNickname, setShowNickname] = useState(false)
   const [sendingCode, setSendingCode] = useState(false)
   const [loading, setLoading] = useState(false)
   const [googleBusy, setGoogleBusy] = useState(false)
@@ -56,25 +57,19 @@ export default function LoginPage() {
 
     const updateWidth = () => {
       const measured = Math.floor(container.getBoundingClientRect().width)
-      if (measured > 0) {
-        setSocialButtonWidth(measured)
-      }
+      if (measured > 0) setSocialButtonWidth(measured)
     }
 
     updateWidth()
 
     if (typeof ResizeObserver === 'undefined') {
       window.addEventListener('resize', updateWidth)
-      return () => {
-        window.removeEventListener('resize', updateWidth)
-      }
+      return () => window.removeEventListener('resize', updateWidth)
     }
 
     const observer = new ResizeObserver(updateWidth)
     observer.observe(container)
-    return () => {
-      observer.disconnect()
-    }
+    return () => observer.disconnect()
   }, [googleClientId])
 
   useEffect(() => {
@@ -97,7 +92,7 @@ export default function LoginPage() {
           setGoogleBusy(true)
           void loginByGoogle(credential)
             .then(() => {
-              toast.success('Google 登录成功')
+              toast.success('登录成功')
               nav('/doctors', { replace: true })
             })
             .catch((err) => {
@@ -129,9 +124,7 @@ export default function LoginPage() {
       } else {
         existing.addEventListener('load', renderGoogleButton, { once: true })
       }
-      return () => {
-        cancelled = true
-      }
+      return () => { cancelled = true }
     }
 
     const script = document.createElement('script')
@@ -141,28 +134,19 @@ export default function LoginPage() {
     script.dataset.googleGsi = '1'
     script.onload = renderGoogleButton
     script.onerror = () => {
-      if (!cancelled) {
-        toast.error('Google 登录脚本加载失败')
-      }
+      if (!cancelled) toast.error('Google 登录脚本加载失败')
     }
     document.head.appendChild(script)
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [googleClientId, loginByGoogle, nav, socialButtonWidth])
 
   const targetLabel = useMemo(() => (channel === 'sms' ? '手机号' : '邮箱'), [channel])
-  const targetPlaceholder = useMemo(
-    () => (channel === 'sms' ? '请输入 11 位手机号' : '请输入邮箱地址'),
-    [channel],
-  )
-
   const normalizedTarget = useMemo(() => target.trim(), [target])
   const hasSocialLogin = Boolean(googleClientId)
 
   const validateTarget = () => {
     if (!normalizedTarget) {
-      toast.warning(`请填写${targetLabel}`)
+      toast.warning(`请输入${targetLabel}`)
       return false
     }
     if (channel === 'sms' && !PHONE_RE.test(normalizedTarget)) {
@@ -217,107 +201,96 @@ export default function LoginPage() {
     }
   }
 
-  const inputCls = 'w-full h-11 rounded-xl border border-slate-200 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-frost-300 bg-white/80 transition-all'
-  const tabCls = (active: boolean) => (
-    `h-10 rounded-xl text-sm font-medium transition-all ${
-      active
-        ? 'bg-frost-500 text-white shadow-sm'
-        : 'bg-white/70 text-slate-500 border border-slate-200 hover:bg-white'
-    }`
-  )
+  const inputCls =
+    'w-full h-11 rounded-xl border border-slate-200 px-4 text-sm placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-frost-300 focus:border-transparent bg-white/80 transition-all'
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="text-center mb-1">
-        <h2 className="text-lg font-bold text-slate-800">患者接码登录</h2>
-        <p className="text-xs text-slate-400 mt-1">支持短信或邮件验证码登录</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => setChannel('sms')}
-          className={tabCls(channel === 'sms')}
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <MessageSquareText className="w-4 h-4" />
-            短信
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setChannel('email')}
-          className={tabCls(channel === 'email')}
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <Mail className="w-4 h-4" />
-            邮件
-          </span>
-        </button>
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">{targetLabel}</label>
-        <input
-          value={target}
-          onChange={(e) => setTarget(e.target.value)}
-          className={inputCls}
-          placeholder={targetPlaceholder}
-          autoComplete={channel === 'sms' ? 'tel' : 'email'}
-          inputMode={channel === 'sms' ? 'tel' : 'email'}
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">验证码</label>
-        <div className="flex items-center gap-2">
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className={`${inputCls} flex-1`}
-            placeholder="请输入验证码"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-          />
+    <form onSubmit={handleSubmit} className="space-y-3.5">
+      {/* Channel tabs */}
+      <div className="flex rounded-xl bg-slate-100/80 p-1 gap-1">
+        {(['sms', 'email'] as const).map((ch) => (
           <button
+            key={ch}
             type="button"
-            onClick={() => void handleSendCode()}
-            disabled={sendingCode || countdown > 0}
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white/80 text-xs font-medium text-slate-600 hover:bg-white disabled:opacity-50"
+            onClick={() => setChannel(ch)}
+            className={`flex-1 h-9 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${
+              channel === ch
+                ? 'bg-white text-slate-700 shadow-sm'
+                : 'text-slate-400 hover:text-slate-500'
+            }`}
           >
-            {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s` : '发送验证码'}
+            {ch === 'sms' ? <Smartphone className="w-3.5 h-3.5" /> : <Mail className="w-3.5 h-3.5" />}
+            {ch === 'sms' ? '手机号' : '邮箱'}
           </button>
-        </div>
+        ))}
       </div>
 
-      <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1.5">昵称（首次登录可选）</label>
+      {/* Target input */}
+      <input
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        className={inputCls}
+        placeholder={channel === 'sms' ? '请输入手机号' : '请输入邮箱'}
+        autoComplete={channel === 'sms' ? 'tel' : 'email'}
+        inputMode={channel === 'sms' ? 'tel' : 'email'}
+      />
+
+      {/* Code input + send button */}
+      <div className="flex items-center gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          className={`${inputCls} flex-1`}
+          placeholder="验证码"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+        />
+        <button
+          type="button"
+          onClick={() => void handleSendCode()}
+          disabled={sendingCode || countdown > 0}
+          className="shrink-0 h-11 px-4 rounded-xl text-sm font-medium transition-all disabled:opacity-40 bg-frost-50 text-frost-600 hover:bg-frost-100 active:scale-[0.97]"
+        >
+          {sendingCode ? '发送中…' : countdown > 0 ? `${countdown}s` : '获取验证码'}
+        </button>
+      </div>
+
+      {/* Optional nickname (collapsed by default) */}
+      {!showNickname ? (
+        <button
+          type="button"
+          onClick={() => setShowNickname(true)}
+          className="text-xs text-slate-400 hover:text-slate-500 transition-colors"
+        >
+          设置昵称（可选）
+        </button>
+      ) : (
         <input
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
           className={inputCls}
-          placeholder="不填将自动生成"
+          placeholder="昵称（可选，不填自动生成）"
+          autoFocus
         />
-      </div>
+      )}
 
+      {/* Submit */}
       <button
         type="submit"
         disabled={loading}
         className="btn-primary w-full h-12 text-sm flex items-center justify-center gap-2 disabled:opacity-50"
       >
-        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
         {loading ? '登录中…' : '登 录'}
       </button>
 
+      {/* Google login */}
       {hasSocialLogin && (
         <div className="pt-1">
-          <div className="relative mb-3">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-200/80" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-white/70 px-2 text-[11px] text-slate-400">Google login</span>
-            </div>
+          <div className="flex items-center gap-3 mb-3">
+            <div className="flex-1 h-px bg-slate-200/80" />
+            <span className="text-[11px] text-slate-300">其他方式</span>
+            <div className="flex-1 h-px bg-slate-200/80" />
           </div>
           <div
             ref={socialButtonsRef}
@@ -327,12 +300,10 @@ export default function LoginPage() {
             <div ref={googleButtonRef} className="w-full min-h-[40px]" />
           </div>
           {!googleReady && (
-            <p className="text-center text-[11px] text-slate-400 mt-1">
-              正在加载 Google 登录…
-            </p>
+            <p className="text-center text-[11px] text-slate-300 mt-1">正在加载…</p>
           )}
           {googleBusy && (
-            <p className="text-center text-[11px] text-frost-500 mt-1">Google 登录处理中…</p>
+            <p className="text-center text-[11px] text-frost-500 mt-1">处理中…</p>
           )}
         </div>
       )}

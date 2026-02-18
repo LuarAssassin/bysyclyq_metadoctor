@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { useVersionCheck } from '@/hooks/use-version-check'
 import AuthLayout from '@/components/AuthLayout'
 import MainLayout from '@/components/MainLayout'
 import LoginPage from '@/pages/LoginPage'
@@ -43,5 +44,6 @@ const router = createBrowserRouter([
 ], { basename })
 
 export default function App() {
+  useVersionCheck()
   return <RouterProvider router={router} />
 }
