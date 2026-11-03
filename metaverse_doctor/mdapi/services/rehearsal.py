@@ -55,7 +55,7 @@ class DoctorRehearsalService:
     DEFAULT_SELECTOR_MODEL = "qwen3-max-2026-01-23"
     DEFAULT_LONG_MODEL = "qwen-long"
     DEFAULT_VL_MODEL = "qwen3-vl-plus"
-    DEFAULT_ANSWER_MODEL = "qwen-max-latest"
+    DEFAULT_ANSWER_MODEL = "qwen3.7-plus"
 
     DEFAULT_SELECT_SYSTEM_PROMPT = (
         "你是医学知识检索排序助手。"
@@ -667,6 +667,62 @@ class DoctorRehearsalService:
             "total_tokens": int(_obj_get(usage_obj, "total_tokens", 0) or 0),
         }
 
+    def _should_use_compat_stream_api(self) -> bool:
+        model_name = str(self.answer_model or "").strip().lower()
+        return bool(re.match(r"^qwen3(?:[.-]|$)", model_name))
+
+    def _stream_final_answer_via_compat_client(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        search_options: dict[str, Any],
+    ):
+        try:
+            stream = self.compat_client.chat.completions.create(
+                model=self.answer_model,
+                messages=messages,
+                extra_body={
+                    "enable_search": True,
+                    "search_options": search_options,
+                    "enable_thinking": False,
+                },
+                stream=True,
+                stream_options={"include_usage": True},
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise RehearsalServiceError(
+                f"{self.answer_model} 联网回答启动失败: {exc}"
+            ) from exc
+
+        full_text = ""
+        usage: dict[str, int] = {}
+
+        try:
+            for chunk in stream:
+                choices = _obj_get(chunk, "choices", []) or []
+                delta_text = ""
+                if choices:
+                    delta_obj = _obj_get(choices[0], "delta", {}) or {}
+                    delta_text = _normalize_content(_obj_get(delta_obj, "content", ""))
+                if delta_text:
+                    full_text += delta_text
+                    yield {"type": "delta", "delta": delta_text}
+
+                usage_chunk = self._extract_stream_usage(_obj_get(chunk, "usage", None))
+                if usage_chunk and usage_chunk.get("total_tokens"):
+                    usage = usage_chunk
+        except Exception as exc:  # noqa: BLE001
+            raise RehearsalServiceError(
+                f"{self.answer_model} 联网回答失败: {exc}"
+            ) from exc
+
+        yield {
+            "type": "done",
+            "content": full_text,
+            "usage": usage,
+            "search_sources": [],
+        }
+
     def stream_final_answer(
         self,
         *,
@@ -681,6 +737,13 @@ class DoctorRehearsalService:
             "forced_search": self.forced_search if forced_search is None else bool(forced_search),
         }
 
+        if self._should_use_compat_stream_api():
+            yield from self._stream_final_answer_via_compat_client(
+                messages=messages,
+                search_options=search_options,
+            )
+            return
+
         try:
             stream = self.Generation.call(
                 api_key=self.api_key,
@@ -693,7 +756,9 @@ class DoctorRehearsalService:
                 incremental_output=True,
             )
         except Exception as exc:  # noqa: BLE001
-            raise RehearsalServiceError(f"qwen-max 联网回答启动失败: {exc}") from exc
+            raise RehearsalServiceError(
+                f"{self.answer_model} 联网回答启动失败: {exc}"
+            ) from exc
 
         full_text = ""
         usage: dict[str, int] = {}
@@ -705,7 +770,7 @@ class DoctorRehearsalService:
                 code = _obj_get(chunk, "code", "")
                 message = _obj_get(chunk, "message", "")
                 raise RehearsalServiceError(
-                    f"qwen-max 联网回答失败: status={status_code}, code={code}, message={message}"
+                    f"{self.answer_model} 联网回答失败: status={status_code}, code={code}, message={message}"
                 )
 
             output = _obj_get(chunk, "output", {}) or {}

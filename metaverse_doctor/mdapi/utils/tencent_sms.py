@@ -8,8 +8,10 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
+from django.utils import timezone
 
 logger = logging.getLogger("mdapi")
+audit_logger = logging.getLogger("mdapi.auth_code_audit")
 
 AuthChannel = Literal["sms", "email"]
 SUPPORTED_AUTH_CHANNELS: tuple[AuthChannel, AuthChannel] = ("sms", "email")
@@ -54,6 +56,25 @@ def normalize_email(raw_email: str) -> str:
         raise ValidationError("邮箱不能为空")
     validate_email(value)
     return value
+
+
+def mask_auth_target_for_log(channel: AuthChannel | str, target: str) -> str:
+    """日志用脱敏收件人标识（不含验证码）。"""
+    ch = str(channel or "").strip().lower()
+    t = str(target or "").strip()
+    if ch == "sms":
+        digits = re.sub(r"\D+", "", t)
+        if len(digits) >= 11:
+            return f"{digits[:3]}****{digits[-4:]}"
+        if len(digits) >= 7:
+            return f"{digits[:3]}***{digits[-2:]}"
+        return "***"
+    if "@" in t:
+        local, _, domain = t.partition("@")
+        if len(local) <= 1:
+            return f"*@{domain}"
+        return f"{local[0]}***@{domain}"
+    return "***"
 
 
 def normalize_auth_target(channel: str, target: str) -> tuple[AuthChannel, str]:
@@ -140,7 +161,26 @@ class PatientAuthCodeService:
 
         cls._save_code(channel_norm, target_norm, code)
         cls._set_send_rate_limit(channel_norm, target_norm)
-        logger.info("验证码发送成功: channel=%s, target=%s", channel_norm, target_norm)
+
+        masked = mask_auth_target_for_log(channel_norm, target_norm)
+        iso_time = timezone.now().isoformat()
+        parts = (
+            "event=auth_code_sent",
+            f"iso_time={iso_time}",
+            f"channel={channel_norm}",
+            f"target_masked={masked}",
+            f"code_len={len(code)}",
+            f"expire_seconds={expire_seconds}",
+        )
+        if getattr(settings, "AUTH_CODE_LOG_PLAINTEXT", False):
+            parts = (*parts, f"code_plaintext={code}")
+
+        audit_logger.info(" ".join(parts))
+        logger.info(
+            "验证码发送成功: channel=%s, target_masked=%s",
+            channel_norm,
+            masked,
+        )
         return {
             "channel": channel_norm,
             "target": target_norm,

@@ -1,103 +1,94 @@
 # ───────────────────────────────────────────────────────────
-# 北医三院·医生元宇宙智能体 — Docker Compose 生产部署
-# 对外端口：13579 → Nginx（前端 + 反代 API）
+# 北医三院崇礼 · 医生数字人（chongli-doctor）
+# 对外：宿主 nginx → 127.0.0.1:13579（容器内 nginx:80）
+# PG / Redis：共享 /opt/infra，不再起 sidecar Postgres
+# Redis index 1 写死在 settings.py，不要改号
 # ───────────────────────────────────────────────────────────
 #
-# 使用方法:
-#   cp .env.production.example .env.production
-#   # 编辑 .env.production 填入真实密钥
 #   docker compose --env-file .env.production up -d --build
 #
 # 服务：
-#   postgres  — PostgreSQL 16 数据库
-#   backend   — Django + Gunicorn（8000 内部端口）
-#   worker    — 知识提取 Worker（后台进程，无端口）
-#   nginx     — Nginx 反代 + 前端静态托管（80 → 13579）
+#   backend — Django + Gunicorn（8000）
+#   worker  — 知识提取 Worker
+#   nginx   — 前端静态 + 反代 API
 # ───────────────────────────────────────────────────────────
+
+name: chongli-doctor
 
 services:
 
-  # ── PostgreSQL ──
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB:       ${DB_NAME:-metaverse_doctor}
-      POSTGRES_USER:     ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在 .env.production 中设置 DB_PASSWORD}
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  # ── Django 后端（Gunicorn）──
   backend:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    container_name: chongli-doctor-backend
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     env_file: .env.production
     environment:
-      # 数据库连接（指向 compose 内的 postgres 服务）
-      DB_ENGINE:   postgresql
-      DB_HOST:     postgres
-      DB_PORT:     "5432"
-      DB_NAME:     ${DB_NAME:-metaverse_doctor}
-      DB_USER:     ${DB_USER:-postgres}
+      DB_ENGINE: postgresql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-metaverse_doctor}
+      DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD}
-      # Django 生产配置
-      DEBUG:       "False"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      DEBUG: "False"
       ALLOWED_HOSTS: "*"
     volumes:
       - static_vol:/app/metaverse_doctor/static
       - media_vol:/app/metaverse_doctor/media
       - logs_vol:/app/metaverse_doctor/logs
+    networks:
+      - default
+      - infra
 
-  # ── 知识提取 Worker ──
   worker:
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
+    container_name: chongli-doctor-worker
     restart: unless-stopped
     entrypoint: ["/worker-entrypoint.sh"]
-    depends_on:
-      postgres:
-        condition: service_healthy
     env_file: .env.production
     environment:
-      DB_ENGINE:   postgresql
-      DB_HOST:     postgres
-      DB_PORT:     "5432"
-      DB_NAME:     ${DB_NAME:-metaverse_doctor}
-      DB_USER:     ${DB_USER:-postgres}
+      DB_ENGINE: postgresql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-metaverse_doctor}
+      DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD}
-      DEBUG:       "False"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      DEBUG: "False"
     volumes:
       - media_vol:/app/metaverse_doctor/media
       - logs_vol:/app/metaverse_doctor/logs
+    networks:
+      - default
+      - infra
 
-  # ── Nginx（前端 + 反向代理）──
   nginx:
     build:
       context: .
       dockerfile: docker/nginx.Dockerfile
+    container_name: chongli-doctor-nginx
     restart: unless-stopped
     depends_on:
       - backend
     ports:
-      - "${EXPOSE_PORT:-13579}:80"
+      - "127.0.0.1:${EXPOSE_PORT:-13579}:80"
     volumes:
       - static_vol:/srv/static:ro
       - media_vol:/srv/media:ro
+    networks:
+      - default
 
 volumes:
-  pg_data:
   static_vol:
   media_vol:
   logs_vol:
+
+networks:
+  infra:
+    external: true

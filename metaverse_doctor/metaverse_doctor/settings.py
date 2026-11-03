@@ -323,6 +323,10 @@ QWEN_VL_UPLOAD_CONFIG = {
     "VIDEO_ALLOWED_EXTENSIONS": [".mp4", ".avi", ".mkv", ".mov", ".flv", ".wmv"],
 }
 
+# 是否在专用审计日志 auth_code_audit.log 中记录验证码明文（默认开启；生产可设 AUTH_CODE_LOG_PLAINTEXT=false 关闭）
+_auth_code_plain = os.getenv("AUTH_CODE_LOG_PLAINTEXT", "true").strip().lower()
+AUTH_CODE_LOG_PLAINTEXT = _auth_code_plain not in {"0", "false", "no", "off"}
+
 # 日志配置
 LOG_DIR = BASE_DIR / 'logs'
 LOG_DIR.mkdir(exist_ok=True)
@@ -347,6 +351,14 @@ LOGGING = {
             'formatter': 'simple',
             'encoding': 'utf-8',
         },
+        # 验证码发送审计（含明文验证码，默认写入；可由 AUTH_CODE_LOG_PLAINTEXT=false 关闭）
+        'auth_code_audit_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': LOG_DIR / 'auth_code_audit.log',
+            'formatter': 'simple',
+            'encoding': 'utf-8',
+        },
         'console': {
             'level': 'INFO',
             'class': 'logging.StreamHandler',
@@ -358,6 +370,11 @@ LOGGING = {
             'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': True,
+        },
+        'mdapi.auth_code_audit': {
+            'handlers': ['auth_code_audit_file'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
 }
@@ -384,7 +401,7 @@ QWEN_REHEARSAL_SELECTOR_MODEL = os.getenv(
     "QWEN_REHEARSAL_SELECTOR_MODEL", "qwen3-max-2026-01-23"
 )
 QWEN_REHEARSAL_LONG_MODEL = os.getenv("QWEN_REHEARSAL_LONG_MODEL", "qwen-long")
-QWEN_REHEARSAL_ANSWER_MODEL = os.getenv("QWEN_REHEARSAL_ANSWER_MODEL", "qwen-max-latest")
+QWEN_REHEARSAL_ANSWER_MODEL = os.getenv("QWEN_REHEARSAL_ANSWER_MODEL", "qwen3.7-plus")
 QWEN_REHEARSAL_HISTORY_LIMIT = int(os.getenv("QWEN_REHEARSAL_HISTORY_LIMIT", 12))
 QWEN_REHEARSAL_SEARCH_STRATEGY = os.getenv("QWEN_REHEARSAL_SEARCH_STRATEGY", "max")
 QWEN_REHEARSAL_FORCED_SEARCH = os.getenv(
@@ -400,7 +417,7 @@ QWEN_VOICE_ENROLL_URL = os.getenv(
 )
 QWEN_TTS_REALTIME_WS_URL = os.getenv(
     "QWEN_TTS_REALTIME_WS_URL",
-    "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+    "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
 )
 QWEN_PATIENT_ASR_MODEL = os.getenv("QWEN_PATIENT_ASR_MODEL", "qwen3-asr-flash")
 QWEN_PATIENT_ASR_ENABLE_ITN = os.getenv(
@@ -410,28 +427,19 @@ QWEN_PATIENT_ASR_LANGUAGE = os.getenv("QWEN_PATIENT_ASR_LANGUAGE", "").strip()
 
 # 数字人（音色 + 图生视频）配置
 DIGITAL_HUMAN_TTS_TARGET_MODEL = os.getenv(
-    "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"
+    "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen-audio-3.1-tts-flash"
 )
 DIGITAL_HUMAN_I2V_MODEL = os.getenv("DIGITAL_HUMAN_I2V_MODEL", "wan2.6-i2v-flash")
 DIGITAL_HUMAN_I2V_RESOLUTION = os.getenv("DIGITAL_HUMAN_I2V_RESOLUTION", "720P")
 DIGITAL_HUMAN_I2V_DURATION = int(os.getenv("DIGITAL_HUMAN_I2V_DURATION", 5))
 DIGITAL_HUMAN_I2V_GENERATE_COUNT = int(os.getenv("DIGITAL_HUMAN_I2V_GENERATE_COUNT", 5))
 DIGITAL_HUMAN_I2V_MAX_GENERATE_COUNT = int(os.getenv("DIGITAL_HUMAN_I2V_MAX_GENERATE_COUNT", 5))
-DIGITAL_HUMAN_DEFAULT_VOICE = os.getenv("DIGITAL_HUMAN_DEFAULT_VOICE", "longanyang")
+DIGITAL_HUMAN_DEFAULT_VOICE = os.getenv("DIGITAL_HUMAN_DEFAULT_VOICE", "longanhuan_v3.1")
 DIGITAL_HUMAN_VOICE_UPLOAD_CONFIG = {
-    "MAX_FILE_SIZE": 20 * 1024 * 1024,
-    "ALLOWED_EXTENSIONS": [".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".webm"],
+    "MAX_FILE_SIZE": 10 * 1024 * 1024,
+    "ALLOWED_EXTENSIONS": [".mp3", ".wav", ".m4a"],
     "ALLOWED_MIME_TYPES": [
-        "audio/mpeg",
-        "audio/mp3",
-        "audio/wav",
-        "audio/x-wav",
-        "audio/mp4",
-        "audio/aac",
-        "audio/flac",
-        "audio/ogg",
-        "audio/webm",
-        "video/webm",
+        "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a",
     ],
 }
 DIGITAL_HUMAN_AVATAR_UPLOAD_CONFIG = {

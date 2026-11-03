@@ -19,3 +19,13 @@ node_modules/
 dev-assets/
 
 db.sqlite3
+
+# Local deployment data and machine artifacts
+.env.*
+!.env.production.example
+backups/
+logs/
+media/
+.DS_Store
+._*
+*.tsbuildinfo

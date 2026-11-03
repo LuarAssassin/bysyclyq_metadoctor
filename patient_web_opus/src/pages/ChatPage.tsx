@@ -63,10 +63,10 @@ function makeTempMsg(overrides: { id: number; role: string; content: string } & 
 
 function assistantReviewBubbleClass(reviewStatus: string) {
   if (reviewStatus === 'pending') {
-    return 'rounded-bl-md border border-amber-200/80 bg-amber-50/75'
+    return 'rounded-bl-md border border-amber-200/60 bg-amber-50/45 backdrop-blur-md'
   }
   if (reviewStatus === 'rejected') {
-    return 'rounded-bl-md border border-rose-200/80 bg-rose-50/75'
+    return 'rounded-bl-md border border-rose-200/60 bg-rose-50/45 backdrop-blur-md'
   }
   return 'glass rounded-bl-md'
 }
@@ -1065,33 +1065,32 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-snow-50">
-      {/* ── 数字人视频区 ────────── */}
-      <div className="relative flex-shrink-0">
-        {/* 返回按钮 */}
+    <div className="relative flex flex-col h-[100dvh] overflow-hidden bg-slate-900">
+      <DigitalHumanPlayer
+        videos={assets?.videos || []}
+        doctorName={doctorName}
+        isResponding={videoActive}
+        muted={audioMuted}
+        fill
+        showCaption={false}
+        onToggleMute={() => {
+          const next = !audioMuted
+          setAudioMuted(next)
+          playerRef.current?.setMuted(next)
+        }}
+        className="absolute inset-0 z-0"
+      />
+
+      {/* 露脸区：不拦截点击，避免挡住下层静音按钮 */}
+      <div className="relative z-20 flex-shrink-0 w-full aspect-[16/10] max-h-[35dvh] pointer-events-none">
         <button
           onClick={() => nav('/sessions')}
-          className="absolute top-3 left-3 z-20 w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform"
+          className="pointer-events-auto absolute top-3 left-3 z-30 w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform"
         >
           <ArrowLeft className="w-4.5 h-4.5 text-white" />
         </button>
-
-        <DigitalHumanPlayer
-          videos={assets?.videos || []}
-          doctorName={doctorName}
-          isResponding={videoActive}
-          muted={audioMuted}
-          onToggleMute={() => {
-            const next = !audioMuted
-            setAudioMuted(next)
-            playerRef.current?.setMuted(next)
-          }}
-          className="w-full aspect-[16/10] max-h-[35dvh]"
-        />
-
-        {/* 语音状态 */}
         {videoActive && audioState === 'playing' && (
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 bg-black/30 backdrop-blur-sm rounded-full px-2.5 py-1">
+          <div className="pointer-events-none absolute top-3 right-14 z-30 flex items-center gap-1.5 bg-black/30 backdrop-blur-sm rounded-full px-2.5 py-1">
             <span className="pulse-dot" style={{ transform: 'scale(0.7)' }} />
             <span className="text-[10px] text-white/80 font-medium">
               {audioInfo?.voice_name || '语音播放中'}
@@ -1100,8 +1099,8 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* ── 消息区 ─────────────── */}
-      <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      {/* ── 消息区（透明轨道，只有气泡是玻璃） ─────────────── */}
+      <div ref={listRef} className="relative z-10 flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 ? (
           <div className="py-8">
             {openingText ? (
@@ -1152,11 +1151,11 @@ export default function ChatPage() {
               </motion.div>
             ) : (
               <div className="text-center">
-                <Sparkles className="w-8 h-8 text-frost-200 mx-auto mb-3" />
-                <p className="text-sm text-slate-400">向 {doctorName} 提问开始问诊</p>
+                <Sparkles className="w-8 h-8 text-white/70 mx-auto mb-3 drop-shadow" />
+                <p className="text-sm text-white/80 drop-shadow-sm">向 {doctorName} 提问开始问诊</p>
               </div>
             )}
-            <p className="text-xs text-slate-300 mt-4 text-center">例如：最近睡眠不好怎么办？</p>
+            <p className="text-xs text-white/75 mt-4 text-center drop-shadow-sm">例如：最近睡眠不好怎么办？</p>
           </div>
         ) : messages.map((msg) => {
           const messageAttachments = normalizeMessageAttachments(msg.meta)
@@ -1181,7 +1180,7 @@ export default function ChatPage() {
               <div className={cn(
                 'max-w-[88%] rounded-2xl px-4 py-3',
                 msg.role === 'user'
-                  ? 'bg-gradient-to-br from-frost-500 to-frost-400 text-white rounded-br-md'
+                  ? 'glass-frost text-white rounded-br-md'
                   : assistantReviewBubbleClass(msg.review_status)
               )}>
                 {/* 头部 */}
@@ -1332,7 +1331,7 @@ export default function ChatPage() {
 
       {/* ── 音频完成统计 ──────── */}
       {!sending && !stopping && audioInfo && audioInfo.status !== 'disabled' && (
-        <div className="flex-shrink-0 px-4 py-1.5 bg-frost-50/60 border-t border-frost-100/60 flex items-center gap-3">
+        <div className="relative z-20 flex-shrink-0 mx-3 mb-1 px-3 py-1.5 glass flex items-center gap-3">
           <div className={cn(
             'text-[10px] font-medium px-2 py-0.5 rounded-md',
             audioInfo.status === 'succeeded' ? 'bg-aurora-50 text-aurora-600' : audioInfo.status === 'failed' ? 'bg-petal-50 text-petal-500' : 'bg-frost-100 text-frost-600'
@@ -1353,12 +1352,12 @@ export default function ChatPage() {
       )}
 
       {/* ── 输入区 ─────────────── */}
-      <div className="flex-shrink-0 px-3 pt-2 pb-[calc(var(--safe-bottom)+10px)] bg-gradient-to-t from-white/95 via-white/85 to-transparent">
+      <div className="relative z-20 flex-shrink-0 px-3 pt-2 pb-[calc(var(--safe-bottom)+10px)] bg-gradient-to-t from-black/20 via-transparent to-transparent">
         {(recording || transcribing) && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-2.5 rounded-2xl border border-frost-100/80 bg-white/92 px-3 py-2 shadow-[0_10px_24px_rgba(14,165,233,0.12)] backdrop-blur-sm"
+            className="mb-2.5 glass px-3 py-2"
           >
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <div className="flex items-center gap-2 min-w-0">
@@ -1376,7 +1375,7 @@ export default function ChatPage() {
               )}
             </div>
 
-            <div className="h-11 rounded-xl overflow-hidden border border-frost-100/70 bg-gradient-to-r from-snow-50 to-white">
+            <div className="h-11 rounded-xl overflow-hidden border border-white/30 bg-white/20">
               {recording ? (
                 <canvas
                   ref={recordingWaveCanvasRef}
@@ -1409,7 +1408,7 @@ export default function ChatPage() {
               disabled={sending || stopping || recording || transcribing || uploadingAttachments}
               className={cn(
                 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-medium whitespace-nowrap',
-                'border-slate-200/90 bg-white/90 text-slate-600',
+                'border-white/40 bg-white/28 text-slate-700 backdrop-blur-md',
                 sending || stopping || recording || transcribing || uploadingAttachments
                   ? 'opacity-50'
                   : 'active:scale-95',
@@ -1424,7 +1423,7 @@ export default function ChatPage() {
               disabled={sending || stopping || recording || transcribing || uploadingAttachments}
               className={cn(
                 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12px] font-medium whitespace-nowrap',
-                'border-slate-200/90 bg-white/90 text-slate-600',
+                'border-white/40 bg-white/28 text-slate-700 backdrop-blur-md',
                 sending || stopping || recording || transcribing || uploadingAttachments
                   ? 'opacity-50'
                   : 'active:scale-95',
@@ -1469,7 +1468,7 @@ export default function ChatPage() {
         />
 
         {(uploadingAttachments || pendingAttachments.length > 0) && (
-          <div className="mb-2.5 rounded-2xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
+          <div className="mb-2.5 glass px-3 py-2">
             <div className="flex items-center gap-2">
               <Paperclip className="w-3.5 h-3.5 text-slate-400" />
               <span className="text-[11px] text-slate-500 font-medium">
@@ -1531,7 +1530,7 @@ export default function ChatPage() {
             onClick={() => openAttachmentPicker('all')}
             disabled={sending || stopping || recording || transcribing || uploadingAttachments}
             className={cn(
-              'w-11 h-11 rounded-2xl border border-slate-200 bg-white/90 text-slate-500 flex items-center justify-center shadow-[0_6px_16px_rgba(15,23,42,0.08)] transition-all',
+              'w-11 h-11 rounded-2xl border border-white/40 bg-white/32 text-slate-600 flex items-center justify-center backdrop-blur-md shadow-[0_6px_16px_rgba(15,23,42,0.10)] transition-all',
               sending || stopping || recording || transcribing || uploadingAttachments
                 ? 'opacity-55'
                 : 'active:scale-95',
@@ -1545,7 +1544,7 @@ export default function ChatPage() {
             )}
           </button>
 
-          <div className="flex-1 rounded-[26px] border border-slate-200/90 bg-white/95 px-2.5 py-1.5 shadow-[0_8px_22px_rgba(15,23,42,0.08)]">
+          <div className="flex-1 rounded-[26px] border border-white/45 bg-white/36 px-2.5 py-1.5 backdrop-blur-md shadow-[0_8px_22px_rgba(15,23,42,0.10)]">
             <div className="flex items-center gap-2">
               <textarea
                 ref={inputRef}
@@ -1561,61 +1560,71 @@ export default function ChatPage() {
                 className="flex-1 min-h-[24px] max-h-[120px] bg-transparent px-1.5 py-0 leading-6 text-sm resize-none focus:outline-none placeholder:text-slate-300 text-slate-700 disabled:text-slate-400"
               />
 
-              <button
-                onClick={() => {
-                  if (sending) {
-                    void stopGeneration()
-                    return
-                  }
-                  if (hasSendableInput) {
-                    void sendQuestion()
-                    return
-                  }
-                  if (recording) {
-                    stopRecording()
-                    return
-                  }
-                  void startRecording()
-                }}
-                disabled={
-                  sending
-                    ? stopping
-                    : hasSendableInput
-                      ? (stopping || recording || transcribing || uploadingAttachments)
-                      : (stopping || transcribing || uploadingAttachments)
-                }
-                className={cn(
-                  'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-                  stopping || transcribing
-                    ? 'bg-slate-100 text-slate-300'
-                    : (sending || recording)
-                      ? 'bg-gradient-to-br from-rose-500 to-rose-400 text-white shadow-[0_8px_18px_rgba(244,63,94,0.30)] active:scale-95'
-                      : hasSendableInput
-                        ? 'bg-gradient-to-br from-frost-500 to-frost-400 text-white shadow-[0_8px_18px_rgba(14,165,233,0.30)] active:scale-95'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200/80'
-                )}
-                title={
-                  sending
-                    ? '停止生成'
-                    : hasSendableInput
-                      ? '发送问题'
+              {!sending && (
+                <button
+                  onClick={() => {
+                    if (recording) {
+                      stopRecording()
+                      return
+                    }
+                    void startRecording()
+                  }}
+                  disabled={stopping || transcribing || uploadingAttachments}
+                  className={cn(
+                    'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
+                    stopping || transcribing
+                      ? 'bg-slate-100 text-slate-300'
                       : recording
-                        ? '结束录音'
-                        : '语音输入'
-                }
-              >
-                {stopping || transcribing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : sending ? (
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                ) : hasSendableInput ? (
-                  <Send className="w-4 h-4" />
-                ) : recording ? (
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                ) : (
-                  <Mic className="w-4 h-4" />
-                )}
-              </button>
+                        ? 'bg-gradient-to-br from-rose-500 to-rose-400 text-white shadow-[0_8px_18px_rgba(244,63,94,0.30)] active:scale-95'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200/80 active:scale-95'
+                  )}
+                  title={recording ? '结束录音' : '语音输入'}
+                >
+                  {transcribing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : recording ? (
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                  ) : (
+                    <Mic className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+
+              {(sending || hasSendableInput) && (
+                <button
+                  onClick={() => {
+                    if (sending) {
+                      void stopGeneration()
+                      return
+                    }
+                    void sendQuestion()
+                  }}
+                  disabled={
+                    sending
+                      ? stopping
+                      : (stopping || recording || transcribing || uploadingAttachments)
+                  }
+                  className={cn(
+                    'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
+                    stopping
+                      ? 'bg-slate-100 text-slate-300'
+                      : sending
+                        ? 'bg-gradient-to-br from-rose-500 to-rose-400 text-white shadow-[0_8px_18px_rgba(244,63,94,0.30)] active:scale-95'
+                        : recording || transcribing
+                          ? 'bg-slate-100 text-slate-300'
+                          : 'bg-gradient-to-br from-frost-500 to-frost-400 text-white shadow-[0_8px_18px_rgba(14,165,233,0.30)] active:scale-95'
+                  )}
+                  title={sending ? '停止生成' : '发送问题'}
+                >
+                  {stopping ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : sending ? (
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>

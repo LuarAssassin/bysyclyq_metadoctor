@@ -1,7 +1,5 @@
-import base64
 import json
 import logging
-import mimetypes
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -64,7 +62,7 @@ def _to_plain_dict(source: Any) -> dict[str, Any]:
 
 
 class QwenDigitalHumanService:
-    DEFAULT_TTS_TARGET_MODEL = "qwen3-tts-vc-realtime-2026-01-15"
+    DEFAULT_TTS_TARGET_MODEL = "qwen-audio-3.1-tts-flash"
     DEFAULT_I2V_MODEL = "wan2.6-i2v-flash"
     DEFAULT_I2V_RESOLUTION = "720P"
     DEFAULT_I2V_DURATION = 5
@@ -282,35 +280,27 @@ class QwenDigitalHumanService:
 
     def create_voice(
         self,
-        uploaded_file,
+        sample_url: str,
         preferred_name: str,
         target_model: str | None = None,
     ) -> dict[str, Any]:
-        file_bytes = self._read_upload_bytes(uploaded_file)
-        if not file_bytes:
-            raise DigitalHumanServiceError("音频文件为空，无法创建音色")
-
-        audio_mime_type = (
-            getattr(uploaded_file, "content_type", None)
-            or mimetypes.guess_type(getattr(uploaded_file, "name", ""))[0]
-            or "audio/mpeg"
-        )
-        base64_str = base64.b64encode(file_bytes).decode("utf-8")
-        data_uri = f"data:{audio_mime_type};base64,{base64_str}"
+        if not sample_url:
+            raise DigitalHumanServiceError("缺少音频样本签名地址，无法创建音色")
 
         payload = {
-            "model": "qwen-voice-enrollment",
+            "model": "voice-enrollment",
             "input": {
-                "action": "create",
+                "action": "create_voice",
                 "target_model": target_model or self.tts_target_model,
-                "preferred_name": preferred_name,
-                "audio": {"data": data_uri},
+                "prefix": preferred_name,
+                "url": sample_url,
+                "language_hints": ["zh"],
             },
         }
         result = self._post_json(self.voice_enroll_url, payload)
-        voice_id = _obj_get(_obj_get(result, "output", {}), "voice")
+        voice_id = _obj_get(_obj_get(result, "output", {}), "voice_id")
         if not voice_id:
-            raise DigitalHumanServiceError(f"创建音色失败，返回缺少 voice: {result}")
+            raise DigitalHumanServiceError(f"创建音色失败，返回缺少 voice_id: {result}")
         return {"voice_id": voice_id, "raw": result}
 
     def build_i2v_prompt(self, custom_prompt: str | None = None) -> str:
