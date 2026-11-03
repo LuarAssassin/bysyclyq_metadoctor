@@ -10,6 +10,7 @@ import wave
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import StreamingHttpResponse
 from pathlib import Path
@@ -236,7 +237,7 @@ def _build_avatar_play_url(
 
 def _resolve_latest_doctor_voice(doctor) -> tuple[str, str, str]:
     latest_voice = (
-        DoctorVoiceProfile.objects.filter(doctor=doctor, status="ready")
+        DoctorVoiceProfile.objects.filter(doctor=doctor, status="ready", is_active=True)
         .order_by("-created_at", "-updated_at")
         .first()
     )
@@ -244,12 +245,12 @@ def _resolve_latest_doctor_voice(doctor) -> tuple[str, str, str]:
         return (
             latest_voice.qwen_voice_id,
             latest_voice.target_model
-            or getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"),
+            or getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen-audio-3.1-tts-flash"),
             latest_voice.name or "医生最新音色",
         )
     return (
-        getattr(settings, "DIGITAL_HUMAN_DEFAULT_VOICE", "longanyang"),
-        getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15"),
+        getattr(settings, "DIGITAL_HUMAN_DEFAULT_VOICE", "longanhuan_v3.1"),
+        getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen-audio-3.1-tts-flash"),
         "系统默认音色",
     )
 
@@ -350,7 +351,7 @@ def _synthesize_doctor_opening_audio_wav(
         ws_url=getattr(
             settings,
             "QWEN_TTS_REALTIME_WS_URL",
-            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+            "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
         ),
     )
 
@@ -948,7 +949,7 @@ class DoctorDigitalVoiceView(APIView):
             return APIResponse.error(message="请上传音频文件（字段名: audio）", code=400)
 
         voice_config = getattr(settings, "DIGITAL_HUMAN_VOICE_UPLOAD_CONFIG", {})
-        max_file_size = int(voice_config.get("MAX_FILE_SIZE", 20 * 1024 * 1024))
+        max_file_size = int(voice_config.get("MAX_FILE_SIZE", 10 * 1024 * 1024))
         allowed_extensions = {
             ext.lower() for ext in voice_config.get("ALLOWED_EXTENSIONS", [])
         }
@@ -956,8 +957,10 @@ class DoctorDigitalVoiceView(APIView):
             mime.lower() for mime in voice_config.get("ALLOWED_MIME_TYPES", [])
         }
 
-        content_type = (audio_file.content_type or "").lower()
+        content_type = (audio_file.content_type or "").split(";", 1)[0].strip().lower()
         file_extension = Path(audio_file.name or "").suffix.lower()
+        if not audio_file.size:
+            return APIResponse.error(message="音频文件为空，请重新录音或选择文件", code=400)
         if audio_file.size > max_file_size:
             return APIResponse.error(
                 message=f"音频文件超过大小限制（最大 {max_file_size // (1024 * 1024)}MB）",
@@ -975,17 +978,42 @@ class DoctorDigitalVoiceView(APIView):
                 code=400,
             )
 
+        # 浏览器录音统一上传16-bit PCM WAV，提前拒绝上游不支持的样本。
+        if file_extension == ".wav" or content_type in {"audio/wav", "audio/x-wav"}:
+            wav_error = ""
+            try:
+                audio_file.seek(0)
+                with wave.open(audio_file, "rb") as sample:
+                    if sample.getsampwidth() != 2 or sample.getcomptype() != "NONE":
+                        wav_error = "WAV 样本需要使用 16-bit PCM 格式"
+                    elif sample.getnchannels() not in {1, 2}:
+                        wav_error = "音频样本需要使用单声道或双声道"
+                    elif sample.getframerate() < 16000:
+                        wav_error = "音频采样率不能低于 16kHz，请重新录音或选择清晰音频"
+                    elif not sample.getnframes():
+                        wav_error = "音频样本没有有效数据，请重新录音"
+                    elif sample.getnframes() / sample.getframerate() > 60:
+                        wav_error = "音频样本最长 60 秒，建议录制 10～20 秒"
+            except (wave.Error, EOFError, ValueError):
+                wav_error = "WAV 文件无法解析，请重新录音或上传有效的 WAV/MP3/M4A 文件"
+            finally:
+                audio_file.seek(0)
+            if wav_error:
+                return APIResponse.error(message=wav_error, code=400)
+
         preferred_name = (request.data.get("preferred_name") or "").strip()
-        # DashScope 音色复刻 prefix 限制：仅允许数字、大小写字母和下划线，不超过 10 个字符
+        # 新音色复刻 prefix 仅接受小写字母和数字，不超过 10 个字符。
         if not preferred_name:
             preferred_name = f"d{request.user.id}{uuid.uuid4().hex[:6]}"
         # 清理非法字符并截断到 10 字符
         import re as _re
-        preferred_name = _re.sub(r'[^a-zA-Z0-9_]', '', preferred_name)[:10]
+        preferred_name = _re.sub(r'[^a-z0-9]', '', preferred_name.lower())[:10]
+        if not preferred_name:
+            preferred_name = f"d{request.user.id}{uuid.uuid4().hex[:6]}"[:10]
         voice_name = (request.data.get("name") or "").strip() or preferred_name
         target_model = (
             (request.data.get("target_model") or "").strip()
-            or getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen3-tts-vc-realtime-2026-01-15")
+            or getattr(settings, "DIGITAL_HUMAN_TTS_TARGET_MODEL", "qwen-audio-3.1-tts-flash")
         )
         set_active = _parse_bool(request.data.get("set_active"), default=True)
 
@@ -1000,11 +1028,6 @@ class DoctorDigitalVoiceView(APIView):
             )
 
         try:
-            voice_result = digital_human.create_voice(
-                uploaded_file=audio_file,
-                preferred_name=preferred_name,
-                target_model=target_model,
-            )
             if hasattr(audio_file, "seek"):
                 audio_file.seek(0)
             upload_result = oss_client.upload_file(
@@ -1012,34 +1035,42 @@ class DoctorDigitalVoiceView(APIView):
                 doctor_id=request.user.id,
                 prefix="doctor-digital-human/voice-samples",
             )
-        except (DigitalHumanServiceError, OSSUploadError) as exc:
+            voice_result = digital_human.create_voice(
+                sample_url=oss_client.build_signed_get_url(upload_result["object_key"]),
+                preferred_name=preferred_name,
+                target_model=target_model,
+            )
+        except (DigitalHumanServiceError, OSSUploadError, OSSReadError) as exc:
             return APIResponse.error(
                 message=str(exc),
                 code=500,
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        if set_active:
-            DoctorVoiceProfile.objects.filter(doctor=request.user, is_active=True).update(
-                is_active=False,
-                updated_at=timezone.now(),
-            )
+        # 上游处理完成后才加短事务；创建失败不会让原音色失去“当前”状态。
+        with transaction.atomic():
+            CustomUser.objects.select_for_update().get(pk=request.user.pk)
+            if set_active:
+                DoctorVoiceProfile.objects.filter(doctor=request.user, is_active=True).update(
+                    is_active=False,
+                    updated_at=timezone.now(),
+                )
 
-        profile = DoctorVoiceProfile.objects.create(
-            doctor=request.user,
-            name=voice_name,
-            preferred_name=preferred_name,
-            target_model=target_model,
-            qwen_voice_id=voice_result["voice_id"],
-            sample_file_name=audio_file.name,
-            sample_object_key=upload_result["object_key"],
-            sample_oss_url=upload_result["oss_url"],
-            sample_content_type=upload_result["content_type"],
-            sample_size_bytes=upload_result["size_bytes"],
-            sample_etag=upload_result["etag"],
-            is_active=set_active,
-            status="ready",
-        )
+            profile = DoctorVoiceProfile.objects.create(
+                doctor=request.user,
+                name=voice_name,
+                preferred_name=preferred_name,
+                target_model=target_model,
+                qwen_voice_id=voice_result["voice_id"],
+                sample_file_name=audio_file.name,
+                sample_object_key=upload_result["object_key"],
+                sample_oss_url=upload_result["oss_url"],
+                sample_content_type=upload_result["content_type"],
+                sample_size_bytes=upload_result["size_bytes"],
+                sample_etag=upload_result["etag"],
+                is_active=set_active,
+                status="ready",
+            )
         data = DoctorVoiceProfileSerializer(profile).data
         return APIResponse.created(data=data, message="音色创建成功")
 
@@ -2161,7 +2192,7 @@ class DoctorRehearsalAskStreamView(APIView):
                         ws_url=getattr(
                             settings,
                             "QWEN_TTS_REALTIME_WS_URL",
-                            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                            "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
                         ),
                     )
                     tts_bridge.start()
@@ -2290,8 +2321,8 @@ class DoctorRehearsalAskStreamView(APIView):
                         "voice_id": voice_id or None,
                         "voice_name": voice_name or None,
                         "tts_model": tts_model or None,
-                        "error": audio_error or None,
                         **audio_stats,
+                        "error": audio_error or audio_stats.get("error") or None,
                     },
                 }
                 assistant_msg.save(
@@ -2384,8 +2415,8 @@ class DoctorRehearsalAskStreamView(APIView):
                     "voice_id": voice_id or None,
                     "voice_name": voice_name or None,
                     "tts_model": tts_model or None,
-                    "error": audio_error or None,
                     **audio_stats,
+                    "error": audio_error or audio_stats.get("error") or None,
                 },
             }
             assistant_msg.error_message = None
@@ -2424,8 +2455,8 @@ class DoctorRehearsalAskStreamView(APIView):
                         "voice_id": voice_id or None,
                         "voice_name": voice_name or None,
                         "tts_model": tts_model or None,
-                        "error": audio_error or None,
                         **audio_stats,
+                        "error": audio_error or audio_stats.get("error") or None,
                     },
                 },
             )
@@ -2699,12 +2730,17 @@ class DoctorPatientConsultTreeView(APIView):
                 pending_count=Count(
                     "messages",
                     filter=Q(
+                        messages__is_deleted=False,
                         messages__role="assistant",
                         messages__review_status="pending",
                     ),
                 ),
-                total_message_count=Count("messages"),
+                total_message_count=Count(
+                    "messages",
+                    filter=Q(messages__is_deleted=False),
+                ),
             )
+            .filter(total_message_count__gt=0)
             .order_by("-is_pinned", "-pinned_at", "-last_message_at", "-updated_at")
         )
 
@@ -3753,8 +3789,8 @@ class PatientConsultAskStreamView(APIView):
                     "voice_id": voice_id or None,
                     "voice_name": voice_name or None,
                     "tts_model": tts_model or None,
-                    "error": audio_error or None,
                     **audio_stats,
+                    "error": audio_error or audio_stats.get("error") or None,
                 }
 
             try:
@@ -3768,7 +3804,7 @@ class PatientConsultAskStreamView(APIView):
                             ws_url=getattr(
                                 settings,
                                 "QWEN_TTS_REALTIME_WS_URL",
-                                "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+                                "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
                             ),
                         )
                         tts_bridge.start()

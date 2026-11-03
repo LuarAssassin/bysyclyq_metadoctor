@@ -6,7 +6,11 @@ echo "  北医三院·医生元宇宙 — 后端启动"
 echo "══════════════════════════════════════════"
 
 echo "[1/3] 数据库迁移..."
-uv run python manage.py migrate --noinput
+if [ "${SKIP_STARTUP_MIGRATIONS:-0}" = "1" ]; then
+    echo "已按配置跳过数据库迁移"
+else
+    uv run python manage.py migrate --noinput
+fi
 
 echo "[2/3] 收集静态文件..."
 uv run python manage.py collectstatic --noinput

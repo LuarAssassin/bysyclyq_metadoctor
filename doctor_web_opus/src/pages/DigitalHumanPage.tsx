@@ -35,6 +35,9 @@ const videoStatusMap: Record<string, { label: string; variant: 'success' | 'warn
 const voiceCloneGuideText =
   '白日依山尽，黄河入海流。欲穷千里目，更上一层楼。'
 
+const VOICE_MAX_FILE_SIZE = 10 * 1024 * 1024
+const VOICE_MAX_RECORD_SECONDS = 60
+
 const FIXED_VIDEO_DURATION_SECONDS = 15
 const FIXED_VIDEO_GENERATE_COUNT = 5
 
@@ -48,7 +51,7 @@ function fmtDuration(sec: number) {
 function encodeAudioBufferToWav(audioBuffer: AudioBuffer): ArrayBuffer {
   const numChannels = audioBuffer.numberOfChannels
   const sampleRate = audioBuffer.sampleRate
-  const numFrames = audioBuffer.length
+  const numFrames = Math.min(audioBuffer.length, Math.floor(sampleRate * VOICE_MAX_RECORD_SECONDS))
   const bytesPerSample = 2
   const blockAlign = numChannels * bytesPerSample
   const dataSize = numFrames * blockAlign
@@ -118,11 +121,18 @@ export default function DigitalHumanPage() {
 
   // Recording
   const [voiceMode, setVoiceMode] = useState<'file' | 'record'>('record')
-  const [isRecording, setIsRecording] = useState(false)
+  const [recordingState, setRecordingState] = useState<'idle' | 'starting' | 'recording' | 'processing'>('idle')
+  const isRecording = recordingState === 'recording'
+  const recordingBusy = recordingState !== 'idle'
+  const recordingBusyRef = useRef(false)
+  const recordingSequenceRef = useRef(0)
+  const mountedRef = useRef(true)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const previewUrlRef = useRef<string | null>(null)
+  const voiceSubmitBusyRef = useRef(false)
   const [recordSec, setRecordSec] = useState(0)
   const [recordPreviewUrl, setRecordPreviewUrl] = useState<string | null>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const waveCanvasRef = useRef<HTMLCanvasElement>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -188,82 +198,113 @@ export default function DigitalHumanPage() {
 
   /* ── 录音控制 ─────────────── */
 
+  const replacePreviewUrl = (url: string | null) => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    previewUrlRef.current = url
+    setRecordPreviewUrl(url)
+  }
+
   const cleanupRecording = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     cancelAnimationFrame(waveAnimRef.current)
-    streamRef.current?.getTracks().forEach((t) => t.stop())
+    const stream = streamRef.current
     streamRef.current = null
+    stream?.getTracks().forEach((t) => t.stop())
+    const audioCtx = audioContextRef.current
+    audioContextRef.current = null
+    if (audioCtx && audioCtx.state !== 'closed') void audioCtx.close().catch(() => {})
     analyserRef.current = null
     mediaRecorderRef.current = null
   }
 
   const startRecording = async () => {
+    if (recordingBusyRef.current || voiceSubmitBusyRef.current) return
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined' || typeof AudioContext === 'undefined') {
+      toast.error('当前浏览器不支持在线录音，请在 HTTPS 页面使用支持录音的浏览器，或上传音频文件')
+      return
+    }
+    recordingBusyRef.current = true
+    const sequence = ++recordingSequenceRef.current
+    setRecordingState('starting')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } })
+      if (!mountedRef.current || sequence !== recordingSequenceRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        return
+      }
       streamRef.current = stream
-
-      // 波形可视化
       const audioCtx = new AudioContext()
+      audioContextRef.current = audioCtx
       const source = audioCtx.createMediaStreamSource(stream)
       const analyser = audioCtx.createAnalyser()
       analyser.fftSize = 256
       source.connect(analyser)
       analyserRef.current = analyser
 
-      // 录音
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
-          : ''
+        : MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : ''
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
-      chunksRef.current = []
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      const chunks: Blob[] = []
+      let recorderFailed = false
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.onerror = () => {
+        if (!mountedRef.current || sequence !== recordingSequenceRef.current) return
+        recorderFailed = true
+        if (mountedRef.current && sequence === recordingSequenceRef.current) toast.error('录音失败，请检查麦克风后重新录制')
+        if (recorder.state !== 'inactive') recorder.stop()
+        cleanupRecording()
+        recordingBusyRef.current = false
+        if (mountedRef.current) setRecordingState('idle')
+      }
       recorder.onstop = () => {
         void (async () => {
-          const rawMimeType = recorder.mimeType || 'audio/webm'
-          const rawBlob = new Blob(chunksRef.current, { type: rawMimeType })
-
-          let finalBlob: Blob
-          if (rawMimeType.includes('wav')) {
-            finalBlob = rawBlob
-          } else {
-            try {
-              // 百炼音色复刻对浏览器录音容器兼容性差，统一转 WAV 后上传
-              finalBlob = await convertBlobToWav(rawBlob)
-            } catch {
-              if (recordPreviewUrl) URL.revokeObjectURL(recordPreviewUrl)
-              setRecordPreviewUrl(null)
+          if (!mountedRef.current || sequence !== recordingSequenceRef.current) return
+          setRecordingState('processing')
+          cleanupRecording()
+          try {
+            if (recorderFailed) return
+            const rawMimeType = recorder.mimeType || 'audio/webm'
+            const rawBlob = new Blob(chunks, { type: rawMimeType })
+            if (!rawBlob.size) throw new Error('未采集到音频，请检查麦克风后重新录制')
+            const finalBlob = rawMimeType.includes('wav') ? rawBlob : await convertBlobToWav(rawBlob)
+            if (!mountedRef.current || sequence !== recordingSequenceRef.current) return
+            if (finalBlob.size > VOICE_MAX_FILE_SIZE) throw new Error('录音超过 10MB，请缩短录音后重试')
+            const file = new File([finalBlob], `录音_${dayjs().format('HHmmss')}.wav`, { type: 'audio/wav' })
+            setVoiceFile(file)
+            replacePreviewUrl(URL.createObjectURL(finalBlob))
+          } catch (e) {
+            if (mountedRef.current && sequence === recordingSequenceRef.current) {
               setVoiceFile(null)
-              toast.error('录音转码失败，请改用文件上传（.wav/.mp3）后再创建音色')
-              audioCtx.close().catch(() => {})
+              replacePreviewUrl(null)
+              toast.error(e instanceof Error && !(e instanceof DOMException) ? e.message : '录音转码失败，请重新录音或上传 WAV/MP3/M4A 文件')
+            }
+          } finally {
+            if (sequence === recordingSequenceRef.current) {
               cleanupRecording()
-              return
+              recordingBusyRef.current = false
+              if (mountedRef.current) setRecordingState('idle')
             }
           }
-
-          const file = new File(
-            [finalBlob],
-            `录音_${dayjs().format('HHmmss')}.wav`,
-            { type: 'audio/wav' },
-          )
-
-          setVoiceFile(file)
-          if (recordPreviewUrl) URL.revokeObjectURL(recordPreviewUrl)
-          setRecordPreviewUrl(URL.createObjectURL(finalBlob))
-          audioCtx.close().catch(() => {})
-          cleanupRecording()
         })()
       }
       mediaRecorderRef.current = recorder
-      recorder.start(200) // 每 200ms 产出一个 chunk
-
-      // 计时
+      recorder.start(200)
       setRecordSec(0)
-      setRecordPreviewUrl(null)
+      replacePreviewUrl(null)
       setVoiceFile(null)
-      timerRef.current = setInterval(() => setRecordSec((s) => s + 1), 1000)
-      setIsRecording(true)
+      setRecordingState('recording')
+      const startedAt = performance.now()
+      timerRef.current = setInterval(() => {
+        const seconds = Math.floor((performance.now() - startedAt) / 1000)
+        setRecordSec(Math.min(seconds, VOICE_MAX_RECORD_SECONDS))
+        if (seconds >= VOICE_MAX_RECORD_SECONDS && recorder.state !== 'inactive') {
+          setRecordingState('processing')
+          recorder.stop()
+          cleanupRecording()
+          toast.info('已录制 60 秒，正在处理录音')
+        }
+      }, 250)
 
       // 画波形
       const drawWave = () => {
@@ -306,45 +347,87 @@ export default function DigitalHumanPage() {
         waveAnimRef.current = requestAnimationFrame(drawWave)
       }
       drawWave()
-    } catch {
-      toast.error('无法访问麦克风，请检查浏览器权限')
+    } catch (e) {
+      if (sequence !== recordingSequenceRef.current) return
+      cleanupRecording()
+      recordingBusyRef.current = false
+      if (mountedRef.current) {
+        setRecordingState('idle')
+        const denied = e instanceof DOMException && (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError')
+        toast.error(denied ? '麦克风权限被拒绝，请允许浏览器使用麦克风后重试' : '无法开始录音，请检查麦克风或改用音频文件上传')
+      }
     }
   }
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop()
+    const recorder = mediaRecorderRef.current
+    if (recorder && recorder.state !== 'inactive') {
+      setRecordingState('processing')
+      recorder.stop()
+      cleanupRecording()
     }
-    setIsRecording(false)
   }
 
   const discardRecording = () => {
-    if (recordPreviewUrl) URL.revokeObjectURL(recordPreviewUrl)
-    setRecordPreviewUrl(null)
+    if (recordingBusyRef.current || voiceSubmitBusyRef.current) return
+    replacePreviewUrl(null)
     setVoiceFile(null)
     setRecordSec(0)
   }
 
-  // 组件卸载清理
-  useEffect(() => {
-    return () => {
-      cleanupRecording()
-      if (recordPreviewUrl) URL.revokeObjectURL(recordPreviewUrl)
+  const selectVoiceFile = (file: File | null) => {
+    if (recordingBusyRef.current || voiceSubmitBusyRef.current) return false
+    replacePreviewUrl(null)
+    setVoiceFile(null)
+    setRecordSec(0)
+    if (!file) return true
+    const extension = file.name.split('.').pop()?.toLowerCase()
+    if (!['wav', 'mp3', 'm4a'].includes(extension || '')) {
+      toast.error('请选择 WAV、MP3 或 M4A 格式的音频')
+      return false
     }
-  }, []) // eslint-disable-line
+    if (!file.size || file.size > VOICE_MAX_FILE_SIZE) {
+      toast.error(file.size ? '音频文件不能超过 10MB' : '音频文件为空，请重新选择')
+      return false
+    }
+    setVoiceFile(file)
+    return true
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      recordingSequenceRef.current++
+      const recorder = mediaRecorderRef.current
+      if (recorder) {
+        recorder.onstop = null
+        recorder.ondataavailable = null
+        recorder.onerror = null
+        if (recorder.state !== 'inactive') recorder.stop()
+      }
+      cleanupRecording()
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+      previewUrlRef.current = null
+    }
+  }, [])
 
   const submitVoice = async () => {
-    if (!voiceFile) { toast.warning('请先上传音频样本'); return }
+    if (recordingBusyRef.current || voiceSubmitBusyRef.current) return
+    if (!voiceFile) { toast.warning('请先录制或选择音频样本'); return }
+    voiceSubmitBusyRef.current = true
     setCreatingVoice(true)
     try {
       const res = await digitalHumanApi.createVoice({ audio: voiceFile, name: voiceName || undefined, set_active: true })
       toast.success(res.message)
       setVoiceFile(null)
+      replacePreviewUrl(null)
+      setRecordSec(0)
       setVoiceName('')
       if (voiceRef.current) voiceRef.current.value = ''
       await loadVoices()
     } catch (e) { toast.error(toErrorMessage(e)) }
-    finally { setCreatingVoice(false) }
+    finally { voiceSubmitBusyRef.current = false; setCreatingVoice(false) }
   }
 
   const submitVideo = async () => {
@@ -427,12 +510,13 @@ export default function DigitalHumanPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Voice Create */}
-        <GlassCard title="医生音色复刻" extra={<StatusBadge variant="info"><Mic className="w-3 h-3" />最大 20MB</StatusBadge>}>
+        <GlassCard title="医生音色复刻" extra={<StatusBadge variant="info"><Mic className="w-3 h-3" />最大 10MB</StatusBadge>}>
           <div className="space-y-2">
             {/* 模式切换 */}
             <div className="flex rounded-lg bg-alpine-50 p-0.5">
               <button
                 onClick={() => setVoiceMode('record')}
+                disabled={recordingBusy || creatingVoice}
                 className={cn(
                   'flex-1 h-8 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all',
                   voiceMode === 'record' ? 'bg-white text-alpine-800 shadow-sm' : 'text-alpine-400 hover:text-alpine-600'
@@ -441,7 +525,8 @@ export default function DigitalHumanPage() {
                 <Mic className="w-3.5 h-3.5" /> 在线录音
               </button>
               <button
-                onClick={() => { setVoiceMode('file'); if (isRecording) stopRecording() }}
+                onClick={() => setVoiceMode('file')}
+                disabled={recordingBusy || creatingVoice}
                 className={cn(
                   'flex-1 h-8 rounded-md text-xs font-medium flex items-center justify-center gap-1.5 transition-all',
                   voiceMode === 'file' ? 'bg-white text-alpine-800 shadow-sm' : 'text-alpine-400 hover:text-alpine-600'
@@ -455,6 +540,7 @@ export default function DigitalHumanPage() {
               <div className="rounded-xl bg-gradient-to-r from-snow-50 to-white px-3 py-1.5">
                 <p className="text-xs font-medium text-ice-700 mb-1">点击【开始录音】并朗读：</p>
                 <p className="text-xs leading-relaxed text-alpine-600">{voiceCloneGuideText}</p>
+                <p className="text-xs text-alpine-500 mt-1">建议连续清晰朗读 10～20 秒，最长 60 秒，保持安静。</p>
               </div>
             )}
 
@@ -464,9 +550,9 @@ export default function DigitalHumanPage() {
                 <label className="block text-xs font-medium text-alpine-500 mb-1">音频样本</label>
                 <button onClick={() => voiceRef.current?.click()} className="w-full h-10 rounded-xl border border-dashed border-alpine-200 hover:border-ice-300 text-sm text-alpine-500 flex items-center justify-center gap-2 transition-colors">
                   <Volume2 className="w-4 h-4" />
-                  {voiceFile ? voiceFile.name : '选择音频文件'}
+                  {voiceFile ? voiceFile.name : '选择 WAV / MP3 / M4A 文件（最大 10MB）'}
                 </button>
-                <input ref={voiceRef} type="file" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg,.webm" className="hidden" onChange={(e) => { setVoiceFile(e.target.files?.[0] || null); setRecordPreviewUrl(null) }} />
+                <input ref={voiceRef} type="file" accept=".mp3,.wav,.m4a" className="hidden" disabled={recordingBusy || creatingVoice} onChange={(e) => { if (!selectVoiceFile(e.target.files?.[0] || null)) e.currentTarget.value = '' }} />
               </div>
             )}
 
@@ -497,9 +583,10 @@ export default function DigitalHumanPage() {
                   {!isRecording && !recordPreviewUrl && (
                     <button
                       onClick={startRecording}
+                      disabled={recordingBusy || creatingVoice}
                       className="flex-1 h-10 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-medium flex items-center justify-center gap-2 transition-all hover:shadow-lg hover:shadow-red-500/20"
                     >
-                      <Mic className="w-4 h-4" /> 开始录音
+                      <Mic className="w-4 h-4" /> {recordingState === 'starting' ? '正在打开麦克风…' : recordingState === 'processing' ? '正在处理录音…' : '开始录音'}
                     </button>
                   )}
                   {isRecording && (
@@ -515,6 +602,7 @@ export default function DigitalHumanPage() {
                       <audio src={recordPreviewUrl} controls className="flex-1 h-9 rounded-lg" />
                       <button
                         onClick={discardRecording}
+                        disabled={recordingBusy || creatingVoice}
                         className="h-9 px-3 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 text-xs font-medium flex items-center gap-1 transition-colors"
                         title="丢弃录音"
                       >
@@ -539,7 +627,7 @@ export default function DigitalHumanPage() {
               <label className="block text-xs font-medium text-alpine-500 mb-1">音色名称（可选）</label>
               <input value={voiceName} onChange={(e) => setVoiceName(e.target.value)} className="w-full h-9 rounded-lg border border-alpine-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ice-300 transition-all" placeholder="默认自动生成" />
             </div>
-            <button onClick={submitVoice} disabled={creatingVoice || !voiceFile} className="w-full h-10 rounded-xl bg-ice-500 hover:bg-ice-600 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+            <button onClick={submitVoice} disabled={creatingVoice || recordingBusy || !voiceFile} className="w-full h-10 rounded-xl bg-ice-500 hover:bg-ice-600 text-white text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
               {creatingVoice ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
               {creatingVoice ? '创建中...' : '创建音色'}
             </button>

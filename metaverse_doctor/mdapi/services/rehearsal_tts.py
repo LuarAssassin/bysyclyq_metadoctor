@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import queue
@@ -15,7 +16,7 @@ class RehearsalRealtimeTTSError(Exception):
 
 
 class DoctorRehearsalRealtimeTTS:
-    """Bridge qwen_tts_realtime websocket events into pull-based chunks for SSE."""
+    """Bridge streaming TTS PCM callbacks into pull-based chunks for SSE."""
 
     SENTENCE_END_RE = re.compile(r"[。！？!?]+|\n+")
     SOFT_BREAK_CHARS = ("，", ",", "；", ";")
@@ -49,6 +50,10 @@ class DoctorRehearsalRealtimeTTS:
         self._text_buffer = ""
         self._client = None
         self._closed = False
+        self._input_started = False
+        self._finish_requested = False
+        self._state_lock = threading.Lock()
+        self._received_audio_chunks = 0
 
         self._started_at_monotonic: float | None = None
         self._first_audio_delay_ms: int | None = None
@@ -125,6 +130,21 @@ class DoctorRehearsalRealtimeTTS:
     def _push_event(self, payload: dict[str, Any]) -> None:
         self._event_queue.put(payload)
 
+    def _fail(self, message: str, *, raw=None) -> None:
+        safe_message = str(message or "实时语音生成失败")
+        if self.api_key:
+            safe_message = safe_message.replace(self.api_key, "[REDACTED]")
+        with self._state_lock:
+            if self._last_error or self._closed:
+                return
+            self._last_error = safe_message
+        logger.warning("Realtime TTS failed (model=%s): %s", self.model, safe_message)
+        payload = {"type": "error", "message": safe_message}
+        if raw is not None:
+            payload["raw"] = raw
+        self._push_event(payload)
+        self._finished_event.set()
+
     def start(self) -> None:
         if not self.api_key:
             raise RehearsalRealtimeTTSError("缺少 DASHSCOPE_API_KEY，无法启用实时语音")
@@ -134,111 +154,138 @@ class DoctorRehearsalRealtimeTTS:
             raise RehearsalRealtimeTTSError("缺少 voice_id，无法启用实时语音")
         if not self.ws_url:
             raise RehearsalRealtimeTTSError("缺少实时语音 websocket 地址")
+        if self._closed:
+            raise RehearsalRealtimeTTSError("实时语音连接已关闭")
+        if self._client is not None:
+            return
 
         try:
             import dashscope
-            from dashscope.audio.qwen_tts_realtime import (
+            from dashscope.audio.tts_v2 import (
                 AudioFormat,
-                QwenTtsRealtime,
-                QwenTtsRealtimeCallback,
+                ResultCallback,
+                SpeechSynthesizer,
             )
         except ImportError as exc:
             raise RehearsalRealtimeTTSError(
-                "未安装 realtime tts 依赖（dashscope.audio.qwen_tts_realtime）"
+                "未安装流式语音依赖（dashscope.audio.tts_v2）"
             ) from exc
 
         outer = self
 
-        class _Callback(QwenTtsRealtimeCallback):
+        class _Callback(ResultCallback):
             def on_open(self) -> None:
                 outer._push_event({"type": "opened"})
 
-            def on_close(self, close_status_code, close_msg) -> None:
-                outer._finished_event.set()
+            def on_data(self, data: bytes) -> None:
+                if not data or outer._closed or outer._last_error:
+                    return
+                with outer._state_lock:
+                    outer._received_audio_chunks += 1
                 outer._push_event(
-                    {
-                        "type": "closed",
-                        "code": close_status_code,
-                        "message": str(close_msg or ""),
-                    }
+                    {"type": "audio_delta", "delta": base64.b64encode(data).decode("ascii")}
                 )
 
-            def on_event(self, message) -> None:  # noqa: ANN001
-                data: dict[str, Any]
-                if isinstance(message, dict):
-                    data = message
-                elif isinstance(message, str):
-                    try:
-                        parsed = json.loads(message)
-                        data = parsed if isinstance(parsed, dict) else {}
-                    except Exception:  # noqa: BLE001
-                        data = {}
-                else:
-                    data = {}
-
-                event_type = str(data.get("type") or "").strip()
-                if not event_type:
+            def on_complete(self) -> None:
+                if outer._closed or outer._last_error:
                     return
+                if not outer._received_audio_chunks:
+                    outer._fail("实时语音已结束，但未返回音频数据")
+                    return
+                outer._push_event({"type": "finished"})
+                outer._finished_event.set()
 
-                if event_type == "response.audio.delta":
-                    delta = str(data.get("delta") or "")
-                    if delta:
-                        outer._push_event({"type": "audio_delta", "delta": delta})
-                elif event_type in {"error", "response.error"}:
-                    message_text = str(
-                        data.get("message")
-                        or data.get("error")
-                        or data.get("code")
-                        or "realtime tts error"
-                    )
-                    outer._push_event(
-                        {"type": "error", "message": message_text, "raw": data}
-                    )
-                elif event_type == "session.finished":
-                    outer._finished_event.set()
-                    outer._push_event({"type": "finished"})
+            def on_error(self, message) -> None:  # noqa: ANN001
+                data = message
+                if isinstance(message, str):
+                    try:
+                        data = json.loads(message)
+                    except (TypeError, ValueError):
+                        pass
+                if isinstance(data, dict):
+                    header = data.get("header") or {}
+                    code = header.get("error_code") or data.get("code")
+                    detail = header.get("error_message") or data.get("message") or data
+                    request_id = header.get("task_id") or data.get("request_id")
+                    parts = [str(item) for item in (code, detail) if item]
+                    if request_id:
+                        parts.append(f"request_id={request_id}")
+                    outer._fail("; ".join(parts), raw=data)
+                else:
+                    outer._fail(str(message or "实时语音生成失败"))
+
+            def on_close(self) -> None:
+                if not outer._closed and not outer._finished_event.is_set():
+                    outer._fail("实时语音连接在生成完成前关闭")
+                outer._push_event({"type": "closed"})
+
+        class _Synthesizer(SpeechSynthesizer):
+            # SDK 1.25.x 的 WebSocket 错误只打印到 stdout，关闭回调为空。
+            # 在这里转成业务事件，同时释放 SDK 的启动和结束等待。
+            def on_error(self, ws, error) -> None:  # noqa: ANN001
+                outer._fail(f"实时语音连接失败: {error}")
+                self.start_event.set()
+                self.complete_event.set()
+
+            def on_close(self, ws, close_status_code, close_msg) -> None:  # noqa: ANN001
+                if not outer._closed and not outer._finished_event.is_set():
+                    detail = str(close_msg or "连接提前关闭")
+                    outer._fail(f"实时语音连接关闭（{close_status_code}）: {detail}")
+                self.start_event.set()
+                self.complete_event.set()
 
         try:
             dashscope.api_key = self.api_key
-            self._client = QwenTtsRealtime(
+            self._client = _Synthesizer(
                 model=self.model,
+                voice=self.voice_id,
+                format=AudioFormat.PCM_24000HZ_MONO_16BIT,
                 callback=_Callback(),
                 url=self.ws_url,
             )
-            self._client.connect()
-            self._client.update_session(
-                voice=self.voice_id,
-                response_format=AudioFormat.PCM_24000HZ_MONO_16BIT,
-                mode="server_commit",
-            )
+            # SpeechSynthesizer 在第一段文本到达时建立连接并发起任务。
             self._started_at_monotonic = time.monotonic()
         except Exception as exc:  # noqa: BLE001
-            raise RehearsalRealtimeTTSError(f"初始化实时语音失败: {exc}") from exc
+            self._fail(f"初始化实时语音失败: {exc}")
+            raise RehearsalRealtimeTTSError(self._last_error) from exc
 
     def append_text(self, text: str) -> None:
-        if not self._client:
-            raise RehearsalRealtimeTTSError("实时语音连接未建立")
-        chunk = str(text or "")
-        if not chunk:
-            return
-
-        normalized_chunk = self.normalize_markdown_for_tts(chunk)
+        if not self._client or self._closed:
+            raise RehearsalRealtimeTTSError("实时语音连接未建立或已关闭")
+        if self._last_error:
+            raise RehearsalRealtimeTTSError(self._last_error)
+        if self._finish_requested:
+            raise RehearsalRealtimeTTSError("实时语音文本输入已结束")
+        normalized_chunk = self.normalize_markdown_for_tts(str(text or ""))
         if not normalized_chunk:
             return
-
         try:
-            # 追求最低延迟：每个文本增量块到达后立即送入实时语音。
-            self._client.append_text(normalized_chunk)
+            self._input_started = True
+            self._client.streaming_call(normalized_chunk)
+            if self._last_error:
+                raise RehearsalRealtimeTTSError(self._last_error)
+        except RehearsalRealtimeTTSError:
+            raise
         except Exception as exc:  # noqa: BLE001
-            raise RehearsalRealtimeTTSError(f"追加实时语音文本失败: {exc}") from exc
+            self._fail(f"追加实时语音文本失败: {exc}")
+            raise RehearsalRealtimeTTSError(self._last_error) from exc
 
     def finish(self) -> None:
-        if not self._client:
+        if not self._client or self._closed or self._finish_requested:
+            return
+        self._finish_requested = True
+        if self._last_error:
+            return
+        if not self._input_started:
+            self._fail("实时语音未收到可合成文本")
             return
         try:
-            self._client.finish()
+            # 立即发送 finish-task，音频仍由回调交付给 drain_until_done。
+            # 外层按音频进展控制空闲超时；主动 close 会释放 SDK 的等待线程。
+            self._client.async_streaming_complete(complete_timeout_millis=0)
         except Exception as exc:  # noqa: BLE001
-            raise RehearsalRealtimeTTSError(f"结束实时语音失败: {exc}") from exc
+            self._fail(f"结束实时语音失败: {exc}")
+            raise RehearsalRealtimeTTSError(self._last_error) from exc
 
     def drain_events(self, max_items: int = 500) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
@@ -272,31 +319,23 @@ class DoctorRehearsalRealtimeTTS:
         max_wait_seconds: float = 15.0,
         poll_interval: float = 0.05,
     ) -> Generator[dict[str, Any], None, None]:
-        """
-        流式等待 TTS 服务返回所有剩余音频，逐个 yield 事件。
-
-        与旧版（批量返回 list）不同，改为 generator 后调用方可以
-        即时将 audio_delta 推送到 SSE，而不必等全部收完。
-
-        如果 TTS 正常完成会发 session.finished，此时提前退出（不空等）。
-        超时仅作为兜底，防止 WebSocket 无响应时无限挂起。
-        """
-        deadline = time.monotonic() + max(0.1, float(max_wait_seconds))
-        while time.monotonic() < deadline:
+        """Yield audio until done; max_wait_seconds bounds time without audio progress."""
+        idle_timeout = max(0.1, float(max_wait_seconds))
+        deadline = time.monotonic() + idle_timeout
+        while True:
             batch = self.drain_events()
+            if any(event.get("type") == "audio_delta" and event.get("delta") for event in batch):
+                deadline = time.monotonic() + idle_timeout
             if batch:
                 yield from batch
             if self._finished_event.is_set():
                 break
+            if time.monotonic() >= deadline:
+                self._fail(
+                    f"实时语音生成超时（连续 {idle_timeout:g} 秒未收到音频进展）"
+                )
+                break
             time.sleep(max(0.01, float(poll_interval)))
-
-        if not self._finished_event.is_set():
-            logger.warning(
-                "drain_until_done: TTS 未在 %.1fs 内返回 session.finished，已超时退出 "
-                "(已收到 %d 个音频分片)",
-                max_wait_seconds,
-                self._audio_chunk_count,
-            )
 
         # 最后再捞一次，确保不丢尾部事件
         tail = self.drain_events()
@@ -306,12 +345,16 @@ class DoctorRehearsalRealtimeTTS:
     def close(self) -> None:
         if self._closed:
             return
+        self._closed = True
+        self._finished_event.set()
         if self._client:
+            # async_streaming_complete 的等待线程需在中断/超时后及时退出。
+            self._client.complete_event.set()
             try:
-                self._client.close()
+                if self._client.ws is not None:
+                    self._client.close()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("close realtime tts failed: %s", exc)
-        self._closed = True
 
     def get_stats(self) -> dict[str, Any]:
         return {

@@ -1121,10 +1121,15 @@ class RehearsalRealtimeTTSHelperTests(SimpleTestCase):
 
         class _FakeClient:
             @staticmethod
-            def append_text(text):
+            def streaming_call(text):
                 calls.append(text)
 
-        service = DoctorRehearsalRealtimeTTS.__new__(DoctorRehearsalRealtimeTTS)
+        service = DoctorRehearsalRealtimeTTS(
+            api_key="test-key",
+            model="qwen-audio-3.1-tts-flash",
+            voice_id="test-voice",
+            ws_url="wss://example.invalid/api-ws/v1/inference",
+        )
         service._client = _FakeClient()
 
         DoctorRehearsalRealtimeTTS.append_text(service, "第一段。")
@@ -2077,6 +2082,47 @@ class DoctorPatientConsultReviewTests(TestCase):
         self.assertEqual(node["patient"]["id"], self.patient.id)
         self.assertEqual(node["pending_count"], 1)
         self.assertEqual(node["session_count"], 1)
+
+    def test_tree_hides_sessions_without_messages(self):
+        empty_session = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.doctor,
+            title="还没发言",
+            status="active",
+        )
+        deleted_only = PatientConsultSession.objects.create(
+            patient=self.patient,
+            doctor=self.doctor,
+            title="消息已删除",
+            status="active",
+        )
+        deleted_message = PatientConsultMessage.objects.create(
+            session=deleted_only,
+            patient=self.patient,
+            doctor=self.doctor,
+            role="user",
+            turn_index=1,
+            generation_status="succeeded",
+            content="这条会被删掉",
+            content_markdown="这条会被删掉",
+        )
+        deleted_message.delete()
+
+        request = self.factory.get("/api/doctor/patient-consults/tree/")
+        force_authenticate(request, user=self.doctor)
+        response = DoctorPatientConsultTreeView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.data["data"]
+        self.assertEqual(payload["session_count"], 1)
+        session_ids = [
+            session["id"]
+            for node in payload["patients"]
+            for session in node["sessions"]
+        ]
+        self.assertEqual(session_ids, [self.session.id])
+        self.assertNotIn(empty_session.id, session_ids)
+        self.assertNotIn(deleted_only.id, session_ids)
 
     def test_tree_returns_signed_patient_avatar_url(self):
         self.patient.avatar = "https://oss.example.com/patient-avatars/99/avatar.png"
