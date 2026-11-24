@@ -1,0 +1,10 @@
+{
+  "name": "chongli-role-entry-regression",
+  "private": true,
+  "scripts": {
+    "test": "node roles.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
