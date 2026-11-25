@@ -705,8 +705,29 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   width: 100%;
   aspect-ratio: 1.70;
   background: #d6e5ea;
-  border-radius: 2px;
+  border-radius: clamp(14px, 1.4vw, 22px);
   box-shadow: none;
+}
+#po-home .po-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, rgb(232 241 245 / 68%), transparent clamp(11px, 1.2vw, 19px)),
+    linear-gradient(0deg, rgb(232 241 245 / 40%), transparent 8px);
+  box-shadow: inset 0 0 5px 1px rgb(232 241 245 / 50%);
+}
+#po-home .po-outgoing {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
 }
 #po-home .po-image { object-position: center 50%; }
 #po-home .po-image[data-photo="teaching"] { object-position: center 47%; }
@@ -732,7 +753,7 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   gap: 10px;
   color: #1f4556;
   background: var(--po-ice);
-  border-bottom: 1px solid #a7bfc9;
+  border-bottom: 1px solid #c7d9e1;
 }
 #po-home .po-credit { gap: 9px; flex-wrap: wrap; line-height: 1.35; row-gap: 2px; }
 #po-home .po-credit a { color: #496879; }

@@ -107,10 +107,19 @@ async function autoplay(page) {
   await toggle.blur();
   await page.clock.fastForward(7000);
   assert(await choices.nth(2).isChecked(), 'Play resumes the sequence');
+  const layers = await gallery.evaluate(element => {
+    element.querySelector('#po-pick-campus').click();
+    element.querySelector('#po-pick-teaching').click();
+    return [...element.querySelectorAll('.po-outgoing')].map(image => image.getAttribute('aria-hidden'));
+  });
+  assert.deepEqual(layers,['true'],'Rapid changes retain a single decorative outgoing photograph');
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.reload();
   await page.clock.fastForward(7000);
   assert(await choices.nth(0).isChecked(),'Reduced motion starts with a still photograph');
+  await choices.nth(1).check();
+  assert.equal(await gallery.locator('.po-outgoing').count(),0,'Reduced motion changes photographs immediately');
+  await choices.nth(0).check();
   await page.clock.resume();
 }
 

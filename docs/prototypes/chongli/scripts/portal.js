@@ -100,13 +100,36 @@
  let hasFocus=false;
  let visible=true;
  let timer;
+ const frame=media.querySelector('.po-frame');
+ let selectedPhoto=choices.find(choice=>choice.checked)?.value;
+
+ function clearDissolve(){
+   frame.querySelector('.po-outgoing')?.remove();
+ }
+ function selectPhoto(choice){
+   const previous=frame.querySelector('img[data-photo="'+selectedPhoto+'"]');
+   selectedPhoto=choice.value;
+   choice.checked=true;
+   clearDissolve();
+   if(motion.matches||!previous?.naturalWidth||!frame.animate)return;
+   // The native radio immediately exposes the new photo and its caption.
+   const outgoing=new Image();
+   outgoing.className='po-outgoing';
+   outgoing.alt='';
+   outgoing.setAttribute('aria-hidden','true');
+   outgoing.style.objectPosition=getComputedStyle(previous).objectPosition;
+   outgoing.src=previous.currentSrc;
+   frame.append(outgoing);
+   const fade=outgoing.animate([{opacity:1},{opacity:0}],{duration:240,easing:'ease-out'});
+   fade.onfinish=()=>outgoing.remove();
+ }
 
  function refreshTimer(){
    window.clearInterval(timer);
    if(paused||hovered||hasFocus||!visible||document.hidden||loginDialog.open)return;
    timer=window.setInterval(()=>{
      const selected=choices.findIndex(choice=>choice.checked);
-     choices[(selected+1)%choices.length].checked=true;
+     selectPhoto(choices[(selected+1)%choices.length]);
    },6500);
  }
  function setPaused(value){
@@ -121,7 +144,10 @@
  if(CSS.supports('selector(:has(*))')&&choices.length>1){
    toggle.hidden=false;
    setPaused(paused);
-   for(const choice of choices)choice.addEventListener('change',()=>setPaused(true));
+   for(const choice of choices)choice.addEventListener('change',()=>{
+     selectPhoto(choice);
+     setPaused(true);
+   });
    toggle.addEventListener('click',()=>{
      // A keyboard user can explicitly start playback while focus stays on the button.
      hasFocus=false;
@@ -136,7 +162,9 @@
    media.addEventListener('focusout',event=>{
      hasFocus=media.contains(event.relatedTarget);refreshTimer();
    });
-   motion.addEventListener('change',event=>{if(event.matches)setPaused(true)});
+   motion.addEventListener('change',event=>{
+     if(event.matches){clearDissolve();setPaused(true)}
+   });
    loginDialog.addEventListener('close',refreshTimer);
    window.addEventListener('cl:login-request',refreshTimer);
    document.addEventListener('visibilitychange',refreshTimer);
