@@ -1,0 +1,1932 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="color-scheme" content="light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'self' 'unsafe-inline';script-src 'self';img-src 'self' data: blob:;media-src 'self' data: blob:;connect-src 'none';form-action 'none';base-uri 'none'">
+<title>崇礼AI元医院智能化平台</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="account-entry.css">
+</head><body>
+<a href="#cl-main" class="cl-skip" id="cl-skip">跳至内容</a>
+<header class="cl-brandbar" id="cl-brandbar"><a class="cl-brand" data-nav="portal" href="#po-home" aria-label="返回崇礼AI元医院门户"><span class="cl-id-marks"><img class="cl-parent-logo" src="assets/pku-third-hospital.png" alt="北京大学第三医院" width="387" height="94"><img class="cl-campus-logo" src="assets/hospital-logo.png" alt="北京大学第三医院崇礼院区" width="373" height="64"></span><span class="cl-platform-name">崇礼AI元医院智能化平台</span></a><button type="button" data-static-control popovertarget="read-overview" class="cl-brand"  aria-label="返回崇礼AI元医院门户"><span class="cl-id-marks"><img class="cl-parent-logo" src="assets/pku-third-hospital.png" alt="北京大学第三医院" width="387" height="94"><img class="cl-campus-logo" src="assets/hospital-logo.png" alt="北京大学第三医院崇礼院区" width="373" height="64"></span><span class="cl-platform-name">崇礼AI元医院智能化平台</span></button>
+<div class="cl-top-tools">
+<nav class="cl-topnav" aria-label="平台导航"><a data-nav="portal" href="#po-home">门户首页</a><button type="button" data-static-control popovertarget="read-overview" >门户首页</button><a data-nav="about" href="#static-about">平台介绍</a><button type="button" data-static-control popovertarget="read-about" >平台介绍</button><a data-nav="guide" href="#static-guide">操作指南</a><button type="button" data-static-control popovertarget="read-guide" >操作指南</button>
+</nav><span class="cl-demo">离线演示</span><span id="cl-active-role" class="cl-role-tag" hidden></span><button type="button" id="cl-role-change" hidden>切换账号</button><button type="button" id="cl-reset-open" hidden>重置演示</button>
+</div>
+</header>
+<dialog id="cl-reset-dialog" aria-labelledby="reset-head">
+<h2 id="reset-head">重新开始演示？</h2>
+<p>当前设备保存的演示记录将恢复为初始样本。</p><button id="cl-cancel">保留记录</button> <button id="cl-confirm">重置演示</button>
+</dialog>
+
+<dialog id="cl-login-dialog" class="ac-panel" aria-labelledby="ac-login-heading" aria-describedby="ac-login-intro">
+<div class="ac-head"><div><h2 id="ac-login-heading">账号登录</h2><p id="ac-login-intro">使用演示账号，即可进入对应的工作台或患者服务。</p></div><button class="ac-close" type="button" id="cl-login-close" aria-label="关闭登录"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
+<form id="cl-login-form" class="ac-form" novalidate method="dialog">
+<label for="cl-demo-account">演示账号</label>
+<div class="ac-field"><input id="cl-demo-account" type="text" placeholder="输入演示编号" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" aria-describedby="cl-login-error"><button type="submit">进入</button></div>
+<p id="cl-login-error" role="alert" hidden></p>
+</form>
+<div class="ac-examples"><h3>选择演示账号</h3><div class="ac-samples" id="cl-account-samples"></div></div>
+</dialog>
+<section popover id="read-accounts" class="ac-panel" aria-labelledby="ac-read-heading">
+<div class="ac-head"><div><h2 id="ac-read-heading">选择演示账号</h2><p>选择下方账号，预览对应的服务。当前为只读演示。</p></div><button type="button" class="ac-close" popovertarget="read-accounts" popovertargetaction="hide" aria-label="关闭账号选择"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
+<div class="ac-samples"><button type="button" class="ac-sample" data-sample-account="PT1001" popovertarget="read-rolePatient"><span><strong>患者</strong><small>就诊准备与随访</small></span><span class="ac-sample-code">PT1001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL1001" popovertarget="read-roleDoctor"><span><strong>医生</strong><small>数字医生工作台</small></span><span class="ac-sample-code">CL1001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL2001" popovertarget="read-roleDirector"><span><strong>科主任</strong><small>本科室服务评价</small></span><span class="ac-sample-code">CL2001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL3001" popovertarget="read-roleLeader"><span><strong>院领导</strong><small>全院运行大屏</small></span><span class="ac-sample-code">CL3001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL4001" popovertarget="read-roleReviewer"><span><strong>院方审核人员</strong><small>版本审核</small></span><span class="ac-sample-code">CL4001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL5001" popovertarget="read-roleAdmin"><span><strong>院方管理员</strong><small>入驻与服务管理</small></span><span class="ac-sample-code">CL5001</span></button></div>
+</section>
+<div id="cl-account-notice" role="status" aria-live="polite"></div>
+<script src="scripts/model.js">
+</script>
+<main id="cl-main" tabindex="-1">
+<aside id="platform-shell" hidden aria-label="业务工作区">
+<details id="ws-menu" open>
+<summary><span id="ws-mobile-label">业务导航</span><span class="ws-mobile-toggle">工作导航</span></summary>
+<nav class="ws-rail" aria-label="业务工作导航">
+<section class="ws-group">
+<h2>医生工作</h2><a href="#doctor" data-platform-route="doctor"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>工作摘要</span></a><a href="#doctorPersona" data-platform-route="doctorPersona"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="3.4"/><path d="M5 20v-2c0-3 3-5 7-5s7 2 7 5v2M9 14l3 3 3-3"/></svg><span>数字医生构建</span></a><a href="#doctorFollow" data-platform-route="doctorFollow"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11c0 4.1-4 7.5-9 7.5a12 12 0 0 1-3-.4L4 20l1-4.1A6.6 6.6 0 0 1 3 11c0-4.2 4-7.5 9-7.5s9 3.3 9 7.5Z"/><path d="M7.5 11h2.4l1.2-2.3 1.8 4.6L14 11h2.5"/></svg><span>患者服务与随访</span></a><a href="#doctorResearch" data-platform-route="doctorResearch"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8M10 3v6l-5.5 9a2 2 0 0 0 1.6 3h11.8a2 2 0 0 0 1.6-3L14 9V3M7 14.5h10"/></svg><span>医学科研辅助</span></a>
+</section>
+<section class="ws-group">
+<h2>院方管理</h2><a href="#admin" data-platform-route="admin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.4c0 4.1 2.9 7.4 7.5 9.6 4.6-2.2 7.5-5.5 7.5-9.6V6L12 3Z"/><path d="m8.7 12 2.3 2.3 4.3-4.5"/></svg><span>数字医生治理与评价</span></a>
+</section>
+<section class="ws-group">
+<h2>工作支持</h2><a href="#doctorKnowledge" data-platform-route="doctorKnowledge"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 4.5c3.6-.7 6.5-.2 8.5 1.5 2-1.7 4.9-2.2 8.5-1.5v14c-3.6-.7-6.5-.2-8.5 1.5-2-1.7-4.9-2.2-8.5-1.5v-14Zm8.5 1.6V20"/></svg><span>专业知识库</span></a><a href="#doctorRelease" data-platform-route="doctorRelease"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h4m-10 6 2 2 4-4"/></svg><span>审查与授权</span></a>
+</section>
+</nav>
+</details>
+</aside>
+<section class="cl-view" id="view-portal">
+<div id="po-home">
+ <div class="po-hero">
+<div class="po-wrap po-hero-in">
+  <div class="po-copy">
+<p class="po-kicker">数字医生 · 智能随访 · 医学科研</p>
+<h1 class="po-title">崇礼AI元医院<span>智能化平台</span>
+</h1>
+<p class="po-en" lang="en">Chongli AI Meta-Hospital</p>
+<div class="po-actions">
+<button type="button" id="po-login-open" class="po-primary ac-enter" aria-haspopup="dialog" aria-controls="cl-login-dialog"><span>登录平台</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" id="po-native-login" class="po-primary ac-enter" data-static-control popovertarget="read-accounts"><span>登录平台</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a id="po-fallback-login" class="po-primary ac-enter" href="#static-accounts">登录平台</a>
+<a class="po-text" data-poroute="guide" href="#static-guide">数字医生搭建教程</a><button type="button" data-static-control popovertarget="read-guide" class="po-text">数字医生搭建教程</button>
+</div>
+<p id="po-account-hint">支持患者与院内账号</p>
+</div>
+  <figure class="po-media" aria-label="院区影像">
+    <div class="po-frame">
+      <img id="po-campus-photo" class="po-image" data-photo="campus" src="assets/chongli-campus.jpg" alt="崇礼院区门诊楼外景，楼顶是医院的中英文标识。">
+      <img id="po-teaching-photo" class="po-image" data-photo="teaching" src="assets/medical-teaching.jpg" alt="杨渝平在投影幕旁讲授运动医学。">
+      <img id="po-education-photo" class="po-image" data-photo="education" src="assets/health-education.jpg" alt="杨渝平与活动参与者一同示范运动动作。">
+    </div>
+    <figcaption class="po-caption">
+      <span class="po-credit" data-photo="campus"><span class="po-caption-title">崇礼院区 · 门诊楼实景</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://www.bjmu.edu.cn/bdyx110zn/bygs/ac64ab2442d54cc9a05b0eaee7029f2c.htm" aria-label="查看「崇礼院区 · 门诊楼实景」的图片来源">来源</a></span>
+      <span class="po-credit" data-photo="teaching"><span class="po-caption-title">杨渝平 · 医学教学现场</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://bynews.bjmu.edu.cn/tszt/qjs30n/8cb0c0aed4c041dd9872e6747e5a0816.htm" aria-label="查看「杨渝平 · 医学教学现场」的图片来源">来源</a></span>
+      <span class="po-credit" data-photo="education"><span class="po-caption-title">杨渝平 · 运动健康科普</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://www.puh3.net.cn/info/1971/155321.htm" aria-label="查看「杨渝平 · 运动健康科普」的图片来源">来源</a></span>
+      <span class="po-playback">
+        <span class="po-page-track" role="radiogroup" aria-label="选择院区影像">
+          <input type="radio" name="po-gallery" id="po-pick-campus" class="po-pip" value="campus" aria-label="第 1 张，崇礼院区 · 门诊楼实景" checked>
+          <input type="radio" name="po-gallery" id="po-pick-teaching" class="po-pip" value="teaching" aria-label="第 2 张，杨渝平 · 医学教学现场">
+          <input type="radio" name="po-gallery" id="po-pick-education" class="po-pip" value="education" aria-label="第 3 张，杨渝平 · 运动健康科普">
+        </span>
+        <button type="button" class="po-pause" aria-label="暂停轮播" hidden><svg viewBox="0 0 16 16" aria-hidden="true" pointer-events="none"><path fill="currentColor" d="M4 3h2.5v10H4zm5.5 0H12v10H9.5z"/></svg></button>
+      </span>
+    </figcaption>
+  </figure>
+ </div>
+</div>
+ <section class="po-wrap ac-services" aria-labelledby="po-services-title">
+<header class="ac-services-head"><h2 id="po-services-title">平台服务</h2><span lang="en">Platform services</span></header>
+<nav class="ac-service-grid" aria-label="平台服务">
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="doctorPersona" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v3H9zM7 5H5v16h14V5h-2M8 12h8m-8 4h5"/></svg></span><span class="ac-service-name"><small>数字医生构建平台</small><strong>搭建数字医生</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">设置专科、知识与回复方式</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v3H9zM7 5H5v16h14V5h-2M8 12h8m-8 4h5"/></svg></span><span class="ac-service-name"><small>数字医生构建平台</small><strong>搭建数字医生</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">设置专科、知识与回复方式</span></button>
+</div>
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="serviceFollow" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.4c0 4.15-3.65 7.4-8.55 7.4a12 12 0 0 1-3.3-.45L4 20l1.25-4a6.1 6.1 0 0 1-1.7-4.6C3.55 7.25 7.2 4 12 4c4.8 0 8.5 3.25 8.5 7.4Z"/><path d="M7.3 11.8h2.3l1.5-2.3 1.8 4.2 1.4-2h2.4"/></svg></span><span class="ac-service-name"><small>患者服务与智能随访平台</small><strong>就诊与随访</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">就诊前准备与随访反馈</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.4c0 4.15-3.65 7.4-8.55 7.4a12 12 0 0 1-3.3-.45L4 20l1.25-4a6.1 6.1 0 0 1-1.7-4.6C3.55 7.25 7.2 4 12 4c4.8 0 8.5 3.25 8.5 7.4Z"/><path d="M7.3 11.8h2.3l1.5-2.3 1.8 4.2 1.4-2h2.4"/></svg></span><span class="ac-service-name"><small>患者服务与智能随访平台</small><strong>就诊与随访</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">就诊前准备与随访反馈</span></button>
+</div>
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="doctorResearch" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8m-6 0v6L4.8 18a1.8 1.8 0 0 0 1.6 2.7h11.2a1.8 1.8 0 0 0 1.6-2.7L14 9V3M7.7 15h8.6"/></svg></span><span class="ac-service-name"><small>医学科研辅助平台</small><strong>整理科研病例</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">从多模态资料生成病例草稿</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8m-6 0v6L4.8 18a1.8 1.8 0 0 0 1.6 2.7h11.2a1.8 1.8 0 0 0 1.6-2.7L14 9V3M7.7 15h8.6"/></svg></span><span class="ac-service-name"><small>医学科研辅助平台</small><strong>整理科研病例</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">从多模态资料生成病例草稿</span></button>
+</div>
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="serviceGovernance" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5.3c0 4.7-3.6 8.1-8 9.9-4.4-1.8-8-5.2-8-9.9V6l8-3Z"/><path d="M7.8 14.1 11 11l2.4 1.4 3.4-4"/></svg></span><span class="ac-service-name"><small>数字医生治理与评价平台</small><strong>审查与评价</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">版本审查与院科服务成效</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5.3c0 4.7-3.6 8.1-8 9.9-4.4-1.8-8-5.2-8-9.9V6l8-3Z"/><path d="M7.8 14.1 11 11l2.4 1.4 3.4-4"/></svg></span><span class="ac-service-name"><small>数字医生治理与评价平台</small><strong>审查与评价</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">版本审查与院科服务成效</span></button>
+</div>
+</nav>
+</section>
+</div>
+<article class="po-about" id="po-about" hidden>
+<div class="po-wrap po-about-in">
+  <div class="po-ed-head"><a class="po-text" data-poroute="portal" href="#po-home">返回门户首页</a><button type="button" data-static-control popovertarget="read-overview" class="po-text" >返回门户首页</button>
+<div class="po-ed-copytools"><span id="po-copy-status" role="status"></span><button class="po-ed-copy" id="po-copy-intro" type="button">复制平台简介</button>
+</div>
+</div>
+  <div class="po-ed-title">
+<h1>平台介绍</h1><span class="po-en" lang="en">About the Platform</span>
+</div>
+  <p class="po-intro" id="po-official-intro">崇礼AI元医院智能化平台面向北京大学第三医院崇礼院区的专科服务与管理需求，下设四个业务子平台，分别为数字医生构建平台、患者服务与智能随访平台、医学科研辅助平台和数字医生治理与评价平台。四个平台通过版本审查与授权、服务评价与改进两项机制协同运行。医生遴选专科资料、设定服务范围，经院方审查、医生本人授权后，数字医生可用于就诊准备、健康宣教和康复随访。科研人员可整理多种形式的资料，形成可回查来源的结构化病例草稿。院领导和科主任可结合服务覆盖、专家抽检结果及随访完成情况，指导科室更新知识、改进服务，为专科经验向基层推广提供支撑。</p>
+  <section class="po-block">
+<h2>四个业务子平台</h2>
+<div class="po-systems">
+    <div>
+<h3>数字医生构建平台</h3>
+<p>医生选择细分专业、回复风格和解释深度，选入指南或院内资料，通过试答核对表达和服务范围。</p><a class="po-system-action" data-poroute="doctorPersona" href="#static-doctorPersona">配置我的数字医生</a><button type="button" data-static-control popovertarget="read-doctorPersona" class="po-system-action" >配置我的数字医生</button>
+</div>
+    <div>
+<h3>患者服务与智能随访平台</h3>
+<p>患者可查看就诊准备、健康宣教和随访填写示例。医生在随访工作台复核反馈，记录需要跟进的事项。</p><a class="po-system-action" data-poroute="serviceFollow" href="#serviceFollow">进入就诊与随访</a><button type="button" data-static-control popovertarget="read-accounts" class="po-system-action">选择账号预览</button>
+</div>
+    <div>
+<h3>医学科研辅助平台</h3>
+<p>医生可对照文本、图片、PDF 或音频，核对并摘录相关内容，形成保留原始出处的结构化病例草稿。</p><a class="po-system-action" data-poroute="doctorResearch" href="#static-doctorResearch">整理结构化病例</a><button type="button" data-static-control popovertarget="read-doctorResearch" class="po-system-action" >整理结构化病例</button>
+</div>
+    <div>
+<h3>数字医生治理与评价平台</h3>
+<p>院方管理数字医生的版本和授权记录，按科室、病种和患者来源查看服务表现，并结合专家抽检开展质控。</p><a class="po-system-action" data-poroute="serviceGovernance" href="#serviceGovernance">进入审查与评价</a><button type="button" data-static-control popovertarget="read-accounts" class="po-system-action">选择账号预览</button>
+</div>
+  </div>
+</section>
+  <section class="po-block">
+<h2>两项协同机制</h2>
+<div class="po-mechanisms">
+    <div>
+<h3>版本审查与授权</h3>
+<p>医生提交拟发布版本，伦理审查助手整理核对要点，院方审查并反馈意见。医生查阅报告、确认授权后，患者入口才切换到新版本。</p>
+</div>
+    <div>
+<h3>服务评价与改进</h3>
+<p>院领导查看服务覆盖和质量趋势，科主任结合抽检与随访结果定位需要改进的环节。涉及回复或知识内容调整时，由医生修订并重新提交审查。</p>
+</div>
+  </div>
+</section>
+  <section class="po-block">
+<h2>强基工程与专科应用</h2>
+<p>以崇礼运动损伤康复为例，科室可将复诊准备事项、随访问题和宣教资料整理成可复用的专科工具，供院内及基层协作场景使用。患者在随访中提出的个体康复问题交由医生判断。</p>
+</section>
+</div>
+</article>
+<footer class="po-foot">
+<div class="po-wrap po-foot-in"><span>相关机构</span><a href="https://www.gov.cn/" target="_blank" rel="noopener noreferrer">中国政府网</a><a href="https://www.nhc.gov.cn/" target="_blank" rel="noopener noreferrer">国家卫生健康委员会</a><a href="https://www.pku.edu.cn/" target="_blank" rel="noopener noreferrer">北京大学</a><a class="po-text" data-poroute="about" style="margin-left:auto" href="#static-about">平台介绍</a><button type="button" data-static-control popovertarget="read-about" class="po-text"  style="margin-left:auto">平台介绍</button>
+</div>
+</footer>
+<script src="scripts/portal.js">
+</script>
+</section>
+<section class="cl-view" id="view-doctor" hidden>
+<div id="cl-doctor">
+<div class="dw-localbar">
+<nav class="dw-locallinks" aria-label="医生工作台导航"><button type="button" data-dw-link="doctor">工作摘要</button><button type="button" data-dw-link="doctorFollow">智能随访</button><button type="button" data-dw-link="doctorPersona">数字医生</button><button type="button" data-dw-link="doctorKnowledge">专业知识库</button><button type="button" data-dw-link="doctorResearch">科研工作室</button><button type="button" data-dw-link="doctorRelease">审查与授权</button>
+</nav>
+</div>
+<section id="page-home" aria-label="工作摘要">
+<section class="atlas-home" aria-label="医生工作摘要">
+  <header class="ah-title">
+    <div class="ah-identity">
+<h1>医生工作台</h1><span class="ah-dept">陈医生 · 运动医学科</span>
+</div>
+    <div class="ah-context"><time datetime="2026-11-19">11月19日 <span class="ah-daymeta">· 演示日</span></time><span class="ah-weather">崇礼 晴 −3～4°C <span class="ah-daymeta">（示例）</span></span>
+</div>
+  </header>
+  <div class="ah-bento">
+    <section class="ah-surface ah-follow" aria-labelledby="ah-follow-label">
+      <div class="ah-follow-body">
+        <div class="ah-cardtop">
+<h2 class="ah-cardhead" id="ah-follow-label"><span class="ah-symbol"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 5H6a2 2 0 0 0-2 2v13h16V7a2 2 0 0 0-2-2h-3"/><rect x="9" y="3" width="6" height="4" rx="1.5"/><path d="m8 14 2.5 2.5L16 11"/></svg></span>今日随访</h2><span id="dw-impact" class="ah-reviewed" aria-live="polite">已复核 4 份</span>
+</div>
+        <div class="ah-progress">
+          <div class="ah-ring" role="img" aria-label="随访反馈率 75%，已收到 6 份，共发出 8 份">
+            <svg aria-hidden="true" viewBox="0 0 128 128"><defs><linearGradient id="ah-green-gradient" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#258c8d"/><stop offset=".5" stop-color="#12a791"/><stop offset="1" stop-color="#60c995"/></linearGradient></defs><circle cx="64" cy="64" r="52" fill="none" stroke="#eaf3ee" stroke-width="13"/><circle cx="64" cy="64" r="52" fill="none" stroke="url(#ah-green-gradient)" stroke-width="13" pathLength="100" stroke-dasharray="75 25" stroke-linecap="round" transform="rotate(-90 64 64)"/></svg>
+            <span class="ah-ring-center" aria-hidden="true">75<small>%</small></span>
+          </div>
+          <div class="ah-progress-copy"><b>已收到 6 份反馈</b><small>共发出 8 份随访，另有 2 份待回复。</small>
+</div>
+        </div>
+      </div>
+      <button class="ah-actionrow" id="ah-review" type="button">
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3z"/><path d="M7 9h9m-9 4h5"/></svg><span id="ah-status" aria-live="polite">2 条反馈待你复核</span></span><span id="ah-review-cta">查看反馈</span>
+      </button>
+    </section>
+    <section class="ah-surface ah-replies" aria-labelledby="ah-reply-label">
+      <h2 class="ah-cardhead" id="ah-reply-label"><span class="ah-symbol blue"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19V7m5 12V4m5 15V9m5 10V6"/></svg></span>数字医生回复</h2>
+      <div class="ah-chartnum"><strong>18</strong><span>条 · 今日</span>
+</div>
+      <div class="ah-spark" role="img" aria-label="11 月 13 日至 19 日每日回复数量，依次为 8、12、10、15、13、17、18 条">
+        <span style="--h:44.4%" title="11 月 13 日 · 8 条"></span><span style="--h:66.7%" title="11 月 14 日 · 12 条"></span><span style="--h:55.6%" title="11 月 15 日 · 10 条"></span><span style="--h:83.3%" title="11 月 16 日 · 15 条"></span><span style="--h:72.2%" title="11 月 17 日 · 13 条"></span><span style="--h:94.4%" title="11 月 18 日 · 17 条"></span><span style="--h:100%" title="11 月 19 日 · 18 条"></span>
+      </div>
+      <div class="ah-chartfoot"><span>11 月 13 日</span><span class="ah-chart-end">今天</span>
+</div>
+    </section>
+  </div>
+  <section class="ah-surface ah-tools" aria-label="知识检索与数字医生">
+    <div>
+      <h2 class="ah-cardhead">查找专业资料</h2>
+      <form class="ah-query" id="ah-query-form" role="search"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input type="search" name="query" aria-label="搜索专业资料" placeholder="输入专科、疾病或指南名称" autocomplete="off"><button type="submit">搜索</button>
+</form>
+    </div>
+    <button type="button" class="ah-doctor"><span class="ah-symbol lilac"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="7.8" r="3.6"/><path d="M5 21v-3a7 7 0 0 1 14 0v3m-9-5 2 2 2-2"/></svg></span><span><strong>我的数字医生</strong><small>调整回复风格，预览患者体验</small></span><span aria-hidden="true" class="ah-next">›</span></button>
+  </section>
+</section>
+<script src="scripts/doctor-summary.js">
+</script>
+<div class="dw-service">
+<div><b>服务版本</b><span id="dw-service-summary"></span>
+</div><button type="button" class="dw-release">审查与授权</button>
+</div>
+</section>
+<section id="page-followup" aria-labelledby="fu-platform-title" hidden>
+<div class="fu-work">
+  <header class="fu-heading dw-platform-head">
+    <div>
+<p class="dw-platform-english" lang="en">Patient Services &amp; Follow-up</p>
+<h1 id="fu-platform-title">患者服务与智能随访平台</h1>
+<p class="dw-platform-info">今日计划 8 人，已收到 6 份随访反馈。</p>
+</div>
+    <button type="button" id="fu-patient" class="dw-platform-link">预览患者端</button>
+  </header>
+  <div class="fu-shell">
+<aside class="fu-queue" aria-label="随访记录">
+<div class="fu-queue-inner">
+<h2>随访反馈队列</h2>
+<div class="fu-tabs" aria-label="筛选反馈"><button type="button" data-fu-filter="pending" aria-pressed="true">待复核<span id="fu-pending"></span></button><button type="button" data-fu-filter="done" aria-pressed="false">已复核<span id="fu-done"></span></button>
+</div>
+</div>
+<div id="fu-list" class="fu-list">
+</div>
+</aside>
+    <section id="fu-record" class="fu-record" aria-label="反馈详情">
+</section>
+  </div>
+<p class="fu-live" id="fu-live" role="status">
+</p>
+</div>
+<script src="scripts/followup.js">
+</script>
+</section>
+<section id="page-doctor" aria-labelledby="drb-platform-title" hidden>
+<div class="drb">
+  <header class="drb-header dw-platform-head">
+    <div>
+<p class="dw-platform-english" lang="en">Digital Doctor Builder</p>
+<h1 id="drb-platform-title">数字医生构建平台</h1>
+<p class="dw-platform-info">陈医生 · 专业设置与回复预览</p>
+</div>
+    <button class="drb-primary" type="button" id="drb-save">保存配置草稿</button>
+  </header>
+  <div class="drb-layout">
+    <section class="drb-card drb-pad" aria-labelledby="drb-setup">
+      <div class="drb-row">
+<h2 id="drb-setup">专业与回复设置</h2><span class="drb-badge" id="drb-draft">演示草稿</span>
+</div>
+      <div class="drb-field"><label class="drb-label" for="drb-focus">细分专业<small>运动医学科</small></label>
+<div class="drb-choice"><select id="drb-focus"><option>膝关节</option><option>肩关节</option><option>运动损伤</option><option>术后康复</option></select><button class="drb-link" type="button" id="drb-kb">查看专业知识库</button>
+</div>
+</div>
+      <div class="drb-field" role="group" aria-labelledby="drb-tone-label"><span class="drb-label" id="drb-tone-label">回复语气</span>
+<div class="drb-options">
+        <label class="drb-opt"><input type="radio" name="drb-tone" value="kind" checked><span>亲切自然</span></label><label class="drb-opt"><input type="radio" name="drb-tone" value="direct"><span>简洁直接</span></label><label class="drb-opt"><input type="radio" name="drb-tone" value="formal"><span>专业严谨</span></label>
+      </div>
+</div>
+      <div class="drb-field" role="group" aria-labelledby="drb-depth-label"><span class="drb-label" id="drb-depth-label">回复深度</span>
+<div class="drb-options">
+        <label class="drb-opt"><input type="radio" name="drb-depth" value="short" checked><span>只说重点</span></label><label class="drb-opt"><input type="radio" name="drb-depth" value="steps"><span>分步说明</span></label>
+      </div>
+</div>
+      <section class="cx-subsection" aria-labelledby="drb-package">
+<h3 id="drb-package">本次版本内容</h3><dl class="cx-facts">
+        <div><dt>拟发布版本</dt><dd id="drb-candidate"></dd>
+</div>
+        <div><dt>已选资料</dt><dd id="drb-sources"></dd>
+</div>
+        <div><dt>服务范围</dt><dd>健康宣教、就诊准备、随访信息收集</dd>
+</div>
+        <div><dt>转交医生</dt><dd>涉及个人诊疗或康复方案时，由主管医生判断。</dd>
+</div>
+      </dl>
+</section>
+      <div class="drb-actions"><button class="drb-secondary" type="button" id="drb-review">审查与授权</button><small id="drb-live-version"></small>
+</div>
+      <p id="drb-feedback" role="status" class="drb-live">
+</p>
+<div id="drb-report" class="drb-rev" hidden>
+</div>
+    </section>
+    <section class="drb-card" aria-labelledby="drb-pview">
+      <div class="drb-profile">
+<div class="drb-avatar" aria-hidden="true">陈</div>
+<div><span class="drb-prof-tag">崇礼院区 · 运动医学科</span>
+<h2>陈医生的数字医生</h2>
+<p id="drb-focus-title">膝关节 · 复诊准备</p>
+</div>
+</div>
+      <div class="drb-preview">
+<div class="drb-row">
+<h3 id="drb-pview">患者视角 · 试答</h3>
+</div>
+        <label class="cx-label" for="drb-scenario">选择试答场景</label><select id="drb-scenario" class="cx-control"><option value="visit">复诊资料准备</option><option value="follow">随访记录提交</option><option value="scope">个体康复方案</option></select>
+        <p class="drb-question" id="drb-question">复诊前，我可以准备些什么？</p>
+<p class="drb-answer-label">数字医生的示例回复</p>
+<p id="drb-answer" class="drb-answer">
+</p>
+<p class="drb-foot">此处使用示例回复。核对表达与服务范围后，可保存草稿并查看版本审查进度。</p>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="scripts/doctor-profile.js">
+</script>
+</section>
+<section id="page-knowledge" aria-label="专业知识库" hidden>
+<div class="kb" id="kb-app">
+ <header class="kb-head">
+<div><span class="kb-eyebrow" lang="en">KNOWLEDGE LIBRARY</span>
+<h1>专业知识库</h1>
+</div>
+<div class="kb-mode" aria-label="资料范围" role="group"><button type="button" data-kbmode="discover" aria-pressed="true">发现资料</button><button type="button" data-kbmode="saved" aria-pressed="false">已加入 <span id="kb-saved-count">0</span></button>
+</div>
+</header>
+ <section class="kb-searchcard" aria-label="资料检索">
+<h2>查找专科指南与临床资料</h2>
+<form class="kb-searchbox" role="search" id="kb-search-form"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10.5" cy="10.5" r="6.7"/><path d="m16 16 5 5"/></svg><input aria-label="搜索指南、疾病或资料名称" id="kb-search" type="search" autocomplete="off" placeholder="搜索指南、疾病或资料名称"><button type="submit" class="kb-primary">搜索</button>
+</form>
+<div class="kb-hot"><span>常用检索</span><button type="button" data-kbq="膝关节">膝关节</button><button type="button" data-kbq="术后随访">术后随访</button><button type="button" data-kbq="康复">康复</button>
+</div>
+</section>
+ <section class="kb-surface" aria-label="检索结果">
+<div class="kb-filters">
+<div class="kb-topics" aria-label="专科范围" role="group"><button data-kbtopic="全部专科" aria-pressed="true">全部专科</button><button data-kbtopic="运动医学" aria-pressed="false">运动医学</button><button data-kbtopic="骨科" aria-pressed="false">骨科</button><button data-kbtopic="康复医学" aria-pressed="false">康复医学</button>
+</div><label class="kb-origin">来源<select id="kb-origin"><option>全部来源</option><option>国内</option><option>国际</option><option>院内</option></select></label>
+</div>
+<div class="kb-toolbar">
+<h2><span id="kb-list-title">可选资料</span> <span class="kb-count" id="kb-total"></span>
+</h2><button class="kb-primary kb-import" type="button" id="kb-import" disabled>加入知识库</button>
+</div>
+<ul class="kb-rows" id="kb-rows">
+</ul>
+<div class="kb-empty" id="kb-empty" hidden>
+<p id="kb-empty-message">
+</p><button type="button" id="kb-clear"></button>
+</div>
+</section>
+ <p class="kb-foot">演示知识库保存资料索引及来源链接。</p>
+<div id="kb-live" class="kb-sr" role="status" aria-live="polite">
+</div>
+ <dialog id="kb-dialog" aria-labelledby="kb-dialog-title">
+<div class="kb-dialoghead">资料详情<button class="kb-close" id="kb-close" type="button">关闭</button>
+</div>
+<h3 id="kb-dialog-title">
+</h3>
+<div class="kb-dialogmeta" id="kb-dialog-meta">
+</div>
+<p id="kb-description">
+</p>
+<div class="kb-dialogactions"><a id="kb-official" href="https://www.nice.org.uk/guidance/ng226/chapter/Recommendations" target="_blank" rel="noopener noreferrer">查看 NICE 原文</a><button class="kb-primary" id="kb-dialog-select" type="button"></button>
+</div>
+</dialog>
+</div>
+<script src="scripts/knowledge.js">
+</script>
+</section>
+<section id="page-research" aria-labelledby="rs-platform-title" hidden>
+<div class="rs">
+  <header class="dw-platform-head">
+    <div>
+<p class="dw-platform-english" lang="en">Medical Research Workspace</p>
+<h1 id="rs-platform-title">医学科研辅助平台</h1>
+<p class="dw-platform-info">病例整理 · 原文核对与结构化摘录</p>
+</div>
+    <button class="rs-primary" id="rs-import" type="button" aria-controls="rs-intake">导入病例材料</button>
+  </header>
+  <div class="rs-grid">
+    <section class="rs-panel" aria-labelledby="rs-source-title">
+      <div class="rs-panelhead"><span class="rs-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7m-7 4h5"/></svg></span>
+<h2 id="rs-source-title">原始材料</h2>
+</div>
+      <label class="rs-picklabel" for="rs-source">选择病例材料</label>
+      <select id="rs-source"><option value="follow">术后随访 · 患者联系请求</option><option value="rehab">运动康复 · 复诊资料准备</option><option value="local">本地材料 · 我的病例草稿</option></select>
+      <p class="cx-source-meta" id="rs-source-meta">
+</p>
+<ol class="rs-sources" id="rs-source-lines" aria-label="原文逐句记录">
+</ol>
+      <details class="rs-intake" id="rs-intake"><summary>本地材料与摘录</summary>
+<p class="rs-intro">请使用脱敏材料。可核对文本、图片、PDF 和录音，手动摘录病例字段。材料和草稿仅保留至退出账号或刷新页面，可提前导出。</p>
+      <label for="rs-upload">选择一个或多个文件</label><input type="file" multiple id="rs-upload" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.m4a,.ogg,.aac,.flac">
+      <label for="rs-file-list">摘录来源</label><select id="rs-file-list"><option value="">手动录入</option></select>
+      <div class="rs-file-preview" id="rs-file-preview">
+</div>
+      <div class="cx-rs-fields">
+<div><label for="rs-section">归入病例字段</label><select id="rs-section"><option>材料摘录</option><option>主要诉求</option><option>情况记录</option><option>复诊准备</option><option>待补信息</option></select>
+</div>
+<div><label for="rs-locator">出处位置（选填）</label><input type="text" class="cx-control" id="rs-locator" maxlength="80" placeholder="如第 2 页或 00:35">
+</div>
+</div>
+      <label for="rs-excerpt">已核对的原文或录音摘录</label><textarea id="rs-excerpt" maxlength="4000" placeholder="填写要纳入草稿的文字，可注明页码或时间点"></textarea>
+      <button type="button" class="rs-primary" id="rs-add-excerpt">将摘录加入本地病例草稿</button>
+<p class="rs-intro" id="rs-intake-status" role="status">
+</p>
+</details>
+    </section>
+    <section class="rs-panel" aria-labelledby="rs-output-title">
+      <div class="rs-panelhead"><span class="rs-ico rs-outicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 5h14M3 10h10M3 15h5m7 3-4 1 1-4 6-6 3 3z"/></svg></span>
+<h2 id="rs-output-title">结构化病例草稿</h2>
+</div>
+      <fieldset class="rs-choices"><legend>选择字段，核对原文</legend>
+<div class="rs-chipset" id="rs-field-choices">
+</div>
+</fieldset>
+      <div class="rs-proof" id="rs-proof" aria-live="polite">
+</div>
+      <p id="rs-gaps" class="cx-gap">
+</p>
+      <label class="rs-draftlabel" for="rs-draft">病例正文</label><textarea id="rs-draft" spellcheck="false"></textarea>
+      <div class="rs-actions"><span class="rs-status" id="rs-status" role="status">模拟记录 · 草稿可编辑</span>
+<div class="cx-export"><button type="button" class="rs-secondary" id="rs-export">导出含出处的草稿</button><button class="rs-secondary" id="rs-copy" type="button">复制草稿</button>
+</div>
+</div>
+    </section>
+  </div>
+</div>
+<script src="scripts/research.js">
+</script>
+</section>
+<script src="scripts/doctor-navigation.js">
+</script>
+</div>
+</section>
+<section class="cl-view" id="view-admin" hidden>
+<div class="ad-shell" data-admin-app>
+  <div class="ad-header">
+<div><span class="ad-label" lang="en">Governance &amp; Evaluation</span>
+<h1>数字医生治理与评价平台</h1>
+<p class="ad-sub">核对发布材料、追踪医生授权，查看科室服务表现。</p>
+</div>
+<div class="ad-screen-tools"><button type="button" class="ad-btn ad-primary" data-ad-act="review">审查待发布版本</button><button type="button" class="ad-btn" data-ad-act="screen">查看服务评价</button><a id="ad-screen-pop" class="ad-pop" target="_blank" rel="noopener" hidden>另窗展示</a>
+</div>
+</div>
+  <nav class="ad-tabs" aria-label="院方管理功能"><button class="ad-tab" data-ad-tab="overview">治理工作台</button><button class="ad-tab" data-ad-tab="doctors">医生管理</button><button class="ad-tab" data-ad-tab="review">发布审查</button><button class="ad-tab" data-ad-tab="campus">院区管理</button><button class="ad-tab" data-ad-tab="audit">操作记录</button>
+</nav>
+  <div id="ad-content">
+</div>
+<p role="status" aria-live="polite" id="ad-message" class="ad-feedback">
+</p>
+  <dialog class="ad-dialog" id="ad-dialog" aria-labelledby="ad-dtitle">
+<div class="ad-topline">
+<h2 id="ad-dtitle">处理审查</h2><button type="button" class="ad-textbtn" data-ad-act="close">关闭</button>
+</div>
+<div id="ad-dbody">
+</div>
+</dialog>
+</div>
+<script src="scripts/hospital-administration.js">
+</script>
+</section>
+<section class="cl-view" id="view-doctorRelease" hidden>
+<div class="rl-wrap">
+<header class="rl-head">
+<div>
+<div class="rl-kicker" lang="en">VERSION &amp; AUTHORIZATION</div>
+<h1>审查与授权</h1>
+</div><button class="rl-link" type="button" data-rl-go="doctorPersona">编辑数字医生</button>
+</header>
+<div class="rl-layout">
+<div class="rl-panel-stack">
+<section class="rl-pane">
+<div class="rl-title">
+<h2>陈医生的数字医生</h2><span id="rl-status" class="rl-tag"></span>
+</div>
+<p id="rl-version" class="rl-muted">
+</p>
+<ol class="rl-stepbar" id="rl-steps">
+<li>准备草稿</li>
+<li>院方审查</li>
+<li>医生授权</li>
+<li>启用服务</li>
+</ol>
+<div class="rl-info">
+<h3 id="rl-next">
+</h3>
+<p id="rl-guidance" class="rl-muted">
+</p>
+</div>
+<dl class="rl-meta"><dt>所属科室</dt><dd>崇礼院区 · 运动医学科</dd><dt>服务范围</dt><dd>就诊准备、科普宣教、随访信息收集</dd><dt>转人工</dt><dd>个体诊疗问题或主动联系请求交由医生处理</dd></dl>
+<label id="rl-consent" class="rl-check" hidden><input type="checkbox" id="rl-ack"><span>我已核对本版本及院方审查意见，同意在上述范围内启用演示服务。</span></label>
+<div class="rl-actions"><button id="rl-primary" type="button" class="rl-solid"></button>
+</div>
+</section>
+<section class="rl-pane">
+<div class="rl-title">
+<h2>审查报告</h2><span class="rl-fine">本次演示</span>
+</div>
+<details class="rl-review" id="rl-ai-report"><summary>伦理审查助手 · 查看辅助报告</summary>
+<ul>
+<li><strong>身份提示</strong>　患者示例对话已标注「AI 数字医生」。</li>
+<li><strong>人工联系</strong>　示例答复已指向院方公布的咨询渠道。</li>
+<li><strong>需人工判断</strong>　核对本版本的表达深度和知识来源，确认示例问答符合本科室服务范围。</li>
+</ul>
+<p class="rl-fine" id="rl-report-ver">
+</p>
+<p class="rl-fine">以上为原型内的模拟检查；院方人工意见单独记录。</p>
+</details>
+<div class="rl-review">
+<h3>院方审查意见</h3>
+<p id="rl-note" class="rl-decision">
+</p>
+</div>
+</section>
+</div>
+<aside class="rl-panel-stack">
+<section class="rl-pane rl-service">
+<div class="rl-split">
+<h3>当前服务版本</h3><span id="rl-service-state" class="rl-tag"></span>
+</div>
+<p class="rl-snapshot" id="rl-current">
+</p>
+<p id="rl-diff" class="rl-fine">
+</p>
+<p id="rl-pause-reason" class="rl-fine" hidden>
+</p>
+<div id="rl-resume-area" hidden><label class="rl-check"><input type="checkbox" id="rl-resume-ack"><span>确认恢复已授权的当前服务版本。</span></label><button type="button" id="rl-resume" class="rl-light" disabled>恢复当前服务</button>
+</div>
+</section>
+<section class="rl-pane">
+<h2>服务入口</h2>
+<div class="rl-channel">
+<div>
+<h3>患者网页</h3>
+<p class="rl-fine">以患者视角查看当前版本</p>
+</div><button type="button" data-rl-go="doctorPatientPreview" class="rl-link">预览</button>
+</div>
+<div class="rl-channel">
+<div>
+<h3>渠道交接卡</h3>
+<p class="rl-fine">适用渠道、版本及启用状态</p>
+</div><button type="button" id="rl-export" class="rl-link">导出</button>
+</div>
+<p class="rl-notice" id="rl-message" role="status">
+</p>
+</section>
+</aside>
+</div>
+</div>
+<script src="scripts/release.js">
+</script>
+</section>
+<section class="cl-view" id="view-patient" hidden>
+<div class="pt-wrap"><button type="button" class="pt-back" id="pt-home">返回门户</button>
+<section class="pt-panel">
+<header class="pt-banner"><span class="pt-avatar" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.65"><circle cx="16" cy="10" r="5"/><path d="M6 27c.6-6 4.4-9.1 10-9.1S25.4 21 26 27M12.8 18.8l3.2 4.1 3.2-4.1"/></svg></span>
+<div>
+<div class="pt-eye" id="pt-context">患者服务 · Patient Services</div>
+<h1>陈医生的数字医生</h1>
+<p class="pt-caption" id="pt-service">
+</p>
+</div>
+</header>
+<div class="pt-content">
+<div id="pt-available">
+<h2>今天想了解什么？</h2>
+<p class="pt-caption">选择一个问题即可获得一条示例回复。</p>
+<div class="pt-options" role="group" aria-label="可体验的问题"><button type="button" data-pt-q="prep">复诊前准备什么？</button><button type="button" data-pt-q="visit">怎样填写随访反馈？</button><button type="button" data-pt-q="contact">怎样联系主管医生？</button><button type="button" data-pt-q="education">阅读科普资料要留意什么？</button>
+</div>
+<div class="pt-dialog" id="pt-dialog" aria-live="polite">
+<p class="pt-ask" id="pt-ask">
+</p>
+<div class="pt-sender">AI 数字医生 · 示例答复</div>
+<p class="pt-answer" id="pt-answer">
+</p>
+<p class="pt-source" id="pt-source">
+</p>
+</div>
+</div>
+<div id="pt-unavailable" class="pt-offline" hidden>
+<h2>服务已暂停</h2>
+<p>如需联系医生，请使用院方公布的门诊或咨询渠道。</p>
+</div>
+<p class="pt-note">离线患者体验页，内容为预设示例。如有诊疗问题，请联系接诊医生。</p>
+</div>
+</section>
+</div>
+<script src="scripts/patient.js">
+</script>
+</section>
+<section class="cl-view" id="view-guide" hidden>
+<div class="cg">
+<header class="cg-head">
+<h1>医生操作指南</h1>
+<p>三段带中文字幕的操作动画，带你从第一份草稿走到授权启用。</p>
+</header>
+<div class="cg-layout">
+<article class="cg-card"><video class="cg-media" aria-label="当前章节教学视频，带中文字幕" controls playsinline preload="metadata">请使用下方步骤阅读本节教程。</video>
+<div class="cg-caption">
+<div class="cg-titleline">
+<h2 id="cg-name">
+</h2><button type="button" class="cg-try">前往操作</button>
+</div>
+<div class="cg-steps" aria-label="按时间定位教学步骤">
+</div>
+</div>
+</article>
+<nav class="cg-list" aria-label="教程目录">
+<h2>课程章节</h2>
+</nav>
+</div>
+</div>
+<script src="scripts/guide.js">
+</script>
+</section>
+<section class="cl-view" id="view-screen" hidden>
+<script src="scripts/department-detail.js">
+</script>
+
+<div class="ld-shell" id="ld-app">
+<header class="ld-head">
+<div class="ld-brand"><span class="ld-campus-mark" aria-hidden="true"><img class="ld-parent-logo" alt="" src="assets/pku-third-hospital.png" width="387" height="94"><img class="ld-chongli-logo" alt="" src="assets/hospital-logo.png" width="373" height="64"></span>
+<div>
+<div class="ld-brandline">北京大学第三医院崇礼院区 · AI 医生服务评价</div>
+<h1 id="ld-title">院领导工作台</h1>
+</div>
+</div>
+<div class="ld-headright"><button type="button" id="ld-back" class="ld-btn" aria-label="返回门户"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 9 7-6 7 6v8h-5v-5H8v5H3z"/></svg><span>返回门户</span></button><button type="button" id="ld-full" class="ld-btn" aria-label="全屏展示"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5m4 0h5v5M3 12v5h5m9-5v5h-5"/></svg><span>全屏展示</span></button>
+</div>
+</header>
+<div class="ld-tools">
+<nav class="ld-crumb" id="ld-crumb" aria-label="评价范围">
+</nav>
+<div class="ld-timecontrols"><span class="ld-datebox" id="ld-dates"></span><select id="ld-period" aria-label="统计周期"><option value="30">近 30 天</option><option value="7">近 7 天</option><option value="1">单日</option></select><button id="ld-filters" class="ld-btn" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M6 10h8m-5 5h2"/></svg>筛选</button>
+</div>
+</div>
+<div class="ld-filtermarks" id="ld-filtermarks" hidden>
+</div>
+<div class="ld-kpis" aria-label="服务覆盖与使用">
+<section class="ld-kpi">
+<h2>服务患者</h2>
+<div class="ld-kpinum"><strong id="ld-patients"></strong><small>人</small>
+</div>
+<p class="ld-change" id="ld-patients-change">
+</p>
+</section>
+<section class="ld-kpi">
+<h2>服务次数</h2>
+<div class="ld-kpinum"><strong id="ld-services"></strong><small>次</small>
+</div>
+<p class="ld-change" id="ld-services-change">
+</p>
+</section>
+<section class="ld-kpi">
+<h2>沟通轮次</h2>
+<div class="ld-kpinum"><strong id="ld-rounds"></strong><small>轮</small>
+</div>
+<p class="ld-change" id="ld-rounds-change">
+</p>
+</section>
+<section class="ld-origins">
+<h2>患者来源区域 <small>人数占比</small>
+</h2>
+<div id="ld-regions">
+</div>
+</section>
+</div>
+<div id="ld-hospital">
+<div class="ld-pair">
+<section class="ld-panel">
+<div class="ld-panelhead">
+<h2>服务需求与预测</h2>
+<div class="ld-legend"><span><i></i>已记录</span><span><i class="future"></i>预测</span>
+</div>
+</div>
+<div class="ld-fc-summary" id="ld-fc-summary">
+</div><figure class="ld-plot" id="ld-plot" aria-label="每日服务次数与未来七天的演示预测"></figure>
+<p class="ld-actionnote" id="ld-action">
+</p>
+</section>
+<section class="ld-panel">
+<div class="ld-panelhead">
+<h2>科室服务表现</h2><small>选择科室查看详情</small>
+</div>
+<div class="ld-dept-head"><span>科室</span><span>服务次数</span><span>任务完成率</span><span>抽检合格率</span>
+</div>
+<div id="ld-depts">
+</div>
+<p class="ld-dept-foot">按服务次数排列 · 质量指标来自专家抽检样本</p>
+<p id="ld-quality-note" class="ld-quality-note">
+</p>
+</section>
+</div>
+<section class="ld-panel ld-eval">
+<div class="ld-panelhead">
+<h2>AI 医生服务评价</h2><small>全院汇总</small>
+</div>
+<div class="ld-evals" id="ld-evals">
+</div>
+</section>
+</div>
+<div id="ld-detail" hidden>
+</div>
+<footer class="ld-tail"><span id="ld-foot">崇礼院区 · 模拟服务记录</span><button type="button" class="ld-link" id="ld-method">指标与预测口径</button>
+</footer>
+<p class="ld-soft" id="ld-notice" role="status">
+</p>
+<dialog class="ld-dialog" id="ld-filterbox">
+<div class="ld-panelhead">
+<h2>筛选服务记录</h2><button class="ld-btn" type="button" data-ld-close="ld-filterbox">关闭</button>
+</div>
+<div class="ld-grid-f" id="ld-filterfields">
+</div>
+<div class="ld-dialog-footer"><button class="ld-btn" type="button" id="ld-clear-filters">清除筛选</button><button class="ld-btn ld-primary" type="button" id="ld-apply">应用筛选</button>
+</div>
+</dialog>
+<dialog class="ld-dialog" id="ld-methodbox">
+<div class="ld-panelhead">
+<h2>指标与预测口径</h2><button class="ld-btn" type="button" data-ld-close="ld-methodbox">关闭</button>
+</div>
+<div id="ld-methodcopy">
+</div>
+</dialog>
+</div>
+<script src="scripts/leadership.js">
+</script>
+</section>
+<section class="cl-static" aria-labelledby="static-title">
+<h2 id="static-title">平台导览</h2>
+<p>当前窗口使用只读预览。下载本页 HTML 后用浏览器打开，可操作工作台、院方后台和运行大屏。</p>
+<details id="static-accounts" open><summary>选择演示账号</summary><p>当前为只读预览。</p><ul><li><a href="#static-rolePatient">患者 · PT1001</a></li><li><a href="#static-roleDoctor">医生 · CL1001</a></li><li><a href="#static-roleDirector">科主任 · CL2001</a></li><li><a href="#static-roleLeader">院领导 · CL3001</a></li><li><a href="#static-roleReviewer">院方审核人员 · CL4001</a></li><li><a href="#static-roleAdmin">院方管理员 · CL5001</a></li></ul><a href="#po-home">返回首页</a></details>
+<details id="static-doctor" open><summary>医生工作台</summary>
+<p>陈医生的演示工作台有 2 份待复核随访。可查阅反馈、配置数字医生、选入专业资料，并将科研素材整理为病例草稿。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-doctorPersona" open><summary>数字医生构建平台</summary>
+<p>陈医生 · 运动医学科</p>
+<details><summary>专科与服务范围 · 膝关节 · 拟发布 v1.3</summary>
+<p><b>细分专业</b>　膝关节</p>
+<p><b>回复设置</b>　亲切自然，优先说明重点。</p>
+<p><b>服务范围</b>　健康宣教、就诊准备、随访信息收集。</p>
+<p><b>当前状态</b>　v1.2 已授权服务，v1.3 已提交院方审查。</p>
+</details>
+<details><summary>患者视角试答 · 复诊资料准备</summary>
+<p><b>核对重点</b>　回复是否符合已选专业、风格和深度。</p>
+<p><b>人工判断</b>　涉及个人诊疗或康复方案，转交主管医生判断。</p>
+</details><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-doctorFollow" open><summary>患者服务与智能随访平台</summary>
+<p>陈医生 · 待复核反馈 2 份</p>
+<details><summary>患者示例 A · 09:10 · 术后随访</summary>
+<p><b>已知信息</b>　患者已记录近期活动情况。</p>
+<p><b>患者诉求</b>　希望主管医生方便时联系。</p>
+<p><b>复核重点</b>　核对联系诉求及是否需要补充回访安排。</p>
+</details>
+<details><summary>患者示例 B · 10:35 · 康复随访</summary>
+<p><b>已知信息</b>　本周康复记录已整理。</p>
+<p><b>患者诉求</b>　希望确认下一阶段安排。</p>
+<p><b>复核重点</b>　由主管医生结合康复记录判断。</p>
+</details><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-doctorResearch" open><summary>医学科研辅助平台</summary>
+<p>研究材料 · 原文与病例草稿</p>
+<details><summary>术后随访记录 · 患者联系请求 · 文本摘录</summary>
+<p><b>情况记录</b>　患者自述已记录本周活动情况。</p>
+<p><b>主要诉求</b>　希望主管医生来电联系。</p>
+<p><b>复诊准备</b>　患者表示下次复诊将携带活动记录。</p>
+<p><b>待补信息</b>　手术日期、疼痛评分、检查结果。</p>
+</details>
+<details><summary>运动康复记录 · 复诊资料准备 · 文本摘录</summary>
+<p><b>情况记录</b>　患者自述已整理本周康复日记。</p>
+<p><b>主要诉求</b>　询问复诊前还需准备哪些材料。</p>
+<p><b>复诊准备</b>　计划携带康复日记至运动医学科复诊。</p>
+<p><b>待补信息</b>　康复项目、训练强度、体格检查结果。</p>
+</details><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-admin" open><summary>数字医生治理与评价平台</summary>
+<p>院方工作台 · 版本授权和服务质量</p>
+<details><summary>数字医生发布申请 · 运动医学科 · v1.3 待审</summary>
+<p><b>当前服务</b>　v1.2 已获医生授权。</p>
+<p><b>申请版本</b>　v1.3 已提交，等待院方审查。</p>
+<p><b>核对内容</b>　版本服务范围、所用专科资料、需要转交医生的场景。</p>
+<p><b>下一环节</b>　通过后由医生核对报告并确认授权。退回时附修改意见。</p>
+</details>
+<details><summary>全院服务评价 · 科室、地区与时间维度</summary>
+<p><b>服务覆盖</b>　查看服务患者、服务次数与沟通轮次，按科室、病种和患者来源地区筛选。</p>
+<p><b>专业表现</b>　结合专家抽检样本和转交人工的情况核对表现。</p>
+<p><b>随访成效</b>　查看随访任务完成情况和需由医生复核的反馈。</p>
+<p><b>需求预测</b>　查看下一周的服务需求预测，辅助安排随访与人工复核。</p>
+</details><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-roleDoctor" open><summary>医生工作台</summary>
+<p>陈医生 · 运动医学科</p>
+<p>待复核反馈 2 份 · 今日已复核 4 份 · 服务版本 v1.2</p>
+<details class="rp-task" open><summary>复核患者随访反馈</summary><dl>
+<div><dt>患者示例 A</dt><dd>已记录近期活动，希望主管医生联系。</dd>
+</div>
+<div><dt>患者示例 B</dt><dd>已整理本周康复记录，希望确认后续安排。</dd>
+</div>
+<div><dt>处理记录</dt><dd>核对患者原话，填写跟进方式及复核备注，保存后可在已复核队列回查。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>维护我的数字医生</summary><dl>
+<div><dt>当前设置</dt><dd>膝关节方向，亲切自然，只说重点。</dd>
+</div>
+<div><dt>待发布版本</dt><dd>v1.3 正在院方审查。医生阅读审查报告并授权后，患者端才会切换版本。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>整理科研材料</summary><dl>
+<div><dt>原始材料</dt><dd>可导入已准备好的病例资料，核对相关摘录。</dd>
+</div>
+<div><dt>研究草稿</dt><dd>按情况记录、主要诉求和待补信息整理，并保留每条摘录的原始出处。</dd>
+</div></dl>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
+</details>
+<details id="static-roleDirector" open><summary>科主任工作台</summary>
+<p>运动医学科 · 2026-11-13 至 2026-11-19</p>
+<p>服务患者 240 人 · 服务次数 248 次 · 沟通轮次 706 轮</p>
+<details class="rp-task" open><summary>本科数字医生服务量</summary><dl>
+<div><dt>运动医学 AI 01</dt><dd>129 次服务 · 370 轮沟通</dd>
+</div>
+<div><dt>运动医学 AI 02</dt><dd>119 次服务 · 336 轮沟通</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>核对服务质量</summary><dl>
+<div><dt>专家抽检</dt><dd>抽检 53 次，通过 50 次。</dd>
+</div>
+<div><dt>随访完成</dt><dd>48 次随访服务中，按时完成 43 次。</dd>
+</div>
+<div><dt>人工承接</dt><dd>35 次转人工，其中 27 次已闭环。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>查看未来七天服务需求</summary><dl>
+<div><dt>需求预测</dt><dd>预计 224 次，参考范围 183 至 253 次。</dd>
+</div>
+<div><dt>估算口径</dt><dd>依据本范围近 28 天的服务记录，按同一星期几加权估算。</dd>
+</div></dl>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
+</details>
+<details id="static-roleLeader" open><summary>院领导工作台</summary>
+<p>崇礼院区全院 · 2026-11-13 至 2026-11-19</p>
+<p>服务患者 504 人 · 服务次数 553 次 · 沟通轮次 1,578 轮</p>
+<details class="rp-task" open><summary>各科室服务量</summary><dl>
+<div><dt>运动医学科</dt><dd>248 次服务 · 706 轮沟通</dd>
+</div>
+<div><dt>康复医学科</dt><dd>153 次服务 · 452 轮沟通</dd>
+</div>
+<div><dt>骨科</dt><dd>152 次服务 · 420 轮沟通</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>核对服务质量</summary><dl>
+<div><dt>专家抽检</dt><dd>抽检 120 次，通过 111 次。</dd>
+</div>
+<div><dt>随访完成</dt><dd>165 次随访服务中，按时完成 144 次。</dd>
+</div>
+<div><dt>人工承接</dt><dd>70 次转人工，其中 59 次已闭环。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>查看未来七天服务需求</summary><dl>
+<div><dt>需求预测</dt><dd>预计 533 次，参考范围 475 至 567 次。</dd>
+</div>
+<div><dt>估算口径</dt><dd>依据本范围近 28 天的服务记录，按同一星期几加权估算。</dd>
+</div></dl>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
+</details>
+<details id="static-roleReviewer" open><summary>院方审核工作台</summary>
+<p>崇礼院区 · 数字医生版本审查</p>
+<p>待审申请 1 件 · 申请版本 v1.3 · 现行版本 v1.2</p>
+<details class="rp-task" open><summary>运动医学科 · 数字医生发布申请</summary><dl>
+<div><dt>申请记录</dt><dd>陈医生于 11 月 19 日 09:10 提交 v1.3。</dd>
+</div>
+<div><dt>版本对照</dt><dd>核对细分专业、回复方式、引用资料和拟提供的服务。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>查阅辅助报告与待核材料</summary><dl>
+<div><dt>核对重点</dt><dd>AI 身份提示、知识来源与服务范围是否一致，需人工判断的问题如何交回医生。</dd>
+</div>
+<div><dt>审查依据</dt><dd>审查助手列出核对要点，院方审核人员结合提交材料作出审查意见。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>审查意见与流转</summary><dl>
+<div><dt>退回修改</dt><dd>记录具体问题和需补充的材料，交回医生修订。</dd>
+</div>
+<div><dt>审查通过</dt><dd>记录通过意见，交由提交医生阅读审查报告并确认授权。</dd>
+</div></dl>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
+</details>
+<details id="static-roleAdmin" open><summary>院方管理工作台</summary>
+<p>崇礼院区 · 数字医生运行管理</p>
+<p>入驻医生 3 位 · 覆盖科室 3 个 · 服务中 3 位</p>
+<details class="rp-task" open><summary>管理医生名册</summary><dl>
+<div><dt>运动医学科</dt><dd>陈医生 · 服务中 · v1.2。</dd>
+</div>
+<div><dt>康复医学科</dt><dd>林医生 · 服务中 · v1.1。</dd>
+</div>
+<div><dt>骨科</dt><dd>周医生 · 服务中 · v1.0。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>登记医生邀请</summary><dl>
+<div><dt>邀请信息</dt><dd>填写受邀医生姓名与拟入驻科室。</dd>
+</div>
+<div><dt>邀请清单</dt><dd>已登记的邀请进入待确认名单，可在院区管理中回查。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>核对运行状态与操作记录</summary><dl>
+<div><dt>运行状态</dt><dd>根据医生与科室筛选，查看服务版本、运行情况及暂停记录。</dd>
+</div>
+<div><dt>操作留痕</dt><dd>查阅变更时间、经办身份和具体说明。</dd>
+</div></dl>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
+</details>
+<details id="static-rolePatient" open><summary>患者服务</summary>
+<p>运动医学科 · 陈医生的数字医生</p>
+<p>服务身份 AI 数字医生 · 所属科室 运动医学科 · 服务版本 v1.2</p>
+<details class="rp-task" open><summary>就诊前准备</summary><dl>
+<div><dt>准备资料</dt><dd>将已有就诊记录、检查资料和本次希望讨论的问题整理在一起。</dd>
+</div>
+<div><dt>科室通知</dt><dd>具体携带要求以接诊科室通知为准。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>如何填写随访反馈</summary><dl>
+<div><dt>记录近况</dt><dd>按随访表的问题填写近期活动情况和变化。</dd>
+</div>
+<div><dt>联系意愿</dt><dd>如希望主管医生联系，可在反馈中写明。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>阅读健康宣教</summary><dl>
+<div><dt>核对来源</dt><dd>查看发布机构、作者、日期及资料适用人群。</dd>
+</div>
+<div><dt>就诊沟通</dt><dd>可记下疑问及原始出处，在就诊时与医生沟通。</dd>
+</div></dl>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
+</details>
+<details id="static-screen" open><summary>AI 医生服务与成效大屏</summary>
+<p>院级总览展示服务患者、服务次数、沟通轮次及科室表现。进入科室后可按数字医生、主诉、病种、地区和渠道核对服务质量与成效。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-patient" open><summary>患者体验</summary>
+<p>陈医生的数字医生可协助就诊准备、健康宣教和随访资料采集，当前演示服务版本为 v1.2。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+<details id="static-guide" open><summary>数字医生搭建教程</summary>
+<ol><li>选择细分专业、回复风格和深度，试答后保存草稿。</li><li>核对资料的来源和日期，将选定条目加入知识库。</li><li>提交版本，查阅院方审查报告，通过后由医生本人授权启用。</li></ol><button type="button" data-static-control popovertarget="read-guide">观看分步教程</button><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview">返回首页</button>
+</details>
+<details id="static-about" open><summary>平台介绍</summary>
+<p>崇礼AI元医院智能化平台面向北京大学第三医院崇礼院区的专科服务与管理需求，下设四个业务子平台，分别为数字医生构建平台、患者服务与智能随访平台、医学科研辅助平台和数字医生治理与评价平台。四个平台通过版本审查与授权、服务评价与改进两项机制协同运行。医生遴选专科资料、设定服务范围，经院方审查、医生本人授权后，数字医生可用于就诊准备、健康宣教和康复随访。科研人员可整理多种形式的资料，形成可回查来源的结构化病例草稿。院领导和科主任可结合服务覆盖、专家抽检结果及随访完成情况，指导科室更新知识、改进服务，为专科经验向基层推广提供支撑。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+</details>
+</section>
+</main>
+<section popover id="read-overview" class="cl-read-panel" aria-label="崇礼AI元医院智能化平台">
+<h2>崇礼AI元医院智能化平台</h2>
+<p>患者与院内人员使用统一入口。选择演示账号后，可查看该账号对应的服务。</p>
+<p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-overview" popovertargetaction="hide">返回首页</button>
+</section>
+<section popover id="read-doctor" class="cl-read-panel" aria-label="医生工作台">
+<h2>医生工作台</h2>
+<p>陈医生有 2 份随访反馈待复核。工作台提供智能随访、数字医生配置、专业知识库、科研工作室和版本授权。</p>
+<p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-doctor" popovertargetaction="hide">返回首页</button>
+</section>
+<section popover id="read-screen" class="cl-read-panel" aria-label="AI 医生服务与成效">
+<h2>AI 医生服务与成效</h2>
+<p>按科室比较服务覆盖、任务完成、专家抽检和随访成效，可进入数字医生明细或查看下一周服务需求。</p>
+<p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-screen" popovertargetaction="hide">返回首页</button>
+</section>
+<section popover id="read-patient" class="cl-read-panel" aria-label="患者体验">
+<h2>患者体验</h2>
+<p>陈医生的数字医生提供健康宣教、就诊准备与随访信息采集，当前示例为已授权 v1.2。</p>
+<p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-patient" popovertargetaction="hide">返回首页</button>
+</section>
+<section popover id="read-guide" class="cl-read-panel" aria-label="数字医生搭建教程">
+<h2>数字医生搭建教程</h2>
+<p>每节 15 秒，带中文字幕。展开章节即可播放。</p>
+<details name="read-guide-chapters" open><summary>设定数字医生的回复方式</summary><video class="cg-media" aria-label="设定数字医生的回复方式，带中文字幕" controls playsinline preload="none" poster="assets/guide-doctor.jpg" src="assets/guide-doctor.mp4"></video><p>选择细分专业、回复风格和深度，试答后保存草稿。</p></details>
+<details name="read-guide-chapters"><summary>核对资料并加入知识库</summary><video class="cg-media" aria-label="核对资料并加入知识库，带中文字幕" controls playsinline preload="none" poster="assets/guide-knowledge.jpg" src="assets/guide-knowledge.mp4"></video><p>按专科和来源筛选，核对发布机构和日期，将选定的来源索引加入知识库。</p></details>
+<details name="read-guide-chapters"><summary>从草稿到授权启用</summary><video class="cg-media" aria-label="从草稿到授权启用，带中文字幕" controls playsinline preload="none" poster="assets/guide-release.jpg" src="assets/guide-release.mp4"></video><p>提交版本，查阅院方审查报告，通过后由医生本人授权启用。</p></details>
+<button type="button" popovertarget="read-guide" popovertargetaction="hide">返回首页</button>
+</section>
+<section popover id="read-about" class="cl-read-panel" aria-label="平台介绍">
+<h2>平台介绍</h2>
+<p>崇礼AI元医院智能化平台面向北京大学第三医院崇礼院区的专科服务与管理需求，下设四个业务子平台，分别为数字医生构建平台、患者服务与智能随访平台、医学科研辅助平台和数字医生治理与评价平台。四个平台通过版本审查与授权、服务评价与改进两项机制协同运行。医生遴选专科资料、设定服务范围，经院方审查、医生本人授权后，数字医生可用于就诊准备、健康宣教和康复随访。科研人员可整理多种形式的资料，形成可回查来源的结构化病例草稿。院领导和科主任可结合服务覆盖、专家抽检结果及随访完成情况，指导科室更新知识、改进服务，为专科经验向基层推广提供支撑。</p>
+<p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-about" popovertargetaction="hide">返回首页</button>
+</section>
+<section popover id="read-doctorPersona" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
+<header class="nw-top"><b>崇礼院区 · 业务工作台</b><button type="button" popovertarget="read-doctorPersona" popovertargetaction="hide" autofocus>返回门户首页</button>
+</header>
+<div class="nw-switch" role="group" aria-label="切换业务平台">
+<div class="nw-pane nw-initial" style="--nw-col:1;--nw-mobile-col:1;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorPersona" aria-label="查看数字医生构建平台">数字医生构建</button>
+<article class="nw-board" data-route="doctorPersona" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生构建平台</h2>
+<p>陈医生 · 运动医学科</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="配置与试答">
+<div class="nw-qlabel">配置与试答</div><label class="nw-item"><input type="radio" name="nw-doctorPersona-doctorPersona" value="1" checked><b>专科与服务范围</b><small>膝关节 · 拟发布 v1.3</small></label><label class="nw-item"><input type="radio" name="nw-doctorPersona-doctorPersona" value="2"><b>患者视角试答</b><small>复诊资料准备</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="本次数字医生配置">
+<h3>本次数字医生配置</h3>
+<p class="nw-sub">陈医生 · 崇礼院区运动医学科</p><dl>
+<div><dt>细分专业</dt><dd>膝关节</dd>
+</div>
+<div><dt>回复设置</dt><dd>亲切自然，优先说明重点。</dd>
+</div>
+<div><dt>服务范围</dt><dd>健康宣教、就诊准备、随访信息收集。</dd>
+</div>
+<div><dt>当前状态</dt><dd>v1.2 已授权服务，v1.3 已提交院方审查。</dd>
+</div></dl>
+<details><summary>查看启用条件</summary>
+<p>院方核对发布申请并给出意见。医生阅读审查报告并确认授权后，患者入口才启用新版本。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊前，我可以准备些什么？">
+<h3>复诊前，我可以准备些什么？</h3>
+<p class="nw-sub">试答场景 · 复诊沟通</p><blockquote>可提前整理既往就诊资料、活动记录和本次希望与医生讨论的问题。</blockquote><dl>
+<div><dt>核对重点</dt><dd>回复是否符合已选专业、风格和深度。</dd>
+</div>
+<div><dt>人工判断</dt><dd>涉及个人诊疗或康复方案，转交主管医生判断。</dd>
+</div></dl>
+<details><summary>查看试答后的操作</summary>
+<p>运行版可切换复诊准备、随访记录提交和个体康复方案三个场景。核对后保存配置草稿。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:2;--nw-mobile-col:2;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorFollow" aria-label="查看患者服务与智能随访平台">患者随访</button>
+<article class="nw-board" data-route="doctorFollow" tabindex="-1">
+<header class="nw-head">
+<h2>患者服务与智能随访平台</h2>
+<p>陈医生 · 待复核反馈 2 份</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="待复核反馈">
+<div class="nw-qlabel">待复核反馈</div><label class="nw-item"><input type="radio" name="nw-doctorPersona-doctorFollow" value="1" checked><b>患者示例 A</b><small>09:10 · 术后随访</small></label><label class="nw-item"><input type="radio" name="nw-doctorPersona-doctorFollow" value="2"><b>患者示例 B</b><small>10:35 · 康复随访</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者请求医生联系">
+<h3>患者请求医生联系</h3>
+<p class="nw-sub">患者示例 A · 术后随访</p><blockquote>我已经记下这几天的活动情况了，想请主管医生方便时联系我。</blockquote><dl>
+<div><dt>已知信息</dt><dd>患者已记录近期活动情况。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望主管医生方便时联系。</dd>
+</div>
+<div><dt>复核重点</dt><dd>核对联系诉求及是否需要补充回访安排。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>医生可记录处理方式与备注。例如选择“拟电话联系”。保存后可在已复核列表回查。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="患者询问康复安排">
+<h3>患者询问康复安排</h3>
+<p class="nw-sub">患者示例 B · 康复随访</p><blockquote>这一周的康复记录我整理好了，请问可以和医生确认下一阶段的安排吗？</blockquote><dl>
+<div><dt>已知信息</dt><dd>本周康复记录已整理。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望确认下一阶段安排。</dd>
+</div>
+<div><dt>复核重点</dt><dd>由主管医生结合康复记录判断。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>按实际情况选择“仅记录反馈”“拟电话联系”或“拟复诊时沟通”，可另记需补充核对的信息。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:3;--nw-mobile-col:1;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="doctorResearch" aria-label="查看医学科研辅助平台">医学科研</button>
+<article class="nw-board" data-route="doctorResearch" tabindex="-1">
+<header class="nw-head">
+<h2>医学科研辅助平台</h2>
+<p>研究材料 · 原文与病例草稿</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="来源材料">
+<div class="nw-qlabel">来源材料</div><label class="nw-item"><input type="radio" name="nw-doctorPersona-doctorResearch" value="1" checked><b>术后随访记录</b><small>患者联系请求 · 文本摘录</small></label><label class="nw-item"><input type="radio" name="nw-doctorPersona-doctorResearch" value="2"><b>运动康复记录</b><small>复诊资料准备 · 文本摘录</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者联系请求">
+<h3>患者联系请求</h3>
+<p class="nw-sub">病例草稿 · 来源为术后随访示例</p><blockquote>希望主管医生方便时给我回个电话。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已记录本周活动情况。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>希望主管医生来电联系。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>患者表示下次复诊将携带活动记录。</dd>
+</div>
+<div><dt>待补信息</dt><dd>手术日期、疼痛评分、检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“本周已经把活动情况写在记录本上。” 第 2 句“希望主管医生方便时给我回个电话。” 第 3 句“下次复诊我会带着记录本。”</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊资料准备">
+<h3>复诊资料准备</h3>
+<p class="nw-sub">病例草稿 · 来源为运动康复示例</p><blockquote>这周的康复日记已经整理好了。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已整理本周康复日记。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>询问复诊前还需准备哪些材料。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>计划携带康复日记至运动医学科复诊。</dd>
+</div>
+<div><dt>待补信息</dt><dd>康复项目、训练强度、体格检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“这周的康复日记已经整理好了。” 第 2 句“我打算复诊时带去给运动医学科医生看。” 第 3 句“想问还需要提前准备哪些材料。”</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:4;--nw-mobile-col:2;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="admin" aria-label="查看数字医生治理与评价平台">治理与评价</button>
+<article class="nw-board" data-route="admin" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生治理与评价平台</h2>
+<p>院方工作台 · 版本授权和服务质量</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="院方工作">
+<div class="nw-qlabel">院方工作</div><label class="nw-item"><input type="radio" name="nw-doctorPersona-admin" value="1" checked><b>数字医生发布申请</b><small>运动医学科 · v1.3 待审</small></label><label class="nw-item"><input type="radio" name="nw-doctorPersona-admin" value="2"><b>全院服务评价</b><small>科室、地区与时间维度</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="运动医学科数字医生">
+<h3>运动医学科数字医生</h3>
+<p class="nw-sub">提交人 陈医生 · 11 月 19 日 09:10</p><dl>
+<div><dt>当前服务</dt><dd>v1.2 已获医生授权。</dd>
+</div>
+<div><dt>申请版本</dt><dd>v1.3 已提交，等待院方审查。</dd>
+</div>
+<div><dt>核对内容</dt><dd>版本服务范围、所用专科资料、需要转交医生的场景。</dd>
+</div>
+<div><dt>下一环节</dt><dd>通过后由医生核对报告并确认授权。退回时附修改意见。</dd>
+</div></dl>
+<details><summary>查看版本记录</summary>
+<p>11 月 18 日 11:05，院方审查通过 v1.2。15:20，医生确认授权。11 月 19 日 09:10，陈医生提交 v1.3。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="服务评价指标">
+<h3>服务评价指标</h3>
+<p class="nw-sub">统计维度 · 全院、科室、数字医生</p><dl>
+<div><dt>服务覆盖</dt><dd>查看服务患者、服务次数与沟通轮次，按科室、病种和患者来源地区筛选。</dd>
+</div>
+<div><dt>专业表现</dt><dd>结合专家抽检样本和转交人工的情况核对表现。</dd>
+</div>
+<div><dt>随访成效</dt><dd>查看随访任务完成情况和需由医生复核的反馈。</dd>
+</div>
+<div><dt>需求预测</dt><dd>查看下一周的服务需求预测，辅助安排随访与人工复核。</dd>
+</div></dl>
+<details><summary>查看大屏路径</summary>
+<p>运行版可从治理平台选择“查看服务评价”进入大屏，按时间或科室筛选，并下钻到单个数字医生。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+</div>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
+</section>
+
+<section popover id="read-doctorFollow" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
+<header class="nw-top"><b>崇礼院区 · 业务工作台</b><button type="button" popovertarget="read-doctorFollow" popovertargetaction="hide" autofocus>返回门户首页</button>
+</header>
+<div class="nw-switch" role="group" aria-label="切换业务平台">
+<div class="nw-pane" style="--nw-col:1;--nw-mobile-col:1;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorPersona" aria-label="查看数字医生构建平台">数字医生构建</button>
+<article class="nw-board" data-route="doctorPersona" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生构建平台</h2>
+<p>陈医生 · 运动医学科</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="配置与试答">
+<div class="nw-qlabel">配置与试答</div><label class="nw-item"><input type="radio" name="nw-doctorFollow-doctorPersona" value="1" checked><b>专科与服务范围</b><small>膝关节 · 拟发布 v1.3</small></label><label class="nw-item"><input type="radio" name="nw-doctorFollow-doctorPersona" value="2"><b>患者视角试答</b><small>复诊资料准备</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="本次数字医生配置">
+<h3>本次数字医生配置</h3>
+<p class="nw-sub">陈医生 · 崇礼院区运动医学科</p><dl>
+<div><dt>细分专业</dt><dd>膝关节</dd>
+</div>
+<div><dt>回复设置</dt><dd>亲切自然，优先说明重点。</dd>
+</div>
+<div><dt>服务范围</dt><dd>健康宣教、就诊准备、随访信息收集。</dd>
+</div>
+<div><dt>当前状态</dt><dd>v1.2 已授权服务，v1.3 已提交院方审查。</dd>
+</div></dl>
+<details><summary>查看启用条件</summary>
+<p>院方核对发布申请并给出意见。医生阅读审查报告并确认授权后，患者入口才启用新版本。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊前，我可以准备些什么？">
+<h3>复诊前，我可以准备些什么？</h3>
+<p class="nw-sub">试答场景 · 复诊沟通</p><blockquote>可提前整理既往就诊资料、活动记录和本次希望与医生讨论的问题。</blockquote><dl>
+<div><dt>核对重点</dt><dd>回复是否符合已选专业、风格和深度。</dd>
+</div>
+<div><dt>人工判断</dt><dd>涉及个人诊疗或康复方案，转交主管医生判断。</dd>
+</div></dl>
+<details><summary>查看试答后的操作</summary>
+<p>运行版可切换复诊准备、随访记录提交和个体康复方案三个场景。核对后保存配置草稿。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane nw-initial" style="--nw-col:2;--nw-mobile-col:2;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorFollow" aria-label="查看患者服务与智能随访平台">患者随访</button>
+<article class="nw-board" data-route="doctorFollow" tabindex="-1">
+<header class="nw-head">
+<h2>患者服务与智能随访平台</h2>
+<p>陈医生 · 待复核反馈 2 份</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="待复核反馈">
+<div class="nw-qlabel">待复核反馈</div><label class="nw-item"><input type="radio" name="nw-doctorFollow-doctorFollow" value="1" checked><b>患者示例 A</b><small>09:10 · 术后随访</small></label><label class="nw-item"><input type="radio" name="nw-doctorFollow-doctorFollow" value="2"><b>患者示例 B</b><small>10:35 · 康复随访</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者请求医生联系">
+<h3>患者请求医生联系</h3>
+<p class="nw-sub">患者示例 A · 术后随访</p><blockquote>我已经记下这几天的活动情况了，想请主管医生方便时联系我。</blockquote><dl>
+<div><dt>已知信息</dt><dd>患者已记录近期活动情况。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望主管医生方便时联系。</dd>
+</div>
+<div><dt>复核重点</dt><dd>核对联系诉求及是否需要补充回访安排。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>医生可记录处理方式与备注。例如选择“拟电话联系”。保存后可在已复核列表回查。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="患者询问康复安排">
+<h3>患者询问康复安排</h3>
+<p class="nw-sub">患者示例 B · 康复随访</p><blockquote>这一周的康复记录我整理好了，请问可以和医生确认下一阶段的安排吗？</blockquote><dl>
+<div><dt>已知信息</dt><dd>本周康复记录已整理。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望确认下一阶段安排。</dd>
+</div>
+<div><dt>复核重点</dt><dd>由主管医生结合康复记录判断。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>按实际情况选择“仅记录反馈”“拟电话联系”或“拟复诊时沟通”，可另记需补充核对的信息。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:3;--nw-mobile-col:1;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="doctorResearch" aria-label="查看医学科研辅助平台">医学科研</button>
+<article class="nw-board" data-route="doctorResearch" tabindex="-1">
+<header class="nw-head">
+<h2>医学科研辅助平台</h2>
+<p>研究材料 · 原文与病例草稿</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="来源材料">
+<div class="nw-qlabel">来源材料</div><label class="nw-item"><input type="radio" name="nw-doctorFollow-doctorResearch" value="1" checked><b>术后随访记录</b><small>患者联系请求 · 文本摘录</small></label><label class="nw-item"><input type="radio" name="nw-doctorFollow-doctorResearch" value="2"><b>运动康复记录</b><small>复诊资料准备 · 文本摘录</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者联系请求">
+<h3>患者联系请求</h3>
+<p class="nw-sub">病例草稿 · 来源为术后随访示例</p><blockquote>希望主管医生方便时给我回个电话。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已记录本周活动情况。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>希望主管医生来电联系。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>患者表示下次复诊将携带活动记录。</dd>
+</div>
+<div><dt>待补信息</dt><dd>手术日期、疼痛评分、检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“本周已经把活动情况写在记录本上。” 第 2 句“希望主管医生方便时给我回个电话。” 第 3 句“下次复诊我会带着记录本。”</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊资料准备">
+<h3>复诊资料准备</h3>
+<p class="nw-sub">病例草稿 · 来源为运动康复示例</p><blockquote>这周的康复日记已经整理好了。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已整理本周康复日记。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>询问复诊前还需准备哪些材料。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>计划携带康复日记至运动医学科复诊。</dd>
+</div>
+<div><dt>待补信息</dt><dd>康复项目、训练强度、体格检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“这周的康复日记已经整理好了。” 第 2 句“我打算复诊时带去给运动医学科医生看。” 第 3 句“想问还需要提前准备哪些材料。”</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:4;--nw-mobile-col:2;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="admin" aria-label="查看数字医生治理与评价平台">治理与评价</button>
+<article class="nw-board" data-route="admin" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生治理与评价平台</h2>
+<p>院方工作台 · 版本授权和服务质量</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="院方工作">
+<div class="nw-qlabel">院方工作</div><label class="nw-item"><input type="radio" name="nw-doctorFollow-admin" value="1" checked><b>数字医生发布申请</b><small>运动医学科 · v1.3 待审</small></label><label class="nw-item"><input type="radio" name="nw-doctorFollow-admin" value="2"><b>全院服务评价</b><small>科室、地区与时间维度</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="运动医学科数字医生">
+<h3>运动医学科数字医生</h3>
+<p class="nw-sub">提交人 陈医生 · 11 月 19 日 09:10</p><dl>
+<div><dt>当前服务</dt><dd>v1.2 已获医生授权。</dd>
+</div>
+<div><dt>申请版本</dt><dd>v1.3 已提交，等待院方审查。</dd>
+</div>
+<div><dt>核对内容</dt><dd>版本服务范围、所用专科资料、需要转交医生的场景。</dd>
+</div>
+<div><dt>下一环节</dt><dd>通过后由医生核对报告并确认授权。退回时附修改意见。</dd>
+</div></dl>
+<details><summary>查看版本记录</summary>
+<p>11 月 18 日 11:05，院方审查通过 v1.2。15:20，医生确认授权。11 月 19 日 09:10，陈医生提交 v1.3。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="服务评价指标">
+<h3>服务评价指标</h3>
+<p class="nw-sub">统计维度 · 全院、科室、数字医生</p><dl>
+<div><dt>服务覆盖</dt><dd>查看服务患者、服务次数与沟通轮次，按科室、病种和患者来源地区筛选。</dd>
+</div>
+<div><dt>专业表现</dt><dd>结合专家抽检样本和转交人工的情况核对表现。</dd>
+</div>
+<div><dt>随访成效</dt><dd>查看随访任务完成情况和需由医生复核的反馈。</dd>
+</div>
+<div><dt>需求预测</dt><dd>查看下一周的服务需求预测，辅助安排随访与人工复核。</dd>
+</div></dl>
+<details><summary>查看大屏路径</summary>
+<p>运行版可从治理平台选择“查看服务评价”进入大屏，按时间或科室筛选，并下钻到单个数字医生。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+</div>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
+</section>
+
+<section popover id="read-doctorResearch" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
+<header class="nw-top"><b>崇礼院区 · 业务工作台</b><button type="button" popovertarget="read-doctorResearch" popovertargetaction="hide" autofocus>返回门户首页</button>
+</header>
+<div class="nw-switch" role="group" aria-label="切换业务平台">
+<div class="nw-pane" style="--nw-col:1;--nw-mobile-col:1;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorPersona" aria-label="查看数字医生构建平台">数字医生构建</button>
+<article class="nw-board" data-route="doctorPersona" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生构建平台</h2>
+<p>陈医生 · 运动医学科</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="配置与试答">
+<div class="nw-qlabel">配置与试答</div><label class="nw-item"><input type="radio" name="nw-doctorResearch-doctorPersona" value="1" checked><b>专科与服务范围</b><small>膝关节 · 拟发布 v1.3</small></label><label class="nw-item"><input type="radio" name="nw-doctorResearch-doctorPersona" value="2"><b>患者视角试答</b><small>复诊资料准备</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="本次数字医生配置">
+<h3>本次数字医生配置</h3>
+<p class="nw-sub">陈医生 · 崇礼院区运动医学科</p><dl>
+<div><dt>细分专业</dt><dd>膝关节</dd>
+</div>
+<div><dt>回复设置</dt><dd>亲切自然，优先说明重点。</dd>
+</div>
+<div><dt>服务范围</dt><dd>健康宣教、就诊准备、随访信息收集。</dd>
+</div>
+<div><dt>当前状态</dt><dd>v1.2 已授权服务，v1.3 已提交院方审查。</dd>
+</div></dl>
+<details><summary>查看启用条件</summary>
+<p>院方核对发布申请并给出意见。医生阅读审查报告并确认授权后，患者入口才启用新版本。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊前，我可以准备些什么？">
+<h3>复诊前，我可以准备些什么？</h3>
+<p class="nw-sub">试答场景 · 复诊沟通</p><blockquote>可提前整理既往就诊资料、活动记录和本次希望与医生讨论的问题。</blockquote><dl>
+<div><dt>核对重点</dt><dd>回复是否符合已选专业、风格和深度。</dd>
+</div>
+<div><dt>人工判断</dt><dd>涉及个人诊疗或康复方案，转交主管医生判断。</dd>
+</div></dl>
+<details><summary>查看试答后的操作</summary>
+<p>运行版可切换复诊准备、随访记录提交和个体康复方案三个场景。核对后保存配置草稿。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:2;--nw-mobile-col:2;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorFollow" aria-label="查看患者服务与智能随访平台">患者随访</button>
+<article class="nw-board" data-route="doctorFollow" tabindex="-1">
+<header class="nw-head">
+<h2>患者服务与智能随访平台</h2>
+<p>陈医生 · 待复核反馈 2 份</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="待复核反馈">
+<div class="nw-qlabel">待复核反馈</div><label class="nw-item"><input type="radio" name="nw-doctorResearch-doctorFollow" value="1" checked><b>患者示例 A</b><small>09:10 · 术后随访</small></label><label class="nw-item"><input type="radio" name="nw-doctorResearch-doctorFollow" value="2"><b>患者示例 B</b><small>10:35 · 康复随访</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者请求医生联系">
+<h3>患者请求医生联系</h3>
+<p class="nw-sub">患者示例 A · 术后随访</p><blockquote>我已经记下这几天的活动情况了，想请主管医生方便时联系我。</blockquote><dl>
+<div><dt>已知信息</dt><dd>患者已记录近期活动情况。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望主管医生方便时联系。</dd>
+</div>
+<div><dt>复核重点</dt><dd>核对联系诉求及是否需要补充回访安排。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>医生可记录处理方式与备注。例如选择“拟电话联系”。保存后可在已复核列表回查。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="患者询问康复安排">
+<h3>患者询问康复安排</h3>
+<p class="nw-sub">患者示例 B · 康复随访</p><blockquote>这一周的康复记录我整理好了，请问可以和医生确认下一阶段的安排吗？</blockquote><dl>
+<div><dt>已知信息</dt><dd>本周康复记录已整理。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望确认下一阶段安排。</dd>
+</div>
+<div><dt>复核重点</dt><dd>由主管医生结合康复记录判断。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>按实际情况选择“仅记录反馈”“拟电话联系”或“拟复诊时沟通”，可另记需补充核对的信息。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane nw-initial" style="--nw-col:3;--nw-mobile-col:1;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="doctorResearch" aria-label="查看医学科研辅助平台">医学科研</button>
+<article class="nw-board" data-route="doctorResearch" tabindex="-1">
+<header class="nw-head">
+<h2>医学科研辅助平台</h2>
+<p>研究材料 · 原文与病例草稿</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="来源材料">
+<div class="nw-qlabel">来源材料</div><label class="nw-item"><input type="radio" name="nw-doctorResearch-doctorResearch" value="1" checked><b>术后随访记录</b><small>患者联系请求 · 文本摘录</small></label><label class="nw-item"><input type="radio" name="nw-doctorResearch-doctorResearch" value="2"><b>运动康复记录</b><small>复诊资料准备 · 文本摘录</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者联系请求">
+<h3>患者联系请求</h3>
+<p class="nw-sub">病例草稿 · 来源为术后随访示例</p><blockquote>希望主管医生方便时给我回个电话。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已记录本周活动情况。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>希望主管医生来电联系。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>患者表示下次复诊将携带活动记录。</dd>
+</div>
+<div><dt>待补信息</dt><dd>手术日期、疼痛评分、检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“本周已经把活动情况写在记录本上。” 第 2 句“希望主管医生方便时给我回个电话。” 第 3 句“下次复诊我会带着记录本。”</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊资料准备">
+<h3>复诊资料准备</h3>
+<p class="nw-sub">病例草稿 · 来源为运动康复示例</p><blockquote>这周的康复日记已经整理好了。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已整理本周康复日记。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>询问复诊前还需准备哪些材料。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>计划携带康复日记至运动医学科复诊。</dd>
+</div>
+<div><dt>待补信息</dt><dd>康复项目、训练强度、体格检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“这周的康复日记已经整理好了。” 第 2 句“我打算复诊时带去给运动医学科医生看。” 第 3 句“想问还需要提前准备哪些材料。”</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:4;--nw-mobile-col:2;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="admin" aria-label="查看数字医生治理与评价平台">治理与评价</button>
+<article class="nw-board" data-route="admin" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生治理与评价平台</h2>
+<p>院方工作台 · 版本授权和服务质量</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="院方工作">
+<div class="nw-qlabel">院方工作</div><label class="nw-item"><input type="radio" name="nw-doctorResearch-admin" value="1" checked><b>数字医生发布申请</b><small>运动医学科 · v1.3 待审</small></label><label class="nw-item"><input type="radio" name="nw-doctorResearch-admin" value="2"><b>全院服务评价</b><small>科室、地区与时间维度</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="运动医学科数字医生">
+<h3>运动医学科数字医生</h3>
+<p class="nw-sub">提交人 陈医生 · 11 月 19 日 09:10</p><dl>
+<div><dt>当前服务</dt><dd>v1.2 已获医生授权。</dd>
+</div>
+<div><dt>申请版本</dt><dd>v1.3 已提交，等待院方审查。</dd>
+</div>
+<div><dt>核对内容</dt><dd>版本服务范围、所用专科资料、需要转交医生的场景。</dd>
+</div>
+<div><dt>下一环节</dt><dd>通过后由医生核对报告并确认授权。退回时附修改意见。</dd>
+</div></dl>
+<details><summary>查看版本记录</summary>
+<p>11 月 18 日 11:05，院方审查通过 v1.2。15:20，医生确认授权。11 月 19 日 09:10，陈医生提交 v1.3。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="服务评价指标">
+<h3>服务评价指标</h3>
+<p class="nw-sub">统计维度 · 全院、科室、数字医生</p><dl>
+<div><dt>服务覆盖</dt><dd>查看服务患者、服务次数与沟通轮次，按科室、病种和患者来源地区筛选。</dd>
+</div>
+<div><dt>专业表现</dt><dd>结合专家抽检样本和转交人工的情况核对表现。</dd>
+</div>
+<div><dt>随访成效</dt><dd>查看随访任务完成情况和需由医生复核的反馈。</dd>
+</div>
+<div><dt>需求预测</dt><dd>查看下一周的服务需求预测，辅助安排随访与人工复核。</dd>
+</div></dl>
+<details><summary>查看大屏路径</summary>
+<p>运行版可从治理平台选择“查看服务评价”进入大屏，按时间或科室筛选，并下钻到单个数字医生。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+</div>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
+</section>
+
+<section popover id="read-admin" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
+<header class="nw-top"><b>崇礼院区 · 业务工作台</b><button type="button" popovertarget="read-admin" popovertargetaction="hide" autofocus>返回门户首页</button>
+</header>
+<div class="nw-switch" role="group" aria-label="切换业务平台">
+<div class="nw-pane" style="--nw-col:1;--nw-mobile-col:1;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorPersona" aria-label="查看数字医生构建平台">数字医生构建</button>
+<article class="nw-board" data-route="doctorPersona" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生构建平台</h2>
+<p>陈医生 · 运动医学科</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="配置与试答">
+<div class="nw-qlabel">配置与试答</div><label class="nw-item"><input type="radio" name="nw-admin-doctorPersona" value="1" checked><b>专科与服务范围</b><small>膝关节 · 拟发布 v1.3</small></label><label class="nw-item"><input type="radio" name="nw-admin-doctorPersona" value="2"><b>患者视角试答</b><small>复诊资料准备</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="本次数字医生配置">
+<h3>本次数字医生配置</h3>
+<p class="nw-sub">陈医生 · 崇礼院区运动医学科</p><dl>
+<div><dt>细分专业</dt><dd>膝关节</dd>
+</div>
+<div><dt>回复设置</dt><dd>亲切自然，优先说明重点。</dd>
+</div>
+<div><dt>服务范围</dt><dd>健康宣教、就诊准备、随访信息收集。</dd>
+</div>
+<div><dt>当前状态</dt><dd>v1.2 已授权服务，v1.3 已提交院方审查。</dd>
+</div></dl>
+<details><summary>查看启用条件</summary>
+<p>院方核对发布申请并给出意见。医生阅读审查报告并确认授权后，患者入口才启用新版本。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊前，我可以准备些什么？">
+<h3>复诊前，我可以准备些什么？</h3>
+<p class="nw-sub">试答场景 · 复诊沟通</p><blockquote>可提前整理既往就诊资料、活动记录和本次希望与医生讨论的问题。</blockquote><dl>
+<div><dt>核对重点</dt><dd>回复是否符合已选专业、风格和深度。</dd>
+</div>
+<div><dt>人工判断</dt><dd>涉及个人诊疗或康复方案，转交主管医生判断。</dd>
+</div></dl>
+<details><summary>查看试答后的操作</summary>
+<p>运行版可切换复诊准备、随访记录提交和个体康复方案三个场景。核对后保存配置草稿。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:2;--nw-mobile-col:2;--nw-mobile-row:1"><button type="button" class="nw-pick" data-route="doctorFollow" aria-label="查看患者服务与智能随访平台">患者随访</button>
+<article class="nw-board" data-route="doctorFollow" tabindex="-1">
+<header class="nw-head">
+<h2>患者服务与智能随访平台</h2>
+<p>陈医生 · 待复核反馈 2 份</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="待复核反馈">
+<div class="nw-qlabel">待复核反馈</div><label class="nw-item"><input type="radio" name="nw-admin-doctorFollow" value="1" checked><b>患者示例 A</b><small>09:10 · 术后随访</small></label><label class="nw-item"><input type="radio" name="nw-admin-doctorFollow" value="2"><b>患者示例 B</b><small>10:35 · 康复随访</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者请求医生联系">
+<h3>患者请求医生联系</h3>
+<p class="nw-sub">患者示例 A · 术后随访</p><blockquote>我已经记下这几天的活动情况了，想请主管医生方便时联系我。</blockquote><dl>
+<div><dt>已知信息</dt><dd>患者已记录近期活动情况。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望主管医生方便时联系。</dd>
+</div>
+<div><dt>复核重点</dt><dd>核对联系诉求及是否需要补充回访安排。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>医生可记录处理方式与备注。例如选择“拟电话联系”。保存后可在已复核列表回查。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="患者询问康复安排">
+<h3>患者询问康复安排</h3>
+<p class="nw-sub">患者示例 B · 康复随访</p><blockquote>这一周的康复记录我整理好了，请问可以和医生确认下一阶段的安排吗？</blockquote><dl>
+<div><dt>已知信息</dt><dd>本周康复记录已整理。</dd>
+</div>
+<div><dt>患者诉求</dt><dd>希望确认下一阶段安排。</dd>
+</div>
+<div><dt>复核重点</dt><dd>由主管医生结合康复记录判断。</dd>
+</div></dl>
+<details><summary>查看复核记录字段</summary>
+<p>按实际情况选择“仅记录反馈”“拟电话联系”或“拟复诊时沟通”，可另记需补充核对的信息。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane" style="--nw-col:3;--nw-mobile-col:1;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="doctorResearch" aria-label="查看医学科研辅助平台">医学科研</button>
+<article class="nw-board" data-route="doctorResearch" tabindex="-1">
+<header class="nw-head">
+<h2>医学科研辅助平台</h2>
+<p>研究材料 · 原文与病例草稿</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="来源材料">
+<div class="nw-qlabel">来源材料</div><label class="nw-item"><input type="radio" name="nw-admin-doctorResearch" value="1" checked><b>术后随访记录</b><small>患者联系请求 · 文本摘录</small></label><label class="nw-item"><input type="radio" name="nw-admin-doctorResearch" value="2"><b>运动康复记录</b><small>复诊资料准备 · 文本摘录</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="患者联系请求">
+<h3>患者联系请求</h3>
+<p class="nw-sub">病例草稿 · 来源为术后随访示例</p><blockquote>希望主管医生方便时给我回个电话。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已记录本周活动情况。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>希望主管医生来电联系。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>患者表示下次复诊将携带活动记录。</dd>
+</div>
+<div><dt>待补信息</dt><dd>手术日期、疼痛评分、检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“本周已经把活动情况写在记录本上。” 第 2 句“希望主管医生方便时给我回个电话。” 第 3 句“下次复诊我会带着记录本。”</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="复诊资料准备">
+<h3>复诊资料准备</h3>
+<p class="nw-sub">病例草稿 · 来源为运动康复示例</p><blockquote>这周的康复日记已经整理好了。</blockquote><dl>
+<div><dt>情况记录</dt><dd>患者自述已整理本周康复日记。</dd>
+</div>
+<div><dt>主要诉求</dt><dd>询问复诊前还需准备哪些材料。</dd>
+</div>
+<div><dt>复诊准备</dt><dd>计划携带康复日记至运动医学科复诊。</dd>
+</div>
+<div><dt>待补信息</dt><dd>康复项目、训练强度、体格检查结果。</dd>
+</div></dl>
+<details><summary>核对材料原文</summary>
+<p>第 1 句“这周的康复日记已经整理好了。” 第 2 句“我打算复诊时带去给运动医学科医生看。” 第 3 句“想问还需要提前准备哪些材料。”</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+<div class="nw-pane nw-initial" style="--nw-col:4;--nw-mobile-col:2;--nw-mobile-row:2"><button type="button" class="nw-pick" data-route="admin" aria-label="查看数字医生治理与评价平台">治理与评价</button>
+<article class="nw-board" data-route="admin" tabindex="-1">
+<header class="nw-head">
+<h2>数字医生治理与评价平台</h2>
+<p>院方工作台 · 版本授权和服务质量</p>
+</header>
+<div class="nw-body">
+<fieldset class="nw-queue" aria-label="院方工作">
+<div class="nw-qlabel">院方工作</div><label class="nw-item"><input type="radio" name="nw-admin-admin" value="1" checked><b>数字医生发布申请</b><small>运动医学科 · v1.3 待审</small></label><label class="nw-item"><input type="radio" name="nw-admin-admin" value="2"><b>全院服务评价</b><small>科室、地区与时间维度</small></label>
+</fieldset>
+<section class="nw-detail" data-n="1" aria-label="运动医学科数字医生">
+<h3>运动医学科数字医生</h3>
+<p class="nw-sub">提交人 陈医生 · 11 月 19 日 09:10</p><dl>
+<div><dt>当前服务</dt><dd>v1.2 已获医生授权。</dd>
+</div>
+<div><dt>申请版本</dt><dd>v1.3 已提交，等待院方审查。</dd>
+</div>
+<div><dt>核对内容</dt><dd>版本服务范围、所用专科资料、需要转交医生的场景。</dd>
+</div>
+<div><dt>下一环节</dt><dd>通过后由医生核对报告并确认授权。退回时附修改意见。</dd>
+</div></dl>
+<details><summary>查看版本记录</summary>
+<p>11 月 18 日 11:05，院方审查通过 v1.2。15:20，医生确认授权。11 月 19 日 09:10，陈医生提交 v1.3。</p>
+</details>
+</section>
+<section class="nw-detail" data-n="2" aria-label="服务评价指标">
+<h3>服务评价指标</h3>
+<p class="nw-sub">统计维度 · 全院、科室、数字医生</p><dl>
+<div><dt>服务覆盖</dt><dd>查看服务患者、服务次数与沟通轮次，按科室、病种和患者来源地区筛选。</dd>
+</div>
+<div><dt>专业表现</dt><dd>结合专家抽检样本和转交人工的情况核对表现。</dd>
+</div>
+<div><dt>随访成效</dt><dd>查看随访任务完成情况和需由医生复核的反馈。</dd>
+</div>
+<div><dt>需求预测</dt><dd>查看下一周的服务需求预测，辅助安排随访与人工复核。</dd>
+</div></dl>
+<details><summary>查看大屏路径</summary>
+<p>运行版可从治理平台选择“查看服务评价”进入大屏，按时间或科室筛选，并下钻到单个数字医生。</p>
+</details>
+</section>
+</div>
+</article>
+</div>
+</div>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
+</section>
+
+<section popover id="read-roleDoctor" data-native-role="doctor" class="cl-read-panel role-preview" aria-label="医生工作台">
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleDoctor" popovertargetaction="hide" autofocus>返回账号选择</button>
+</header>
+<div class="rp-inner">
+<h2>医生工作台</h2>
+<p class="rp-context">陈医生 · 运动医学科</p>
+<div class="rp-metrics">
+<div class="rp-stat"><small>待复核反馈</small><strong>2 份</strong>
+</div>
+<div class="rp-stat"><small>今日已复核</small><strong>4 份</strong>
+</div>
+<div class="rp-stat"><small>服务版本</small><strong>v1.2</strong>
+</div>
+</div>
+<h3>我的工作</h3>
+<div class="rp-tasks">
+<details class="rp-task" open><summary>复核患者随访反馈</summary><dl>
+<div><dt>患者示例 A</dt><dd>已记录近期活动，希望主管医生联系。</dd>
+</div>
+<div><dt>患者示例 B</dt><dd>已整理本周康复记录，希望确认后续安排。</dd>
+</div>
+<div><dt>处理记录</dt><dd>核对患者原话，填写跟进方式及复核备注，保存后可在已复核队列回查。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>维护我的数字医生</summary><dl>
+<div><dt>当前设置</dt><dd>膝关节方向，亲切自然，只说重点。</dd>
+</div>
+<div><dt>待发布版本</dt><dd>v1.3 正在院方审查。医生阅读审查报告并授权后，患者端才会切换版本。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>整理科研材料</summary><dl>
+<div><dt>原始材料</dt><dd>可导入已准备好的病例资料，核对相关摘录。</dd>
+</div>
+<div><dt>研究草稿</dt><dd>按情况记录、主要诉求和待补信息整理，并保留每条摘录的原始出处。</dd>
+</div></dl>
+</details>
+</div>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
+</div>
+</section>
+
+<section popover id="read-roleDirector" data-native-role="director" class="cl-read-panel role-preview" aria-label="科主任工作台">
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleDirector" popovertargetaction="hide" autofocus>返回账号选择</button>
+</header>
+<div class="rp-inner">
+<h2>科主任工作台</h2>
+<p class="rp-context">运动医学科 · 2026-11-13 至 2026-11-19</p>
+<div class="rp-metrics">
+<div class="rp-stat"><small>服务患者</small><strong>240 人</strong>
+</div>
+<div class="rp-stat"><small>服务次数</small><strong>248 次</strong>
+</div>
+<div class="rp-stat"><small>沟通轮次</small><strong>706 轮</strong>
+</div>
+</div>
+<h3>本科室运行</h3>
+<div class="rp-tasks">
+<details class="rp-task" open><summary>本科数字医生服务量</summary><dl>
+<div><dt>运动医学 AI 01</dt><dd>129 次服务 · 370 轮沟通</dd>
+</div>
+<div><dt>运动医学 AI 02</dt><dd>119 次服务 · 336 轮沟通</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>核对服务质量</summary><dl>
+<div><dt>专家抽检</dt><dd>抽检 53 次，通过 50 次。</dd>
+</div>
+<div><dt>随访完成</dt><dd>48 次随访服务中，按时完成 43 次。</dd>
+</div>
+<div><dt>人工承接</dt><dd>35 次转人工，其中 27 次已闭环。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>查看未来七天服务需求</summary><dl>
+<div><dt>需求预测</dt><dd>预计 224 次，参考范围 183 至 253 次。</dd>
+</div>
+<div><dt>估算口径</dt><dd>依据本范围近 28 天的服务记录，按同一星期几加权估算。</dd>
+</div></dl>
+</details>
+</div>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
+</div>
+</section>
+
+<section popover id="read-roleLeader" data-native-role="leader" class="cl-read-panel role-preview" aria-label="院领导工作台">
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleLeader" popovertargetaction="hide" autofocus>返回账号选择</button>
+</header>
+<div class="rp-inner">
+<h2>院领导工作台</h2>
+<p class="rp-context">崇礼院区全院 · 2026-11-13 至 2026-11-19</p>
+<div class="rp-metrics">
+<div class="rp-stat"><small>服务患者</small><strong>504 人</strong>
+</div>
+<div class="rp-stat"><small>服务次数</small><strong>553 次</strong>
+</div>
+<div class="rp-stat"><small>沟通轮次</small><strong>1,578 轮</strong>
+</div>
+</div>
+<h3>全院运行</h3>
+<div class="rp-tasks">
+<details class="rp-task" open><summary>各科室服务量</summary><dl>
+<div><dt>运动医学科</dt><dd>248 次服务 · 706 轮沟通</dd>
+</div>
+<div><dt>康复医学科</dt><dd>153 次服务 · 452 轮沟通</dd>
+</div>
+<div><dt>骨科</dt><dd>152 次服务 · 420 轮沟通</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>核对服务质量</summary><dl>
+<div><dt>专家抽检</dt><dd>抽检 120 次，通过 111 次。</dd>
+</div>
+<div><dt>随访完成</dt><dd>165 次随访服务中，按时完成 144 次。</dd>
+</div>
+<div><dt>人工承接</dt><dd>70 次转人工，其中 59 次已闭环。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>查看未来七天服务需求</summary><dl>
+<div><dt>需求预测</dt><dd>预计 533 次，参考范围 475 至 567 次。</dd>
+</div>
+<div><dt>估算口径</dt><dd>依据本范围近 28 天的服务记录，按同一星期几加权估算。</dd>
+</div></dl>
+</details>
+</div>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
+</div>
+</section>
+
+<section popover id="read-roleReviewer" data-native-role="reviewer" class="cl-read-panel role-preview" aria-label="院方审核工作台">
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleReviewer" popovertargetaction="hide" autofocus>返回账号选择</button>
+</header>
+<div class="rp-inner">
+<h2>院方审核工作台</h2>
+<p class="rp-context">崇礼院区 · 数字医生版本审查</p>
+<div class="rp-metrics">
+<div class="rp-stat"><small>待审申请</small><strong>1 件</strong>
+</div>
+<div class="rp-stat"><small>申请版本</small><strong>v1.3</strong>
+</div>
+<div class="rp-stat"><small>现行版本</small><strong>v1.2</strong>
+</div>
+</div>
+<h3>发布审查队列</h3>
+<div class="rp-tasks">
+<details class="rp-task" open><summary>运动医学科 · 数字医生发布申请</summary><dl>
+<div><dt>申请记录</dt><dd>陈医生于 11 月 19 日 09:10 提交 v1.3。</dd>
+</div>
+<div><dt>版本对照</dt><dd>核对细分专业、回复方式、引用资料和拟提供的服务。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>查阅辅助报告与待核材料</summary><dl>
+<div><dt>核对重点</dt><dd>AI 身份提示、知识来源与服务范围是否一致，需人工判断的问题如何交回医生。</dd>
+</div>
+<div><dt>审查依据</dt><dd>审查助手列出核对要点，院方审核人员结合提交材料作出审查意见。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>审查意见与流转</summary><dl>
+<div><dt>退回修改</dt><dd>记录具体问题和需补充的材料，交回医生修订。</dd>
+</div>
+<div><dt>审查通过</dt><dd>记录通过意见，交由提交医生阅读审查报告并确认授权。</dd>
+</div></dl>
+</details>
+</div>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
+</div>
+</section>
+
+<section popover id="read-roleAdmin" data-native-role="admin" class="cl-read-panel role-preview" aria-label="院方管理工作台">
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleAdmin" popovertargetaction="hide" autofocus>返回账号选择</button>
+</header>
+<div class="rp-inner">
+<h2>院方管理工作台</h2>
+<p class="rp-context">崇礼院区 · 数字医生运行管理</p>
+<div class="rp-metrics">
+<div class="rp-stat"><small>入驻医生</small><strong>3 位</strong>
+</div>
+<div class="rp-stat"><small>覆盖科室</small><strong>3 个</strong>
+</div>
+<div class="rp-stat"><small>服务中</small><strong>3 位</strong>
+</div>
+</div>
+<h3>院区运营管理</h3>
+<div class="rp-tasks">
+<details class="rp-task" open><summary>管理医生名册</summary><dl>
+<div><dt>运动医学科</dt><dd>陈医生 · 服务中 · v1.2。</dd>
+</div>
+<div><dt>康复医学科</dt><dd>林医生 · 服务中 · v1.1。</dd>
+</div>
+<div><dt>骨科</dt><dd>周医生 · 服务中 · v1.0。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>登记医生邀请</summary><dl>
+<div><dt>邀请信息</dt><dd>填写受邀医生姓名与拟入驻科室。</dd>
+</div>
+<div><dt>邀请清单</dt><dd>已登记的邀请进入待确认名单，可在院区管理中回查。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>核对运行状态与操作记录</summary><dl>
+<div><dt>运行状态</dt><dd>根据医生与科室筛选，查看服务版本、运行情况及暂停记录。</dd>
+</div>
+<div><dt>操作留痕</dt><dd>查阅变更时间、经办身份和具体说明。</dd>
+</div></dl>
+</details>
+</div>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
+</div>
+</section>
+
+<section popover id="read-rolePatient" data-native-role="patient" class="cl-read-panel role-preview" aria-label="患者服务">
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-rolePatient" popovertargetaction="hide" autofocus>返回账号选择</button>
+</header>
+<div class="rp-inner">
+<h2>患者服务</h2>
+<p class="rp-context">运动医学科 · 陈医生的数字医生</p>
+<div class="rp-metrics">
+<div class="rp-stat"><small>服务身份</small><strong>AI 数字医生</strong>
+</div>
+<div class="rp-stat"><small>所属科室</small><strong>运动医学科</strong>
+</div>
+<div class="rp-stat"><small>服务版本</small><strong>v1.2</strong>
+</div>
+</div>
+<h3>选择服务</h3>
+<div class="rp-tasks">
+<details class="rp-task" open><summary>就诊前准备</summary><dl>
+<div><dt>准备资料</dt><dd>将已有就诊记录、检查资料和本次希望讨论的问题整理在一起。</dd>
+</div>
+<div><dt>科室通知</dt><dd>具体携带要求以接诊科室通知为准。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>如何填写随访反馈</summary><dl>
+<div><dt>记录近况</dt><dd>按随访表的问题填写近期活动情况和变化。</dd>
+</div>
+<div><dt>联系意愿</dt><dd>如希望主管医生联系，可在反馈中写明。</dd>
+</div></dl>
+</details>
+<details class="rp-task"><summary>阅读健康宣教</summary><dl>
+<div><dt>核对来源</dt><dd>查看发布机构、作者、日期及资料适用人群。</dd>
+</div>
+<div><dt>就诊沟通</dt><dd>可记下疑问及原始出处，在就诊时与医生沟通。</dd>
+</div></dl>
+</details>
+</div>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
+</div>
+</section>
+
+<script src="scripts/navigation.js">
+</script></body></html>
