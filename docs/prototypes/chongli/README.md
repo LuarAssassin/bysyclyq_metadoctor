@@ -28,6 +28,8 @@ npx playwright install chromium
 npm test
 ```
 
+在 `tests/` 下运行 `npm run test:gallery` 验证三张首页影像的构图、来源、键盘切换和自动播放。打包后可运行 `PROTOTYPE_HTML=/tmp/Chongli-AI-Hospital.html npm run test:gallery`，同时验证受限预览中的手动切换及患者入口。
+
 ## 生成离线文件
 
 从原型根目录运行以下命令。门户打包需要 Python 3.9 或更高版本，独立大屏沿用上述回归测试的 Playwright 和 Chromium。门户包括所有账号的交互演示，大屏文件会直接进入院领导演示视图。

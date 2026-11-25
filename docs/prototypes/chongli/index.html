@@ -70,11 +70,26 @@
 </div>
 <p id="po-account-hint">支持患者与院内账号</p>
 </div>
-  <figure class="po-media" aria-label="崇礼影像">
-<div class="po-frame">
-<div class="po-landscape" aria-hidden="true" hidden><b></b>
-</div><img id="po-campus-photo" class="po-image" src="assets/chongli-campus.jpg" alt="崇礼院区 · 门诊楼实景">
-</div><figcaption class="po-caption"><span class="po-credit"><span class="po-caption-title">崇礼院区 · 门诊楼实景</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://www.bjmu.edu.cn/bdyx110zn/bygs/ac64ab2442d54cc9a05b0eaee7029f2c.htm">来源</a></span><span class="po-playback" hidden><span class="po-page-track"></span><button type="button" class="po-pause" aria-label="暂停轮播"></button></span></figcaption></figure>
+  <figure class="po-media" aria-label="院区影像">
+    <div class="po-frame">
+      <img id="po-campus-photo" class="po-image" data-photo="campus" src="assets/chongli-campus.jpg" alt="崇礼院区门诊楼外景，楼顶是医院的中英文标识。">
+      <img id="po-teaching-photo" class="po-image" data-photo="teaching" src="assets/medical-teaching.jpg" alt="杨渝平在投影幕旁讲授运动医学。">
+      <img id="po-education-photo" class="po-image" data-photo="education" src="assets/health-education.jpg" alt="杨渝平与活动参与者一同示范运动动作。">
+    </div>
+    <figcaption class="po-caption">
+      <span class="po-credit" data-photo="campus"><span class="po-caption-title">崇礼院区 · 门诊楼实景</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://www.bjmu.edu.cn/bdyx110zn/bygs/ac64ab2442d54cc9a05b0eaee7029f2c.htm" aria-label="查看「崇礼院区 · 门诊楼实景」的图片来源">来源</a></span>
+      <span class="po-credit" data-photo="teaching"><span class="po-caption-title">杨渝平 · 医学教学现场</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://bynews.bjmu.edu.cn/tszt/qjs30n/8cb0c0aed4c041dd9872e6747e5a0816.htm" aria-label="查看「杨渝平 · 医学教学现场」的图片来源">来源</a></span>
+      <span class="po-credit" data-photo="education"><span class="po-caption-title">杨渝平 · 运动健康科普</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://www.puh3.net.cn/info/1971/155321.htm" aria-label="查看「杨渝平 · 运动健康科普」的图片来源">来源</a></span>
+      <span class="po-playback">
+        <span class="po-page-track" role="radiogroup" aria-label="选择院区影像">
+          <input type="radio" name="po-gallery" id="po-pick-campus" class="po-pip" value="campus" aria-label="第 1 张，崇礼院区 · 门诊楼实景" checked>
+          <input type="radio" name="po-gallery" id="po-pick-teaching" class="po-pip" value="teaching" aria-label="第 2 张，杨渝平 · 医学教学现场">
+          <input type="radio" name="po-gallery" id="po-pick-education" class="po-pip" value="education" aria-label="第 3 张，杨渝平 · 运动健康科普">
+        </span>
+        <button type="button" class="po-pause" aria-label="暂停轮播" hidden><svg viewBox="0 0 16 16" aria-hidden="true" pointer-events="none"><path fill="currentColor" d="M4 3h2.5v10H4zm5.5 0H12v10H9.5z"/></svg></button>
+      </span>
+    </figcaption>
+  </figure>
  </div>
 </div>
  <section class="po-wrap ac-services" aria-labelledby="po-services-title">

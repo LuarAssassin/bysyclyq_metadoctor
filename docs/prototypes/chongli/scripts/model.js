@@ -53,7 +53,15 @@
     return Object.fromEntries(Object.keys(allowed).map(k=>[k,allowed[k].includes(input?.[k])?input[k]:defaultSettings[k]]));
   }
   window.CL={
-    get state(){return state},get photos(){const entries=[{"src": document.getElementById('po-campus-photo').getAttribute('src'), "title": "崇礼院区 · 门诊楼实景", "source": "https://www.bjmu.edu.cn/bdyx110zn/bygs/ac64ab2442d54cc9a05b0eaee7029f2c.htm"}, {"src": "assets/medical-teaching.jpg", "title": "杨渝平 · 医学教学现场", "source": "https://bynews.bjmu.edu.cn/tszt/qjs30n/8cb0c0aed4c041dd9872e6747e5a0816.htm"}, {"src": "assets/health-education.jpg", "title": "杨渝平 · 运动健康科普", "source": "https://www.puh3.net.cn/info/1971/155321.htm"}];Object.defineProperty(this,'photos',{value:entries});return entries},logo:"assets/hospital-logo.png",
+    get state(){return state},
+    get photos(){
+      const gallery=document.querySelector('#po-home .po-media');
+      return Array.from(gallery.querySelectorAll('img[data-photo]'),image=>{
+        const credit=gallery.querySelector('.po-credit[data-photo="'+image.dataset.photo+'"]');
+        return {src:image.getAttribute('src'),title:credit.querySelector('.po-caption-title').textContent,source:credit.querySelector('a').href};
+      });
+    },
+    logo:"assets/hospital-logo.png",
     metrics(){const done=Object.keys(state.reviewNotes).filter(k=>k==='A'||k==='B').length;return {pending:2-done,reviewed:4+done,totalFeedback:6,sent:8,replies:recentReplies(state).reduce((sum,n)=>sum+n,18),live:state.service.active?1:0};},
     directory(){
       const m=this.metrics(),s=state.service;
