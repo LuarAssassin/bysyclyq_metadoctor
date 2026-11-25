@@ -14,7 +14,7 @@
   }
   function scores(s){
     return '<div class="ldd-scores" aria-label="四项服务评价">'+
-      score('服务热度',percent(s.returning,s.patients),'既往使用患者占比','此前用过院区 AI 的患者 '+fraction(s.returning,s.patients)+' 人')+
+      score('服务热度',percent(s.returning,s.patients),'患者复用率','周期前已用过院区 AI 的患者 '+fraction(s.returning,s.patients)+' 人')+
       score('服务能力',percent(s.completed,s.services),'任务完成率','已完成 '+fraction(s.completed,s.services)+' 次服务')+
       score('专业度',percent(s.passed,s.audited),'专家抽检合格率',s.audited?'合格 '+fraction(s.passed,s.audited)+' 份抽检':'本期暂无专家抽检')+
       score('服务成效',percent(s.ontime,s.followups),'随访按期完成率',s.followups?'按期完成 '+fraction(s.ontime,s.followups)+' 次应随访':'本期无应完成随访')+'</div>';
@@ -70,7 +70,7 @@
       '<div class="ldd-tabbody" data-ldd-panel="scene">'+sceneChart+flow+'</div></section>';
   }
   function forecastSummary(fc){
-    const estimate=fc.eligible?'<p><b>'+count(fc.total)+'</b>次 · 情景范围 '+count(fc.low)+'–'+count(fc.high)+' 次</p>':'<p>历史样本不足，暂无法估算</p>';
+    const estimate=fc.eligible?'<p><b>'+count(fc.total)+'</b>次 · 历史观测范围 '+count(fc.low)+'–'+count(fc.high)+' 次</p>':'<p>历史样本不足，暂无法估算</p>';
     return '<section class="ldd-forecast" aria-label="未来服务需求预测"><h2>未来 7 天服务需求</h2>'+estimate+'<p>近 28 天同范围内 '+count(fc.sample)+' 次服务记录</p></section>';
   }
   function render(host,result,state,controller){

@@ -29,6 +29,13 @@
    }
  }
  window.addEventListener('cl:change',()=>{syncFeedback();if(!document.getElementById('page-followup').hidden)render()});
+ window.addEventListener('cl:view',()=>{
+   if(window.CL.currentRole()==='doctor')return;
+   for(const row of rows.slice(0,2)){
+     if(!row.done){delete row.note;delete row.outcome;}
+   }
+   filter='pending';current='A';el('live').textContent='';render();
+ });
  syncFeedback();
  function render(){
    const items=rows.filter(r=>Boolean(r.done)===(filter==='done'));

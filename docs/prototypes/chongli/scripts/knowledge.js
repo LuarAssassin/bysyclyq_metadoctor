@@ -2,7 +2,7 @@
  const root=document.getElementById('kb-app'),at=id=>document.getElementById('kb-'+id);
  const rows=[
  {title:'骨关节炎的诊断与管理（NICE NG226）',specialty:'骨科',origin:'国际',source:'英国 NICE',date:'发布于 2022.10.19',keywords:'膝关节 骨关节炎 骨科 NICE 指南 osteoarthritis',description:'官方条目名称为 Osteoarthritis in over 16s: diagnosis and management。可打开 NICE 页面核对原文；加入知识库只保存本条来源索引。',official:true},
- {title:'术后随访信息采集表',specialty:'运动医学',origin:'院内',source:'样例表单',date:'示例日期 2026.11.18',keywords:'膝关节 术后随访 活动记录 运动医学',description:'示例表单包含回访日期、患者自述、希望医生解答的问题和联系偏好。用于演示如何整理随访资料。'},
+ {title:'术后随访信息采集表',specialty:'运动医学',origin:'院内',source:'样例表单',date:'示例日期 2026.11.18',keywords:'膝关节 术后康复 术后随访 活动记录 运动医学',description:'示例表单包含回访日期、患者自述、希望医生解答的问题和联系偏好。用于演示如何整理随访资料。'},
  {title:'运动损伤就诊资料清单',specialty:'运动医学',origin:'国内',source:'样例清单',date:'示例日期 2026.11.16',keywords:'运动损伤 复诊准备 运动医学 训练',description:'示范记录影像检查、既往就诊材料、运动项目和日期。便于医生检查患者是否已整理好复诊所需材料。'},
  {title:'肩关节康复记录模板',specialty:'康复医学',origin:'院内',source:'样例模板',date:'示例日期 2026.11.13',keywords:'康复医学 肩关节 随访 术后随访',description:'用于演示如何归档康复记录、记录中断原因及患者想咨询的问题。'},
  {title:'运动损伤研究文献提取表',specialty:'运动医学',origin:'国际',source:'样例文献卡',date:'示例日期 2026.11.11',keywords:'循证 运动损伤 研究 文献 运动医学',description:'模拟国际文献的归档条目，展示研究对象、研究设计、观察指标和原文位置等字段。'},
@@ -12,7 +12,7 @@
  let mode='discover',topic='全部专科',detail=null;
  const saved=new Set((window.CL.state.knowledgeIds || []).filter(id=>rows[id])),selected=new Set();
  window.addEventListener('cl:change',()=>{saved.clear();for(const id of window.CL.state.knowledgeIds || []){if(rows[id]){saved.add(id);selected.delete(id)}}render()});
- window.atlasKnowledgeTitles=()=>Array.from(saved,id=>rows[id].title);
+ window.atlasKnowledgeTitles=(ids=window.CL.state.knowledgeIds)=>ids.filter(id=>rows[id]).map(id=>rows[id].title);
  function say(note){at('live').textContent=note}
  function resetFilters(){at('search').value='';at('origin').value='全部来源';topic='全部专科'}
  function render(){
@@ -36,7 +36,22 @@
  at('rows').addEventListener('change',e=>{const id=e.target.dataset.kbsel;if(id!==undefined){toggle(+id);root.querySelector('[data-kbsel="'+id+'"]')?.focus({preventScroll:true})}});
  at('search-form').addEventListener('submit',e=>{e.preventDefault();render();say('找到 '+at('total').textContent.replace('· ','')+'资料')});at('search').addEventListener('input',render);at('origin').addEventListener('change',render);
  at('clear').onclick=()=>{if(mode==='saved'&&!saved.size)mode='discover';resetFilters();render()};
- at('import').onclick=()=>{const added=selected.size;selected.forEach(i=>saved.add(i));selected.clear();window.CL.setKnowledge(Array.from(saved));render();say('已加入 '+added+' 份资料');window.dispatchEvent(new Event('atlas:refresh'))};
+ at('import').onclick=()=>{
+   const additions=Array.from(selected);
+   if(!additions.length)return;
+   const committed=window.CL.addKnowledge(additions);
+   say(committed?'所选来源索引已加入知识库草稿。':'未新增来源索引，请核对已选资料和当前账号。');
+ };
  at('close').onclick=()=>at('dialog').close();at('dialog-select').onclick=()=>{at('dialog').close();toggle(detail);root.querySelector('[data-kbdetail="'+detail+'"]')?.focus({preventScroll:true})};
+ window.addEventListener('cl:view',()=>{
+   if(window.CL.currentRole()==='doctor')return;
+   if(at('dialog').open)at('dialog').close();
+   selected.clear();detail=null;mode='discover';resetFilters();say('');render();
+ });
+ window.addEventListener('cl:view',()=>{
+   if(window.CL.currentRole()==='doctor')return;
+   if(at('dialog').open)at('dialog').close();
+   mode='discover';selected.clear();resetFilters();say('');render();
+ });
  window.atlasSaved=()=>saved.size;window.atlasSearch=q=>{mode='discover';resetFilters();at('search').value=String(q||'');render()};render();
 })();

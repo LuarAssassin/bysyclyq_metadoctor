@@ -50,11 +50,24 @@
     saved=JSON.stringify(draft);render();get('feedback').textContent='专业与表达设置已保存。';return true;
   }
   root.addEventListener('change',()=>{render();get('feedback').textContent='已更新患者视角。'});
-  window.addEventListener('cl:change',render);
+  window.addEventListener('cl:change',()=>{
+    if(saved===JSON.stringify(state()))hydrateSettings();
+    else render();
+  });
   get('save').onclick=saveSettings;
   get('kb').onclick=()=>window.atlasDoctorGo('knowledge',get('focus').value);
   get('review').onclick=()=>{if(saveSettings())window.CL.go('doctorRelease');};
-  window.addEventListener('cl:view',e=>{if(e.detail==='doctorPersona')hydrateSettings()});
+  window.addEventListener('cl:view',e=>{
+    if(window.CL.currentRole()!=='doctor'){
+      get('feedback').textContent='';
+      get('scenario').selectedIndex=0;
+      hydrateSettings();
+    }else if(e.detail==='doctorPersona'){
+      // Keep unsaved choices while the doctor checks their specialty's sources.
+      if(saved===JSON.stringify(state()))hydrateSettings();
+      else render();
+    }
+  });
   hydrateSettings();
   render();
 })();

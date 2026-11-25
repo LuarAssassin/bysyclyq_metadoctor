@@ -13,11 +13,18 @@
   }
   function sync(){const k=Math.max(0,Math.min(2,Math.floor((movie.currentTime||0)/5)));if(k===activeStep)return;activeStep=k;steps.querySelectorAll('button').forEach((b,j)=>b.setAttribute('aria-current',String(k===j)));}
   const tryButton=root.querySelector('.cg-try');
-  const doctorSession=()=>typeof CL.currentRole==='function'&&CL.currentRole()==='doctor';
+  const homeActions={patient:'返回患者服务',director:'返回科主任工作台',leader:'返回院领导工作台',reviewer:'返回发布审查工作台',admin:'返回院方管理工作台'};
   movie.addEventListener('timeupdate',sync);
-  tryButton.addEventListener('click',()=>{movie.pause();CL.go(media[index].target)});
+  tryButton.addEventListener('click',()=>{
+    movie.pause();
+    const role=CL.currentRole();
+    CL.go(role && role!=='doctor'?role:media[index].target);
+  });
   window.addEventListener('cl:view',event=>{
-    if(event.detail==='guide')tryButton.textContent=doctorSession()?'前往操作':'登录并体验此步骤';
+    if(event.detail==='guide'){
+      const role=CL.currentRole();
+      tryButton.textContent=role==='doctor'?'前往操作':homeActions[role]||'用医生账号体验此步骤';
+    }
     else movie.pause();
   });
   select(0);

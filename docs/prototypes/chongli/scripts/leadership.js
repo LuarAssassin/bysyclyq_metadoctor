@@ -76,7 +76,7 @@
   }
   function master(r){
     const fc=r.forecast,stats=r.current;
-    el('fc-summary').innerHTML=fc.eligible?'<span>未来 7 天预计服务</span><strong>'+num(fc.total)+'</strong><span>次</span><small>情景范围 '+num(fc.low)+'–'+num(fc.high)+'</small>':'<span>未来 7 天服务需求</span><strong>—</strong><small>历史样本不足</small>';
+    el('fc-summary').innerHTML=fc.eligible?'<span>未来 7 天预计服务</span><strong>'+num(fc.total)+'</strong><span>次</span><small>历史观测范围 '+num(fc.low)+'–'+num(fc.high)+'</small>':'<span>未来 7 天服务需求</span><strong>—</strong><small>历史样本不足</small>';
     plot(r);
     const demand=r.focus?.demand;
     el('action').innerHTML=demand&&fc.eligible?'预计 <button type="button" class="ld-link" data-ld-disease="'+esc(demand.name)+'">'+esc(demand.name)+'</button> 相关服务 '+num(demand.value)+' 次，近 7 天实际 '+num(demand.last)+' 次。':'预测参考前 28 天相同星期的服务记录。';
@@ -86,7 +86,7 @@
     const quality=r.focus?.quality, note=el('quality-note');
     note.hidden=!quality;
     if(quality)note.innerHTML='<b>质控关注</b> <button type="button" class="ld-link" data-ld-quality-dept="'+esc(quality.name)+'">'+esc(quality.name)+'</button> 抽检 '+num(quality.audited)+' 份，'+num(quality.failed)+' 份未通过。';
-    const rows=[['热度','回访患者占比',stats.returning,stats.patients,'既往用过 / 本期患者'],['能力','任务完成率',stats.completed,stats.services,'已完成 / 全部服务'],['专业度','专家抽检合格率',stats.passed,stats.audited,'合格 / 抽检服务'],['成效','随访按期完成率',stats.ontime,stats.followups,'按期完成 / 应随访']];
+    const rows=[['服务热度','患者复用率',stats.returning,stats.patients,'周期前已用 / 本期患者'],['服务能力','任务完成率',stats.completed,stats.services,'已完成 / 全部服务'],['专业度','专家抽检合格率',stats.passed,stats.audited,'合格 / 抽检服务'],['服务成效','随访按期完成率',stats.ontime,stats.followups,'按期完成 / 应随访']];
     el('evals').innerHTML=rows.map(([title,label,n,d,definition])=>'<div class="ld-evalitem"><h3><i></i>'+title+'</h3><div class="ld-eval-value"><b>'+pct(n,d)+'</b><span>'+label+'</span></div><p>'+num(n)+' / '+num(d)+' · '+definition+(d>0&&d<5?' · 小样本':'')+'</p></div>').join('');
   }
   function render(){
@@ -119,7 +119,7 @@
   function clearDims(){set(Object.fromEntries(keys.map(k=>[k,''])))}
   function openMethod(){
     const r=last,m=r.forecast;
-    el('methodcopy').innerHTML='<h3>统计范围</h3><p>本期 '+esc(r.period.start)+' 至 '+esc(r.period.end)+'，上期 '+esc(r.period.priorStart)+' 至 '+esc(r.period.priorEnd)+'。统计使用固定 60 天的演示服务记录。工作台当日的操作记录单独演示。环比为上一个等长周期。</p><h3>人数、服务与沟通</h3><p>患者人数按所选周期去重。每次开始一项服务记 1 次，一次问答往返记 1 轮。例如，同一患者做一次术后随访并完成四轮问答，分别计 1 人、1 次、4 轮。</p><h3>热度、能力、专业度与成效</h3><p>既往用过的患者占本期去重患者的比例体现持续使用情况。任务完成率按本期服务记录计算。专业度按专家抽检结果计算，同时展示合格数和抽检数。随访按期完成率以应随访服务为分母。分母为零时显示「—」。上线前基线、医生工时和临床获益需另行采集，这里呈现服务运行成效。</p><h3>未来 7 天需求</h3><p>'+esc(m.method)+' 当前预测参考 '+num(m.sample)+' 份历史服务。图上实线表示记录，虚线和色带表示估计与情景范围。</p>';
+    el('methodcopy').innerHTML='<h3>统计范围</h3><p>本期 '+esc(r.period.start)+' 至 '+esc(r.period.end)+'，上期 '+esc(r.period.priorStart)+' 至 '+esc(r.period.priorEnd)+'。统计使用固定 60 天的演示服务记录。工作台当日的操作记录单独演示。环比为上一个等长周期。</p><h3>人数、服务与沟通</h3><p>患者人数按所选周期去重。每次开始一项服务记 1 次，一次问答往返记 1 轮。例如，同一患者做一次术后随访并完成四轮问答，分别计 1 人、1 次、4 轮。</p><h3>热度、能力、专业度与成效</h3><p>患者复用率＝本周期前已使用过院区平台的患者数 / 本期去重患者数。任务完成率＝完成任务的服务次数 / 本期服务次数。专家抽检合格率＝抽检合格数 / 实际抽检数，仅反映受检服务。随访按期完成率＝按期完成数 / 本期应随访数，用于衡量随访执行情况。评估患者康复或其他临床结局，需要单独采集结局指标。分母为零时显示「—」。</p><h3>未来 7 天需求</h3><p>'+esc(m.method)+' 当前预测参考 '+num(m.sample)+' 份历史服务。实线为历史记录，虚线为估计，色带为历史观测范围。</p>';
     modalOpen(el('methodbox'));
   }
   el('period').onchange=e=>set({days:Number(e.target.value)});

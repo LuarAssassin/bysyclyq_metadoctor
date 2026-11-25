@@ -109,6 +109,19 @@ async function permissionsAndAudit(page){
   await home(page);await enter(page,'reviewer');
   await page.locator('#view-admin [data-reviewer-workspace]').waitFor({state:'visible'});
   assert.equal(await page.locator('#view-admin [data-ad-tab=doctors]:visible,#view-admin [data-ad-tab=campus]:visible,#view-admin [data-ad-act=screen]:visible').count(),0);
+  await page.locator('#ad-review-detail [data-ad-act=approve]:visible').click();
+  await page.locator('#ad-reason').fill('第一次打开的送审单');
+  const editor=await page.context().newPage();
+  await editor.goto(url);await enter(editor,'doctor');
+  const updated=await editor.evaluate(()=>{
+    CL.addKnowledge([0]);
+    CL.submit();
+    return CL.state.release;
+  });
+  await page.waitForFunction(id=>CL.state.release.submissionId===id,updated.submissionId);
+  await page.locator('#ad-form button[type=submit]').click();
+  assert.equal(await page.evaluate(()=>CL.state.release.status),'submitted','stale decision must not approve a new submission of the same semantic version');
+  assert.match(await page.locator('#ad-message').innerText(),/重新操作/);
   for(const [decision,reason,target] of [['changes','请核对服务范围。','changes'],['approve','已核对版本、知识来源和人工复核范围。','approved']]){
     await page.locator('#ad-review-detail [data-ad-act="'+decision+'"]:visible').click();
     await page.locator('#ad-reason').fill(reason);await page.locator('#ad-form button[type=submit]').click();
@@ -129,10 +142,29 @@ async function permissionsAndAudit(page){
   await home(page);await enter(page,'doctor');
   await page.locator('#platform-shell [data-platform-route=doctorRelease]').click();
   assert.equal(await page.locator('#rl-note').innerText(),'已核对版本、知识来源和人工复核范围。');
-  assert(await page.locator('#rl-primary').isDisabled());await page.locator('#rl-ack').check();await page.locator('#rl-primary').click();
+  assert(await page.locator('#rl-primary').isDisabled());await page.locator('#rl-ack').check();
+  const oldId=await page.evaluate(()=>CL.state.release.submissionId);
+  await editor.evaluate(()=>{
+    CL.addKnowledge([1]);
+    CL.saveSettings({focus:'肩关节',tone:'专业严谨',depth:'分步说明'});
+    CL.submit();
+  });
+  await home(editor);await enter(editor,'reviewer');
+  const newId=await editor.evaluate(()=>{CL.approve('已核对变更后的资料。');return CL.state.release.submissionId});
+  await page.waitForFunction(id=>CL.state.release.submissionId===id&&CL.state.release.status==='approved',newId);
+  assert(await page.locator('#rl-primary').isDisabled(),'new approval requires fresh clinician consent');
+  assert.equal(await page.evaluate(id=>CL.authorize(id),oldId),false);
+  await page.locator('#rl-ack').check();await page.locator('#rl-primary').click();
   assert.equal(await page.evaluate(()=>CL.state.service.version),'1.3');
+  assert.deepEqual(await page.evaluate(()=>CL.state.service.knowledgeIds),[0,1]);
+  assert.equal(await page.evaluate(()=>CL.state.service.submissionId),newId);
+  await page.evaluate(()=>CL.setKnowledge([0]));
+  assert.deepEqual(await page.evaluate(()=>[CL.state.release.version,CL.state.service.knowledgeIds]),['1.4',[0,1]],'draft edits must leave the active service intact');
+  await editor.close();
   await home(page);await enter(page,'patient');
   assert.match(await page.locator('#pt-service').innerText(),/1\.3/);
+  assert.match(await page.locator('#pt-service').innerText(),/肩关节/);
+  assert.match(await page.locator('#pt-answer').innerText(),/复诊资料准备要点如下。①.*②/s);
   await home(page);await enter(page,'admin');
   await page.locator('#view-admin [data-ad-tab=doctors]').click();
   assert((await page.locator('#ad-content').innerText()).includes('数字医生名册'));
@@ -140,7 +172,24 @@ async function permissionsAndAudit(page){
   await page.locator('#view-admin [data-ad-act=invite]').click();
   await page.locator('#ad-name').fill('演示测试医生');await page.locator('#ad-invite-dept').fill('运动医学科');
   await page.locator('#ad-invite button[type=submit]').click();
-  assert((await page.locator('#ad-content').innerText()).includes('演示测试医生'));await home(page);
+  assert((await page.locator('#ad-content').innerText()).includes('演示测试医生'));
+  await page.locator('#view-admin [data-ad-tab=doctors]').click();
+  await page.locator('[data-ad-act=profile][data-ad-id=chen]').click();
+  await page.locator('#ad-dialog [data-ad-act=pause]').click();
+  await page.locator('#ad-reason').fill('演示服务质量复核');
+  await page.locator('#ad-form button[type=submit]').click();
+  await home(page);await enter(page,'patient');
+  await page.locator('#pt-unavailable').waitFor({state:'visible'});
+  assert.equal(await page.locator('#pt-available').isVisible(),false);
+  await home(page);await enter(page,'doctor');
+  await page.locator('#platform-shell [data-platform-route=doctorRelease]').click();
+  assert(await page.locator('#rl-resume').isDisabled());
+  await page.locator('#rl-resume-ack').check();await page.locator('#rl-resume').click();
+  assert.deepEqual(await page.evaluate(()=>[CL.state.service.active,CL.state.service.version,CL.state.release.status]),[true,'1.3','draft']);
+  await home(page);await enter(page,'admin');
+  await page.locator('#view-admin [data-ad-tab=audit]').click();
+  assert.match(await page.locator('#ad-logrows').innerText(),/演示服务质量复核/,'pause reason stays in the audit after recovery');
+  await home(page);
 }
 async function boards(page){
   const app=page.locator('#view-screen');

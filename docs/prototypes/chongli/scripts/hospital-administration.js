@@ -20,11 +20,11 @@
   const reviewerTabs=['review','audit'];
   const reviewerActions=['approve','changes','close'];
   const pageLabels={overview:'治理工作台',doctors:'医生管理',review:'发布审查',campus:'院区管理',audit:'操作记录'};
-  const localRole=()=>typeof window.CL?.currentRole==='function'?window.CL.currentRole():'legacyAdmin';
+  const localRole=()=>window.CL?.currentRole?.();
   const isReviewer=()=>localRole()==='reviewer';
   const isAdmin=()=>localRole()==='admin';
-  const canManage=()=>['admin','legacyAdmin'].includes(localRole());
-  const canDecide=()=>isReviewer()||localRole()==='legacyAdmin';
+  const canManage=isAdmin;
+  const canDecide=isReviewer;
   let evaluationDept='all';
   const canAccess=()=>isReviewer()||canManage();
   const isReviewEvent=entry=>/提交版本|审查|授权|退回/.test(entry.action);
@@ -32,10 +32,10 @@
   const fullTitle=header.querySelector('h1').textContent;
   const fullEyebrow=header.querySelector('.ad-label').textContent;
   const fullSubtitle=header.querySelector('.ad-sub').textContent;
-  let reviewVersion='';
+  let decisionTarget=null;
   function reviewerSnapshot(){
     const s=window.CL.state;
-    return {r:s.release,v:s.service,knowledgeIds:s.knowledgeIds||[],audit:(s.audit||[]).filter(isReviewEvent)};
+    return {r:s.release,v:s.service,knowledgeIds:s.release.snapshot?.knowledgeIds||s.knowledgeIds||[],audit:(s.audit||[]).filter(isReviewEvent)};
   }
   function configureAccess(reviewer){
     app.toggleAttribute('data-reviewer-workspace',reviewer);
@@ -65,7 +65,7 @@
       totalFeedback:account.totalFeedback??total('feedback'),
       reviewed:account.reviewed??(total('feedback')-total('pending'))
     };
-    return {r:s.release,v:s.service,m,dir,depts,knowledgeIds:s.knowledgeIds||[],invites:s.invites||[],audit:Array.isArray(s.audit)?s.audit:[]};
+    return {r:s.release,v:s.service,m,dir,depts,knowledgeIds:s.release.snapshot?.knowledgeIds||s.knowledgeIds||[],invites:s.invites||[],audit:Array.isArray(s.audit)?s.audit:[]};
   }
   function auditLines(items){
     if(!items.length)return '<p class="ad-empty">暂时没有符合条件的操作记录。</p>';
@@ -77,7 +77,7 @@
   function compareSettings(x){
     const {r,v}=x;
     const rows=[['细分专业','focus'],['回复风格','tone'],['解释深度','depth']].map(([label,key])=>{
-      const current=v.settings?.[key],candidate=r.settings?.[key];
+      const current=v.settings?.[key],candidate=(r.snapshot?.settings||r.settings)?.[key];
       return '<tr><th scope="row">'+label+'</th><td>'+ein(current||'未记录')+'</td><td class="'+(candidate&&candidate!==current?'ad-diff':'')+'">'+ein(candidate||'未记录')+'</td></tr>';
     });
     const liveSources=Array.isArray(v.knowledgeIds)?v.knowledgeIds.length+' 项':'未记录';
@@ -85,7 +85,7 @@
     return '<div class="ad-section"><h3>版本对照</h3><table class="ad-cmp"><thead><tr><th scope="col">比较项</th><th scope="col">服务版 v'+ein(v.version)+'</th><th scope="col">工作版 v'+ein(r.version)+'</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
   }
   function reviewChecks(x){
-    const verifiedTitles=typeof window.atlasKnowledgeTitles==='function'?window.atlasKnowledgeTitles():[];
+    const verifiedTitles=typeof window.atlasKnowledgeTitles==='function'?window.atlasKnowledgeTitles(x.knowledgeIds):[];
     const sources=verifiedTitles.length?'<ul class="ad-source">'+verifiedTitles.map(title=>'<li>'+ein(title)+'</li>').join('')+'</ul>':'<p>'+ (x.knowledgeIds.length?'可在专业知识库中逐项查看已选资料。':'本工作版尚未挂接资料索引。请核对服务范围是否有相应的专业资料支持。')+'</p>';
     return '<div class="ad-section"><h3>发布材料核对</h3><details class="ad-readrow"><summary>知识来源 · '+x.knowledgeIds.length+' 项索引</summary>'+sources+'</details><details class="ad-readrow"><summary>服务范围与人工复核</summary><p>核对健康宣教、就诊资料准备和随访信息采集的适用范围。查看是否向患者标明 AI 身份，并明确需医生判断的反馈由谁复核。</p></details></div>';
   }
@@ -95,13 +95,12 @@
     let actions='';
     if(!withButtons)actions=btn('review',r.status==='submitted'&&canDecide()?'核对并填写意见':'查看审查记录','ad-primary');
     else if(r.status==='submitted'&&canDecide())actions=btn('approve','填写通过意见','ad-primary')+btn('changes','退回修改');
-    else if(localRole()==='legacyAdmin'&&(r.status!=='live'||!v.active))actions=btn('doctorRelease','查看医生发布中心');
     return (r.note?note('<strong>最近审查意见</strong><br>'+ein(r.note)):'')+'<div class="ad-dfoot"><p>'+ein(steps[r.status]||'查看版本记录。')+'</p><div class="ad-links">'+actions+'</div></div>';
   }
   function releaseDetail(x,editing){
     const {r,v}=x;
     const progress=tag(statusLabel(r.status),r.status==='submitted'?'ad-amber':r.status==='changes'?'ad-rose':'ad-green');
-    const meta='运动医学科 · 患者端 v'+ein(v.version)+' '+(v.active?'服务中':'已暂停');
+    const meta='运动医学科 · 患者端 v'+ein(v.version)+' '+(v.active?'服务中':'已暂停')+(r.snapshot?' · 送审单 '+ein(r.submissionId):'');
     const ethics=isReviewer()?'<details class="ad-review-report"><summary>伦理审查助手 · 辅助核对报告</summary><ul><li><strong>服务身份</strong>　患者示例答复已标明 AI 数字医生身份。</li><li><strong>服务边界</strong>　就诊准备、健康宣教与随访信息采集属于本次核对范围，涉及个体诊疗决策的问题交由主管医生处理。</li><li><strong>需人工核对</strong>　结合下方知识来源及版本对照，核实拟发布内容适用范围，并在审核意见中记录判断依据。</li></ul><p class="ad-smallinfo">以上为原型的模拟辅助核对结果。</p></details>':'';
     return '<div class="ad-dhead"><div><h2>陈医生的数字医生</h2><p>'+meta+'</p></div>'+progress+'</div>'+compareSettings(x)+reviewChecks(x)+ethics+reviewStep(x,editing);
   }
@@ -173,14 +172,14 @@
     if(!canAccess()||(isReviewer()&&!['approve','changes'].includes(key)))return;
     const {r,v,dir}=isReviewer()?reviewerSnapshot():snapshot();
     if(['approve','changes'].includes(key)&&(!canDecide()||r.status!=='submitted'))return;
-    action=key;reviewVersion=r.version;
+    action=key;decisionTarget=key==='pause'?v.version:r.submissionId;
     const title=app.querySelector('#ad-dtitle');
     if(key==='profile'){
       const d=dir.find(d=>d.id===profileId);if(!d)return;
       const isChen=d.id==='chen';
       title.textContent=d.name+' · 服务详情';
       const metrics='<div class="ad-row"><span>今日数字医生回复</span><strong>'+ein(d.replies)+' 条</strong></div><div class="ad-row"><span>随访反馈 / 已发出</span><strong>'+ein(d.feedback)+' / '+ein(d.sent)+'</strong></div><div class="ad-row"><span>待医生复核</span><strong>'+ein(d.pending)+' 条</strong></div>';
-      db.innerHTML='<p class="ad-sub">'+ein(d.dept)+' · 崇礼院区</p><div class="ad-row"><span>患者服务</span>'+tag(d.active?'服务中':'已暂停',d.active?'ad-green':'ad-rose')+'</div><div class="ad-row"><span>当前服务版本</span><strong>v'+ein(d.version)+'</strong></div><div class="ad-row"><span>发布进度</span>'+tag(statusLabel(d.status))+'</div>'+metrics+'<div class="ad-footer">'+(isChen?btn('review','查看发布审查')+(v.active?btn('pause','暂停服务','ad-caution'):localRole()==='legacyAdmin'?btn('doctorRelease','转至医生授权'):'<span class="ad-smallinfo">等待医生确认恢复</span>'):btn('close','关闭'))+'</div>';
+      db.innerHTML='<p class="ad-sub">'+ein(d.dept)+' · 崇礼院区</p><div class="ad-row"><span>患者服务</span>'+tag(d.active?'服务中':'已暂停',d.active?'ad-green':'ad-rose')+'</div><div class="ad-row"><span>当前服务版本</span><strong>v'+ein(d.version)+'</strong></div><div class="ad-row"><span>发布进度</span>'+tag(statusLabel(d.status))+'</div>'+metrics+'<div class="ad-footer">'+(isChen?btn('review','查看发布审查')+(v.active?btn('pause','暂停服务','ad-caution'):'<span class="ad-smallinfo">等待医生确认恢复</span>'):btn('close','关闭'))+'</div>';
     }else if(key==='invite'){
       title.textContent='登记入驻邀请';
       db.innerHTML='<p class="ad-sub">填写拟邀请的医生及科室，登记后进入待确认名单。</p><form id="ad-invite"><label for="ad-name">医生姓名</label><input required maxlength="30" id="ad-name" autocomplete="off"><label for="ad-invite-dept">所属科室</label><input required id="ad-invite-dept" list="ad-depts" maxlength="40" placeholder="选择或填写科室"><datalist id="ad-depts">'+snapshot().depts.map(d=>'<option value="'+ein(d)+'"></option>').join('')+'</datalist><p role="status" id="ad-invite-msg" class="ad-feedback"></p><div class="ad-footer"><button type="submit" class="ad-btn ad-primary">保存邀请记录</button>'+btn('close','取消')+'</div></form>';
@@ -252,9 +251,7 @@
     if(['approve','changes'].includes(action)&&!canDecide())return;
     const operation={approve:'approve',changes:'returnForChanges',pause:'pause'}[action];
     if(!operation)return;
-    const submitted=window.CL.state.release;
-    const current=action==='pause'||(submitted.status==='submitted'&&submitted.version===reviewVersion);
-    const success=current&&window.CL[operation](reason);dlg.close();render();
+    const success=window.CL[operation](reason,decisionTarget);dlg.close();render();
     msg.textContent=success?({approve:'院方已通过审查，等待医生确认授权。',changes:'修改意见已写入审查报告。',pause:'服务已暂停，原因已记录。'})[action]:'版本状态已变化，请按当前进度重新操作。';
   });
   if(window.CL)window.CL.adminTab=switchTab;

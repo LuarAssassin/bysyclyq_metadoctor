@@ -133,7 +133,7 @@
 </div>
     <div>
 <h3>患者服务与智能随访平台</h3>
-<p>数字医生协助患者准备就诊资料、了解健康知识、提交随访反馈。需要专业判断的事项由医生复核。</p><a class="po-system-action" data-poroute="doctorFollow" href="#static-doctorFollow">处理随访反馈</a><button type="button" data-static-control popovertarget="read-doctorFollow" class="po-system-action" >处理随访反馈</button>
+<p>患者可查看就诊准备、健康宣教和随访填写示例。医生在随访工作台复核反馈，记录需要跟进的事项。</p><a class="po-system-action" data-poroute="serviceFollow" href="#serviceFollow">进入就诊与随访</a><button type="button" data-static-control popovertarget="read-accounts" class="po-system-action">选择账号预览</button>
 </div>
     <div>
 <h3>医学科研辅助平台</h3>
@@ -141,7 +141,7 @@
 </div>
     <div>
 <h3>数字医生治理与评价平台</h3>
-<p>院方管理数字医生的版本和授权记录，按科室、病种和患者来源查看服务表现，并结合专家抽检开展质控。</p><a class="po-system-action" data-poroute="reviewer" href="#static-roleReviewer">查看发布审查</a><button type="button" data-static-control popovertarget="read-roleReviewer" class="po-system-action" >查看发布审查</button>
+<p>院方管理数字医生的版本和授权记录，按科室、病种和患者来源查看服务表现，并结合专家抽检开展质控。</p><a class="po-system-action" data-poroute="serviceGovernance" href="#serviceGovernance">进入审查与评价</a><button type="button" data-static-control popovertarget="read-accounts" class="po-system-action">选择账号预览</button>
 </div>
   </div>
 </section>
@@ -407,7 +407,7 @@
 <ol class="rs-sources" id="rs-source-lines" aria-label="原文逐句记录">
 </ol>
       <details class="rs-intake" id="rs-intake"><summary>本地材料与摘录</summary>
-<p class="rs-intro">请使用脱敏材料。TXT 可直接阅读，图片、PDF 和录音可供核对；摘录由医生填写，仅当前打开的页面可用。</p>
+<p class="rs-intro">请使用脱敏材料。可核对文本、图片、PDF 和录音，手动摘录病例字段。材料和草稿仅保留至退出账号或刷新页面，可提前导出。</p>
       <label for="rs-upload">选择一个或多个文件</label><input type="file" multiple id="rs-upload" accept=".txt,.pdf,.png,.jpg,.jpeg,.webp,.gif,.mp3,.wav,.m4a,.ogg,.aac,.flac">
       <label for="rs-file-list">摘录来源</label><select id="rs-file-list"><option value="">手动录入</option></select>
       <div class="rs-file-preview" id="rs-file-preview">
@@ -936,7 +936,7 @@
 <div><dt>科室通知</dt><dd>具体携带要求以接诊科室通知为准。</dd>
 </div></dl>
 </details>
-<details class="rp-task"><summary>填写随访反馈</summary><dl>
+<details class="rp-task"><summary>如何填写随访反馈</summary><dl>
 <div><dt>记录近况</dt><dd>按随访表的问题填写近期活动情况和变化。</dd>
 </div>
 <div><dt>联系意愿</dt><dd>如希望主管医生联系，可在反馈中写明。</dd>
@@ -956,7 +956,7 @@
 <p>陈医生的数字医生可协助就诊准备、健康宣教和随访资料采集，当前演示服务版本为 v1.2。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
 </details>
 <details id="static-guide" open><summary>数字医生搭建教程</summary>
-<p>先设定细分专业及回复偏好，再选入指南与院内资料，最后提交院方审查并确认授权。运行版提供分步视频。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
+<ol><li>选择细分专业、回复风格和深度，试答后保存草稿。</li><li>核对资料的来源和日期，将选定条目加入知识库。</li><li>提交版本，查阅院方审查报告，通过后由医生本人授权启用。</li></ol><button type="button" data-static-control popovertarget="read-guide">观看分步教程</button><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview">返回首页</button>
 </details>
 <details id="static-about" open><summary>平台介绍</summary>
 <p>崇礼AI元医院智能化平台面向北京大学第三医院崇礼院区的专科服务与管理需求，下设四个业务子平台，分别为数字医生构建平台、患者服务与智能随访平台、医学科研辅助平台和数字医生治理与评价平台。四个平台通过版本审查与授权、服务评价与改进两项机制协同运行。医生遴选专科资料、设定服务范围，经院方审查、医生本人授权后，数字医生可用于就诊准备、健康宣教和康复随访。科研人员可整理多种形式的资料，形成可回查来源的结构化病例草稿。院领导和科主任可结合服务覆盖、专家抽检结果及随访完成情况，指导科室更新知识、改进服务，为专科经验向基层推广提供支撑。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
@@ -985,8 +985,11 @@
 </section>
 <section popover id="read-guide" class="cl-read-panel" aria-label="数字医生搭建教程">
 <h2>数字医生搭建教程</h2>
-<p>设定专业和回复偏好，选入知识资料，提交院方审查，最后由本人确认启用。离线运行版可播放分步教程。</p>
-<p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-guide" popovertargetaction="hide">返回首页</button>
+<p>每节 15 秒，带中文字幕。展开章节即可播放。</p>
+<details name="read-guide-chapters" open><summary>设定数字医生的回复方式</summary><video class="cg-media" aria-label="设定数字医生的回复方式，带中文字幕" controls playsinline preload="none" poster="assets/guide-doctor.jpg" src="assets/guide-doctor.mp4"></video><p>选择细分专业、回复风格和深度，试答后保存草稿。</p></details>
+<details name="read-guide-chapters"><summary>核对资料并加入知识库</summary><video class="cg-media" aria-label="核对资料并加入知识库，带中文字幕" controls playsinline preload="none" poster="assets/guide-knowledge.jpg" src="assets/guide-knowledge.mp4"></video><p>按专科和来源筛选，核对发布机构和日期，将选定的来源索引加入知识库。</p></details>
+<details name="read-guide-chapters"><summary>从草稿到授权启用</summary><video class="cg-media" aria-label="从草稿到授权启用，带中文字幕" controls playsinline preload="none" poster="assets/guide-release.jpg" src="assets/guide-release.mp4"></video><p>提交版本，查阅院方审查报告，通过后由医生本人授权启用。</p></details>
+<button type="button" popovertarget="read-guide" popovertargetaction="hide">返回首页</button>
 </section>
 <section popover id="read-about" class="cl-read-panel" aria-label="平台介绍">
 <h2>平台介绍</h2>
@@ -1162,7 +1165,7 @@
 </article>
 </div>
 </div>
-<p class="nw-foot">演示资料 · 只读预览。在浏览器中打开本目录的 index.html 可保存草稿、复核反馈和办理版本审查。</p>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
 </section>
 
 <section popover id="read-doctorFollow" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
@@ -1334,7 +1337,7 @@
 </article>
 </div>
 </div>
-<p class="nw-foot">演示资料 · 只读预览。在浏览器中打开本目录的 index.html 可保存草稿、复核反馈和办理版本审查。</p>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
 </section>
 
 <section popover id="read-doctorResearch" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
@@ -1506,7 +1509,7 @@
 </article>
 </div>
 </div>
-<p class="nw-foot">演示资料 · 只读预览。在浏览器中打开本目录的 index.html 可保存草稿、复核反馈和办理版本审查。</p>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
 </section>
 
 <section popover id="read-admin" class="cl-read-panel nw-panel" aria-label="崇礼院区业务工作台">
@@ -1678,7 +1681,7 @@
 </article>
 </div>
 </div>
-<p class="nw-foot">演示资料 · 只读预览。在浏览器中打开本目录的 index.html 可保存草稿、复核反馈和办理版本审查。</p>
+<p class="nw-foot">演示资料 · 只读预览。用浏览器打开下载的门户 HTML，即可按账号权限体验草稿保存、随访复核与版本审查。</p>
 </section>
 
 <section popover id="read-roleDoctor" data-native-role="doctor" class="cl-read-panel role-preview" aria-label="医生工作台">
@@ -1908,7 +1911,7 @@
 <div><dt>科室通知</dt><dd>具体携带要求以接诊科室通知为准。</dd>
 </div></dl>
 </details>
-<details class="rp-task"><summary>填写随访反馈</summary><dl>
+<details class="rp-task"><summary>如何填写随访反馈</summary><dl>
 <div><dt>记录近况</dt><dd>按随访表的问题填写近期活动情况和变化。</dd>
 </div>
 <div><dt>联系意愿</dt><dd>如希望主管医生联系，可在反馈中写明。</dd>

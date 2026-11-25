@@ -13,6 +13,7 @@
   };
   examples.local={lines:[],fields:[['待补信息','请核对个案编码、资料日期及检查依据。缺失内容可标为未提供。',null]]};
   const drafts=new Map();
+  const manuallyEdited=new Set();
   const select=find('#rs-source'),draft=find('#rs-draft'),proof=find('#rs-proof'),choices=find('#rs-field-choices'),lines=find('#rs-source-lines'),status=find('#rs-status');
   function highlight(index){
     const item=examples[select.value],field=item.fields[index],sourceIndex=field[2];
@@ -32,7 +33,10 @@
     highlight(0);
   }
   select.addEventListener('change',render);
-  draft.addEventListener('input',()=>{drafts.set(select.value,draft.value);status.textContent='已保留本次编辑';});
+  draft.addEventListener('input',()=>{
+    drafts.set(select.value,draft.value);manuallyEdited.add(select.value);
+    status.textContent='已保留本次编辑，请核对改写内容与原始出处。';
+  });
   const attachments=new Map();
   const upload=find('#rs-upload'),fileList=find('#rs-file-list'),preview=find('#rs-file-preview'),excerpt=find('#rs-excerpt'),intakeStatus=find('#rs-intake-status');
   find('#rs-import').addEventListener('click',()=>{
@@ -40,7 +44,7 @@
     upload.focus();
     upload.click();
   });
-  let sequence=0;
+  let sequence=0,session=0,doctorSession=false;
   function showFile(){
     const entry=attachments.get(fileList.value);preview.replaceChildren();
     if(!entry)return;
@@ -53,20 +57,28 @@
   }
   fileList.addEventListener('change',showFile);
   upload.addEventListener('change',async()=>{
+    if(window.CL.currentRole()!=='doctor')return;
+    const startedIn=session;
     let added=0,skipped=0;
     const files=Array.from(upload.files);upload.value='';
     for(const file of files){
+      if(startedIn!==session)return;
       const ext=file.name.split('.').pop().toLowerCase();
       const type=ext==='txt'?'text':ext==='pdf'?'pdf':['png','jpg','jpeg','webp','gif'].includes(ext)?'image':['mp3','wav','m4a','ogg','aac','flac'].includes(ext)?'audio':'';
       if(!type || file.size>30*1024*1024 || (type==='text' && file.size>1024*1024)){skipped++;continue}
       try {
         const entry={type,name:file.name};
-        if(type==='text')entry.text=await file.text();else entry.url=URL.createObjectURL(file);
+        if(type==='text'){
+          entry.text=await file.text();
+          if(startedIn!==session)return;
+        }else entry.url=URL.createObjectURL(file);
         const id=String(++sequence);attachments.set(id,entry);
         const opt=document.createElement('option');opt.value=id;opt.textContent=file.name;fileList.append(opt);fileList.value=id;added++;
       }catch{skipped++}
     }
-    showFile();intakeStatus.textContent='已读取 '+added+' 份材料。'+(skipped?'另有 '+skipped+' 份无法读取，请检查类型和大小（TXT 1 MB，其他 30 MB）。':'');
+    if(startedIn===session){
+      showFile();intakeStatus.textContent='已读取 '+added+' 份材料。'+(skipped?'另有 '+skipped+' 份无法读取，请检查类型和大小（TXT 1 MB，其他 30 MB）。':'');
+    }
   });
   find('#rs-add-excerpt').addEventListener('click',()=>{
     const text=excerpt.value.trim();if(!text){intakeStatus.textContent='请先填写你已核对的摘录。';excerpt.focus();return}
@@ -86,6 +98,7 @@
     const sources=item.lines.map((line,i)=>(i+1)+'. '+line);
     const evidence=item.fields.filter(field=>field[2]!==null).map(field=>field[0]+' → 原文 '+(field[2]+1));
     const sections=['结构化病例草稿',name,content,'原始材料',sources.join('\n')||'尚未录入原文。','已摘录字段与原文对照',evidence.join('\n')||'尚未关联来源。'];
+    if(manuallyEdited.has(select.value))sections.push('正文经手工编辑。以上出处对应最初的摘录，请核对改写后的内容。');
     const href=URL.createObjectURL(new Blob(['\uFEFF'+sections.join('\n\n')],{type:'text/plain;charset=utf-8'}));
     const link=document.createElement('a');link.href=href;link.download='结构化病例草稿_'+select.value+'.txt';
     scope.append(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(href),1000);
@@ -95,6 +108,20 @@
     if(!draft.value.trim()){status.textContent='请先填写病例正文。';return;}
     try{await navigator.clipboard.writeText(draft.value);status.textContent='草稿已复制';}
     catch{draft.focus();draft.select();try{status.textContent=document.execCommand('copy')?'草稿已复制':'已选中草稿，可使用系统复制。';}catch{status.textContent='已选中草稿，可使用系统复制。';}}
+  });
+  window.addEventListener('cl:view',()=>{
+    const isDoctor=window.CL.currentRole()==='doctor';
+    if(doctorSession&&!isDoctor){
+      ++session;
+      for(const entry of attachments.values())if(entry.url)URL.revokeObjectURL(entry.url);
+      attachments.clear();drafts.clear();manuallyEdited.clear();
+      examples.local.lines.length=0;examples.local.fields.splice(1);
+      upload.value='';fileList.replaceChildren(new Option('手动录入',''));
+      preview.replaceChildren();excerpt.value='';find('#rs-locator').value='';
+      find('#rs-section').selectedIndex=0;find('#rs-intake').open=false;
+      intakeStatus.textContent='';select.value='follow';render();
+    }
+    doctorSession=isDoctor;
   });
   render();
 })();

@@ -3,19 +3,26 @@
   const defaultSettings={focus:'膝关节',tone:'亲切自然',depth:'只说重点'};
   const clock=()=>new Date().toLocaleString('sv-SE',{timeZone:'Asia/Shanghai',hour12:false});
   const seed={
-    release:{status:'submitted',version:'1.3',note:'',settings:{...defaultSettings}},
+    release:{status:'submitted',version:'1.3',submissionId:1,note:'',settings:{...defaultSettings},snapshot:{version:'1.3',settings:{...defaultSettings},knowledgeIds:[]}},
     service:{active:true,version:'1.2',reason:'',settings:{...defaultSettings}},
     audit:[
-      {time:'2026-11-19 09:10:00',actor:'陈医生',action:'提交版本审查',detail:'v1.3 · 运动医学科'},
+      {time:'2026-11-19 09:10:00',actor:'陈医生',action:'提交版本审查',detail:'v1.3 · 送审单 1 · 运动医学科'},
       {time:'2026-11-18 15:20:00',actor:'陈医生',action:'医生授权启用',detail:'v1.2 · 演示服务'},
       {time:'2026-11-18 11:05:00',actor:'院方审核员',action:'院方审查通过',detail:'v1.2 · 演示记录'}
     ],reviewNotes:{},reviewOutcomes:{},invites:[],knowledgeIds:[],feedbackDone:0,replyActivity:[0,0,0]
   };
   const clone=x=>JSON.parse(JSON.stringify(x));
+  function captureSubmission(s){
+    return {version:s.release.version,settings:clone(s.release.settings),knowledgeIds:[...s.knowledgeIds]};
+  }
   function read(){
     try{
       const v=JSON.parse(localStorage.getItem(key));
-      if(v&&v.release&&v.service&&Array.isArray(v.audit)&&v.reviewNotes&&Array.isArray(v.knowledgeIds))return v;
+      if(v&&v.release&&v.service&&Array.isArray(v.audit)&&v.reviewNotes&&Array.isArray(v.knowledgeIds)){
+        if(!Number.isSafeInteger(v.release.submissionId))v.release.submissionId=1;
+        if(!v.release.snapshot&&v.release.status!=='draft')v.release.snapshot=captureSubmission(v);
+        return v;
+      }
     }catch{}
     return null;
   }
@@ -37,7 +44,7 @@
   function commit(requiredRole,apply){
     if(window.CL.currentRole?.()!==requiredRole)return false;
     const next=clone(read()||state);
-    if(!apply(next))return false;
+    if(!apply(next)){synchronize();return false;}
     state=next;try{localStorage.setItem(key,JSON.stringify(next));channel?.postMessage('changed');}catch{}
     notice();return true;
   }
@@ -46,8 +53,16 @@
       const [major,minor]=s.release.version.split('.').map(Number);
       s.release.version=major+'.'+(minor+1);
     }
-    s.release.status='draft';s.release.note='';
+    s.release.status='draft';s.release.note='';delete s.release.snapshot;
   }
+  function updateKnowledge(ids,append){
+    return commit('doctor',s=>{
+      const values=Array.from(new Set(append?[...s.knowledgeIds,...ids]:ids)).filter(Number.isInteger).sort((a,b)=>a-b);
+      if(JSON.stringify(values)===JSON.stringify(s.knowledgeIds))return false;
+      s.knowledgeIds=values;beginEdit(s);log(s,'陈医生','更新知识库草稿','已选 '+values.length+' 项来源索引');return true;
+    });
+  }
+  const submissionLabel=r=>'v'+r.version+' · 送审单 '+r.submissionId;
   function settingsOf(input){
     const allowed={focus:['膝关节','肩关节','运动损伤','术后康复'],tone:['亲切自然','简洁直接','专业严谨'],depth:['只说重点','分步说明']};
     return Object.fromEntries(Object.keys(allowed).map(k=>[k,allowed[k].includes(input?.[k])?input[k]:defaultSettings[k]]));
@@ -95,11 +110,8 @@
       if(Object.keys(form).every(k=>s.release.settings[k]===form[k]))return false;
       beginEdit(s);s.release.settings=form;log(s,'陈医生','保存版本草稿','v'+s.release.version+' · 专业与表达');return true;
     });},
-    setKnowledge(ids){return commit('doctor',s=>{
-      const values=Array.from(new Set(ids)).filter(Number.isInteger).sort((a,b)=>a-b);
-      if(JSON.stringify(values)===JSON.stringify(s.knowledgeIds))return false;
-      s.knowledgeIds=values;beginEdit(s);log(s,'陈医生','更新知识库草稿','已选 '+values.length+' 项来源索引');return true;
-    });},
+    setKnowledge(ids){return updateKnowledge(ids,false);},
+    addKnowledge(ids){return updateKnowledge(ids,true);},
     reviewFeedback(id,note,outcome){return commit('doctor',s=>{
       id=String(id).toUpperCase();
       if(!['A','B'].includes(id)||Object.hasOwn(s.reviewNotes,id))return false;
@@ -115,29 +127,31 @@
     });},
     submit(){return commit('doctor',s=>{
       if(!['draft','changes'].includes(s.release.status))return false;
-      s.release.status='submitted';s.release.note='';log(s,'陈医生','提交版本审查','v'+s.release.version+' · 待院方复核');return true;
+      s.release.submissionId++;s.release.snapshot=captureSubmission(s);
+      s.release.status='submitted';s.release.note='';log(s,'陈医生','提交版本审查',submissionLabel(s.release)+' · 待院方复核');return true;
     });},
-    approve(note){return commit('reviewer',s=>{
-      if(s.release.status!=='submitted')return false;
-      s.release.status='approved';s.release.note=String(note||'材料核对完成。').trim().slice(0,1500);
-      log(s,'院方审核员','院方审查通过','v'+s.release.version+' · 待医生授权');s.audit[0].reviewNote=s.release.note;return true;
+    approve(note,expected=state.release.submissionId){return commit('reviewer',s=>{
+      if(s.release.status!=='submitted'||s.release.submissionId!==expected||!s.release.snapshot||!String(note||'').trim())return false;
+      s.release.status='approved';s.release.note=String(note).trim().slice(0,1500);
+      log(s,'院方审核员','院方审查通过',submissionLabel(s.release)+' · 待医生授权');s.audit[0].reviewNote=s.release.note;return true;
     });},
-    returnForChanges(note){return commit('reviewer',s=>{
-      if(s.release.status!=='submitted'||!String(note||'').trim())return false;
-      s.release.status='changes';s.release.note=String(note).trim().slice(0,1500);log(s,'院方审核员','退回版本修订','v'+s.release.version+' · 已附意见');s.audit[0].reviewNote=s.release.note;return true;
+    returnForChanges(note,expected=state.release.submissionId){return commit('reviewer',s=>{
+      if(s.release.status!=='submitted'||s.release.submissionId!==expected||!String(note||'').trim())return false;
+      s.release.status='changes';s.release.note=String(note).trim().slice(0,1500);log(s,'院方审核员','退回版本修订',submissionLabel(s.release)+' · 已附意见');s.audit[0].reviewNote=s.release.note;return true;
     });},
-    authorize(){return commit('doctor',s=>{
-      if(s.release.status!=='approved')return false;
-      s.release.status='live';s.service={version:s.release.version,active:true,reason:'',settings:clone(s.release.settings),knowledgeIds:[...s.knowledgeIds]};
-      log(s,'陈医生','医生授权启用','v'+s.service.version+' · 患者演示入口同步切换');return true;
+    authorize(expected=state.release.submissionId){return commit('doctor',s=>{
+      if(s.release.status!=='approved'||s.release.submissionId!==expected||!s.release.snapshot)return false;
+      s.release.status='live';s.service={...clone(s.release.snapshot),submissionId:expected,active:true,reason:''};
+      log(s,'陈医生','医生授权启用',submissionLabel(s.release)+' · 患者演示入口同步切换');return true;
     });},
-    pause(reason){return commit('admin',s=>{
-      if(!s.service.active||!String(reason||'').trim())return false;
+    pause(reason,expected=state.service.version){return commit('admin',s=>{
+      if(!s.service.active||s.service.version!==expected||!String(reason||'').trim())return false;
       s.service.active=false;s.service.reason=String(reason).trim().slice(0,1500);
-      log(s,'院方管理员','暂停数字医生服务','v'+s.service.version+' · 已暂停');return true;
+      s.service.suspension=(s.service.suspension||0)+1;
+      log(s,'院方管理员','暂停数字医生服务','v'+s.service.version+' · 暂停原因：'+s.service.reason);return true;
     });},
-    resume(){return commit('doctor',s=>{
-      if(s.service.active)return false;s.service.active=true;s.service.reason='';
+    resume(version=state.service.version,suspension=state.service.suspension||0){return commit('doctor',s=>{
+      if(s.service.active||s.service.version!==version||(s.service.suspension||0)!==suspension)return false;s.service.active=true;s.service.reason='';
       log(s,'陈医生','重新授权服务','v'+s.service.version+' · 已恢复');return true;
     });},
     resetDemo(){if(window.CL.currentRole?.()!=='admin')return false;state=clone(seed);try{localStorage.setItem(key,JSON.stringify(state));channel?.postMessage('changed')}catch{}notice();}
@@ -276,7 +290,7 @@
     const byDay=grouped(reference,'day');
     const info={eligible:reference.length>=12 && byDay.size>=4, sample:reference.length, activeDays:byDay.size,
       referenceStart:dates[32],referenceEnd:asOf,total:null,low:null,high:null,days:[],byDept:[],byDisease:[],
-      method:'使用截止统计日的近28日服务记录，与所选科室、标签和来源筛选一致。每个未来日期取前四个同星期几的服务量，按1、1、2、3由远及近加权估算。上下界取四次观测的最低和最高量，仅为运营情景范围。样本至少12次服务且覆盖4个活跃日。'};
+      method:'使用截止统计日的近28日服务记录，与所选科室、标签和来源筛选一致。每个未来日期取前四个同星期几的服务量，按1、1、2、3由远及近加权估算。每日上下界取四次观测的最低量和最高量。七天范围分别加总每日上下界。样本至少12次服务且覆盖4个活跃日。'};
     if(!info.eligible) return info;
     const base=53;
     const projected={dept:new Map(),disease:new Map()};

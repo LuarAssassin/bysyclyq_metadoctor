@@ -16,6 +16,12 @@ const tasks={
  serviceGovernance:{title:'数字医生治理与评价平台',routes:{director:'director',leader:'leader',reviewer:'reviewer',admin:'admin'}}
 };
 const main=document.getElementById('cl-main'),shell=document.getElementById('platform-shell'),menu=document.getElementById('ws-menu');
+const skipLink=document.getElementById('cl-skip');
+skipLink.addEventListener('click',event=>{
+ event.preventDefault();
+ main.focus({preventScroll:true});
+ main.scrollIntoView({block:'start'});
+});
 const brandbar=document.getElementById('cl-brandbar'),roleLabel=document.getElementById('cl-active-role'),switchButton=document.getElementById('cl-role-change');
 const reset=document.getElementById('cl-reset-dialog'),resetOpen=document.getElementById('cl-reset-open');
 const accounts=Object.freeze([
@@ -110,7 +116,7 @@ function draw(name,focus){
  showNavigation(name);
  for(const panel of document.querySelectorAll('.cl-view'))panel.hidden=panel.id!=='view-'+group;
  brandbar.hidden=group==='screen';
- document.getElementById('cl-skip').hidden=group==='screen';
+ skipLink.hidden=group==='screen';
  document.title=names[name]+' · 崇礼AI元医院';
  document.documentElement.style.backgroundColor=group==='screen'?'#0a1928':'#f5f6f8';
  window.dispatchEvent(new CustomEvent('cl:view',{detail:name}));
