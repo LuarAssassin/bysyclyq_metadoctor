@@ -11,13 +11,24 @@ import NarrativeKernelPage from '@/pages/NarrativeKernelPage'
 import RehearsalArenaPage from '@/pages/RehearsalArenaPage'
 import PatientConsultReviewPage from '@/pages/PatientConsultReviewPage'
 import ProfilePage from '@/pages/ProfilePage'
+import WorkspacePage from '@/pages/WorkspacePage'
+import GuidePage from '@/pages/GuidePage'
 
 // 从 Vite base 配置派生 basename（生产构建用 --base=/doctor/ 则值为 "/doctor"）
 // 本地开发时 BASE_URL === "/" 则不设置 basename，行为不变
 const _base = import.meta.env.BASE_URL?.replace(/\/+$/, '')
 const basename = _base && _base !== '' ? _base : undefined
+const supportsSessionLink = 'supportsSessionLink' in PatientConsultReviewPage && PatientConsultReviewPage.supportsSessionLink === true
 
 const router = createBrowserRouter([
+  {
+    path: '/preview',
+    element: <MainLayout key="preview" demo />,
+    children: [
+      { index: true, element: <WorkspacePage demo /> },
+      { path: 'guide', element: <GuidePage demo /> },
+    ],
+  },
   {
     path: '/auth',
     element: <AuthLayout />,
@@ -29,9 +40,11 @@ const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: <MainLayout />,
+    element: <MainLayout key="authenticated" />,
     children: [
-      { index: true, element: <Navigate to="/knowledge" replace /> },
+      { index: true, element: <Navigate to="/workspace" replace /> },
+      { path: 'workspace', element: <WorkspacePage supportsSessionLink={supportsSessionLink} /> },
+      { path: 'guide', element: <GuidePage /> },
       { path: 'knowledge', element: <KnowledgeCenterPage /> },
       { path: 'digital-human', element: <DigitalHumanPage /> },
       { path: 'narrative-kernel', element: <NarrativeKernelPage /> },

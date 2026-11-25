@@ -103,7 +103,7 @@ export default function KnowledgeCenterPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="知识库与索引中心" subtitle="上传 → 入队 → 抽取 → 成功/失败，页面实时反馈状态">
+      <PageHeader title="专业知识库" subtitle="上传专业资料，查看整理进度，检查可用于回复的内容">
         <button onClick={() => loadAll()} className="inline-flex items-center gap-1.5 text-xs font-medium text-ice-600 hover:text-ice-700 bg-ice-50 hover:bg-ice-100 px-3 py-2 rounded-lg transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 刷新
         </button>

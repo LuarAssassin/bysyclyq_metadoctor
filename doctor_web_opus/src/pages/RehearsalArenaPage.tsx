@@ -295,7 +295,7 @@ export default function RehearsalArenaPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="AI 问诊演练场" subtitle="会话 → 流式回答 → Token/来源 → Markdown 批改 → 反馈学习闭环">
+      <PageHeader title="试聊与校准" subtitle="以患者视角检查回复和来源，修订内容并记录改进意见">
         <button onClick={() => refreshAll()} className="inline-flex items-center gap-1.5 text-xs font-medium text-ice-600 hover:text-ice-700 bg-ice-50 hover:bg-ice-100 px-3 py-2 rounded-lg transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 刷新全部
         </button>

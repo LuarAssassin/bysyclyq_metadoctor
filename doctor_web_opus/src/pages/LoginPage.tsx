@@ -83,7 +83,8 @@ export default function LoginPage() {
         code: code.trim(),
       })
       toast.success('登录成功，欢迎回来')
-      const redirect = params.get('redirect') || '/knowledge'
+      const requestedRedirect = params.get('redirect') || '/workspace'
+      const redirect = requestedRedirect.startsWith('/') && !requestedRedirect.startsWith('//') && !requestedRedirect.includes('\\') && !requestedRedirect.startsWith('/auth') ? requestedRedirect : '/workspace'
       navigate(redirect, { replace: true })
     } catch (err) {
       const msg = toErrorMessage(err)
@@ -112,7 +113,7 @@ export default function LoginPage() {
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="text-center mb-2">
-        <h2 className="text-xl font-bold text-white">医生接码登录</h2>
+        <h2 className="text-xl font-bold text-white">医生登录</h2>
         <p className="text-sm text-ice-200/50 mt-1">审核通过的医生账号可进入系统</p>
       </div>
 
@@ -184,6 +185,10 @@ export default function LoginPage() {
           提交注册申请
         </Link>
       </p>
+      <div className="border-t border-white/15 pt-4 text-center">
+        <Link to="/preview" className="inline-flex items-center justify-center gap-2 text-sm text-white underline underline-offset-4">无需账号，先体验医生工作台</Link>
+        <p className="mt-2 text-xs text-ice-100/80">使用合成演示数据，不进入真实患者服务</p>
+      </div>
     </form>
   )
 }

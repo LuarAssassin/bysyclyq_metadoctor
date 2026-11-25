@@ -1,4 +1,5 @@
 from django.urls import path
+from mdapi.workspace_views import DoctorWorkspaceView
 
 from mdapi.auth_views import (
     CustomTokenRefreshView,
@@ -52,6 +53,7 @@ from mdapi.views import (
 
 
 urlpatterns = [
+    path("doctor/workspace/", DoctorWorkspaceView.as_view(), name="doctor-workspace"),
     path("auth/login/", DoctorTokenObtainPairView.as_view(), name="auth-login"),
     path("auth/token/refresh/", CustomTokenRefreshView.as_view(), name="auth-refresh"),
     path("auth/me/", UserProfileView.as_view(), name="auth-me"),

@@ -117,7 +117,7 @@ export default function NarrativeKernelPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="医生叙事底座中心" subtitle="底座学习依赖大模型抽取，不做规则兜底；失败信息直接暴露">
+      <PageHeader title="专业与表达" subtitle="维护数字医生的专业信息、表达习惯与回复边界；当前配置修改会影响后续回复">
         <button onClick={() => loadAll()} className="inline-flex items-center gap-1.5 text-xs font-medium text-ice-600 hover:text-ice-700 bg-ice-50 hover:bg-ice-100 px-3 py-2 rounded-lg transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 刷新底座
         </button>

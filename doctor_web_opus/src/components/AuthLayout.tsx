@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 
 export default function AuthLayout() {
   const isAuth = useAuthStore((s) => s.isAuthenticated)
-  if (isAuth) return <Navigate to="/knowledge" replace />
+  if (isAuth) return <Navigate to="/workspace" replace />
 
   return (
     <div className="auth-bg flex items-center justify-center p-4 sm:p-8">
@@ -29,10 +29,10 @@ export default function AuthLayout() {
             Peking University Third Hospital · Chongli
           </p>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            医生元宇宙智能体
+            崇礼AI元医院
           </h1>
           <p className="text-sm text-ice-200/60 mt-2 max-w-sm mx-auto">
-            知识沉淀 · 数字人素材 · 叙事底座 · AI 问诊演练
+            智能化平台 · 医生工作空间
           </p>
         </div>
 
