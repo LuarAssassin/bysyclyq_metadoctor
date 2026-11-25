@@ -11,7 +11,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.http import StreamingHttpResponse
 from pathlib import Path
 from django.utils import timezone
@@ -2724,20 +2724,30 @@ class DoctorPatientConsultTreeView(APIView):
             oss_client = None
 
         queryset = (
-            PatientConsultSession.objects.filter(doctor=request.user)
+            PatientConsultSession.objects.filter(
+                doctor=request.user,
+                patient__is_deleted=False,
+            )
             .select_related("patient")
             .annotate(
                 pending_count=Count(
                     "messages",
                     filter=Q(
                         messages__is_deleted=False,
+                        messages__doctor=request.user,
+                        messages__patient_id=F("patient_id"),
                         messages__role="assistant",
+                        messages__generation_status="succeeded",
                         messages__review_status="pending",
                     ),
                 ),
                 total_message_count=Count(
                     "messages",
-                    filter=Q(messages__is_deleted=False),
+                    filter=Q(
+                        messages__is_deleted=False,
+                        messages__doctor=request.user,
+                        messages__patient_id=F("patient_id"),
+                    ),
                 ),
             )
             .filter(total_message_count__gt=0)
@@ -2809,6 +2819,7 @@ class DoctorPatientConsultSessionMessagesView(APIView):
             PatientConsultSession.objects.filter(
                 id=session_id,
                 doctor=request.user,
+                patient__is_deleted=False,
             )
             .select_related("patient")
             .first()
@@ -2823,20 +2834,46 @@ class DoctorPatientConsultSessionMessagesView(APIView):
             limit = 100
         limit = max(1, min(limit, 300))
 
-        queryset = list(
-            PatientConsultMessage.objects.filter(session=session)
-            .order_by("-created_at")[:limit]
+        messages = PatientConsultMessage.objects.filter(
+            session=session,
+            doctor=request.user,
+            patient_id=session.patient_id,
         )
+        page_messages = messages
+        raw_cursor = request.query_params.get("before_message_id")
+        if raw_cursor is not None:
+            try:
+                cursor = int(raw_cursor)
+            except (TypeError, ValueError):
+                return APIResponse.error(message="before_message_id 必须为正整数", code=400)
+            if cursor <= 0 or cursor > 9223372036854775807:
+                return APIResponse.error(message="before_message_id 必须为有效正整数", code=400)
+            # Resolve anchors inside the same scoped queryset. An ID belonging
+            # to another doctor/session (or a deleted row) is never a cursor.
+            anchor = messages.filter(id=cursor).values("id", "created_at").first()
+            if not anchor:
+                return APIResponse.not_found(message="分页位置不存在或不属于当前会话")
+            page_messages = messages.filter(
+                Q(created_at__lt=anchor["created_at"])
+                | Q(created_at=anchor["created_at"], id__lt=anchor["id"])
+            )
+
+        rows = list(page_messages.order_by("-created_at", "-id")[:limit + 1])
+        has_more = len(rows) > limit
+        queryset = rows[:limit]
         queryset.reverse()
 
-        stats = PatientConsultMessage.objects.filter(
-            session=session,
+        # Statistics cover the entire conversation, independent of the page.
+        # Only completed replies are actionable; timestamps distinguish actual
+        # reviews from legacy records whose default status was "approved".
+        stats = messages.filter(
             role="assistant",
+            generation_status="succeeded",
         ).aggregate(
             pending=Count("id", filter=Q(review_status="pending")),
-            approved=Count("id", filter=Q(review_status="approved")),
-            approved_edited=Count("id", filter=Q(review_status="approved_edited")),
-            rejected=Count("id", filter=Q(review_status="rejected")),
+            approved=Count("id", filter=Q(review_status="approved", reviewed_at__isnull=False)),
+            approved_edited=Count("id", filter=Q(review_status="approved_edited", reviewed_at__isnull=False)),
+            rejected=Count("id", filter=Q(review_status="rejected", reviewed_at__isnull=False)),
         )
         messages_data = PatientConsultMessageSerializer(queryset, many=True).data
         messages_data = [
@@ -2871,6 +2908,10 @@ class DoctorPatientConsultSessionMessagesView(APIView):
                     ),
                 },
                 "messages": messages_data,
+                "pagination": {
+                    "has_more": has_more,
+                    "before_message_id": queryset[0].id if has_more else None,
+                },
                 "stats": {
                     "pending": int(stats.get("pending") or 0),
                     "approved": int(stats.get("approved") or 0),
@@ -2892,6 +2933,10 @@ class DoctorPatientConsultMessageReviewView(APIView):
             PatientConsultMessage.objects.filter(
                 id=message_id,
                 doctor=request.user,
+                session__doctor=request.user,
+                session__is_deleted=False,
+                patient__is_deleted=False,
+                patient_id=F("session__patient_id"),
                 role="assistant",
             )
             .select_related("session")
@@ -2976,7 +3021,13 @@ class DoctorPatientConsultMessageReviewView(APIView):
 
         pending_count = PatientConsultMessage.objects.filter(
             session_id=message.session_id,
+            session__doctor=request.user,
+            session__is_deleted=False,
+            doctor=request.user,
+            patient_id=message.session.patient_id,
+            patient__is_deleted=False,
             role="assistant",
+            generation_status="succeeded",
             review_status="pending",
         ).count()
 
