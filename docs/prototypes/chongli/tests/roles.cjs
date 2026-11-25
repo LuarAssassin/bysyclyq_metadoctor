@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const {pathToFileURL} = require('node:url');
 const {chromium} = require('playwright');
 const path = require('node:path');
+const fs = require('node:fs');
 const file = path.resolve(process.env.PROTOTYPE_HTML || path.join(__dirname, '..', 'index.html'));
 const url = pathToFileURL(file).href;
 const executablePath = process.env.CHROMIUM_PATH || undefined;
@@ -9,44 +10,86 @@ const roles = {
   doctor:['医生','#page-home'], director:['科主任','#view-screen'], leader:['院领导','#view-screen'],
   reviewer:['院方审核人员','#view-admin'], patient:['患者','#view-patient'], admin:['院方管理员','#view-admin']
 };
-const choices = '#po-home a[data-role-entry]';
+const accounts = {doctor:'CL1001', patient:'PT1001', director:'CL2001', leader:'CL3001', reviewer:'CL4001', admin:'CL5001'};
 const errors=[];
 function routeUrl(route){return url+'#'+route}
 async function assertRoute(page,role,route=role){
   await page.waitForFunction(([role,route])=>window.CL?.currentRole?.()===role && location.hash==='#'+route,[role,route],{timeout:3500});
   assert.equal(await page.locator('.cl-view:visible').count(),1);
 }
+async function openLogin(page){
+  const dialog=page.locator('#cl-login-dialog');
+  if(!await dialog.isVisible())await page.locator('#po-login-open').click();
+  await dialog.waitFor({state:'visible'});
+  return dialog;
+}
 async function enter(page,role){
-  const link=page.locator(choices+'[data-role-entry="'+role+'"]:visible');
-  assert((await link.innerText()).includes(roles[role][0]),role+' home entrance');
-  await link.click();await assertRoute(page,role);
+  const dialog=await openLogin(page);
+  const id=accounts[role];
+  const sample=dialog.locator('[data-demo-account="'+id+'"]');
+  assert((await sample.innerText()).includes(roles[role][0]),role+' demo account');
+  await sample.click();await assertRoute(page,role);
+  assert.equal(await page.evaluate(()=>CL.currentAccount().id),id);
   await page.locator(roles[role][1]).waitFor({state:'visible'});
 }
 async function home(page){
-  const exit=page.locator('#ld-back:visible,#pt-home:visible,#cl-role-change:visible').first();
-  assert(await exit.count()>0,'Missing return-to-portal after '+page.url());
-  await exit.click();await page.locator(choices+':visible').first().waitFor();
+  const exit=page.locator('#cl-role-change:visible,#ld-back:visible').first();
+  assert(await exit.count()>0,'Missing account control in '+page.url());
+  await exit.click();
+  // A board may take its viewer back to the portal with an active account.
+  if(await page.evaluate(()=>!!CL.currentAccount()))await page.locator('#cl-role-change').click();
+  await page.waitForFunction(()=>CL.currentAccount()===null);
+  if(await page.locator('#cl-login-dialog').isVisible())await page.keyboard.press('Escape');
+  await page.locator('#po-login-open').waitFor({state:'visible'});
 }
 async function checkViewport(page){
   const size=await page.evaluate(()=>[innerWidth,document.documentElement.scrollWidth]);
   assert(size[1]<=size[0]+1,'Horizontal overflow '+size+' in '+page.url());
 }
+async function horizontalLogos(page,selector){
+  const marks=page.locator(selector+':visible img');
+  assert.equal(await marks.count(),2,'Two hospital logos at '+selector);
+  const [parent,campus]=await marks.evaluateAll(async imgs=>Promise.all(imgs.map(async img=>{
+    await img.decode(); const r=img.getBoundingClientRect();
+    return {x:r.x,right:r.right,y:r.y,bottom:r.bottom,width:r.width,height:r.height};
+  })));
+  assert(parent.width>0 && campus.width>0,'Logos displayed at '+selector);
+  assert(parent.right<=campus.x+1,'Parent logo must precede campus logo in the same line at '+selector);
+  const verticalOverlap=Math.min(parent.bottom,campus.bottom)-Math.max(parent.y,campus.y);
+  assert(verticalOverlap>=Math.min(parent.height,campus.height)*.6,'Logo vertical alignment at '+selector);
+}
 async function rolesAndMotion(page){
   for(const width of [1440,390,320]){
     await page.setViewportSize({width,height:900});await page.goto(url);
-    assert.equal(await page.locator(choices+':visible').count(),Object.keys(roles).length);
-    await checkViewport(page);
+    assert.equal(await page.locator('#po-home [data-role-entry]:visible').count(),0);
+    assert.equal(await page.locator('#po-login-open:visible').count(),1);
+    assert.match(await page.locator('#po-account-hint').innerText(),/患者/);
+    await checkViewport(page);await horizontalLogos(page,'.cl-id-marks');
     for(const role of Object.keys(roles)){
       await enter(page,role);await checkViewport(page);
-      // A reload of the active role must restore that role and view.
+      if(role==='leader'||role==='director')await horizontalLogos(page,'.ld-campus-mark');
       if(width===1440){await page.reload();await assertRoute(page,role)}
       await home(page);await checkViewport(page);
     }
   }
 }
+async function accountInput(page){
+  const dialog=await openLogin(page);
+  const input=dialog.locator('#cl-demo-account');
+  assert.equal(await dialog.locator('input[type=password]').count(),0);
+  assert.equal(await dialog.locator('[data-demo-account]').count(),Object.keys(accounts).length);
+  assert.equal(await dialog.getAttribute('open')!==null,true);
+  await input.fill('UNKNOWN');await input.press('Enter');
+  assert.match(await dialog.locator('#cl-login-error').innerText(),/账号/);
+  assert.equal(await page.evaluate(()=>CL.currentAccount()),null);
+  await input.fill('  pt1001  ');await input.press('Enter');
+  await assertRoute(page,'patient');await home(page);
+  await openLogin(page);await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#cl-login-dialog').isVisible(),false);
+}
 async function crossRoleBoundary(page){
   await page.setViewportSize({width:1440,height:900});
-  const forbiddenRoutes={doctor:['reviewer','admin','leader'],reviewer:['doctorRelease','admin','leader'],patient:['doctor','reviewer','screen'],director:['leader','admin','doctorResearch'],leader:['reviewer','doctorRelease']};
+  const forbiddenRoutes={doctor:['reviewer','admin','leader'],reviewer:['doctorRelease','admin','leader'],patient:['doctor','reviewer','screen'],director:['leader','admin','doctorResearch'],leader:['reviewer','doctorRelease'],admin:['reviewer','doctorRelease','director']};
   for(const [role,foreign] of Object.entries(forbiddenRoutes)){
     await enter(page,role);
     for(const route of foreign){
@@ -124,14 +167,42 @@ async function boards(page){
   await app.locator('[data-ld-dept="骨科"]:visible').first().click();await app.locator('[data-ld-doctor="骨科 AI 01"]:visible').first().click();
   assert.equal(await page.evaluate(()=>LeadWall.state.dept),'骨科');await home(page);
 }
-async function legacy(caller){
-  for(const [legacyRoute,role,route] of [['screen','leader','leader'],['admin','admin','admin'],['doctorPersona','doctor','doctorPersona']]){
+async function deepLinks(caller){
+  for(const [requested,id,role,expected] of [
+    ['screen','CL3001','leader','leader'],
+    ['admin','PT1001','patient','patient'],
+    ['doctorPersona','CL1001','doctor','doctorPersona'],
+    ['roleReviewer','CL5001','admin','admin'],
+    ['serviceFollow','CL1001','doctor','doctorFollow'],
+    ['serviceFollow','PT1001','patient','patient'],
+    ['serviceGovernance','CL2001','director','director'],
+    ['serviceGovernance','PT1001','patient','patient']
+  ]){
     const page=await caller.context().newPage();
     try{
-      await page.goto(routeUrl(legacyRoute));await assertRoute(page,role,route);
-      assert.equal(await page.locator('.cl-view:visible').count(),1);
+      await page.goto(url);
+      await page.evaluate(()=>sessionStorage.setItem('chongli-role-demo:'+location.pathname,'leader'));
+      await page.goto(routeUrl(requested));
+      await page.locator('#cl-login-dialog').waitFor({state:'visible'});
+      await assertRoute(page,'','portal');
+      assert.equal(await page.evaluate(()=>CL.currentAccount()),null);
+      assert.equal(await page.locator('#view-admin:visible,#view-screen:visible,#view-doctor:visible').count(),0);
+      await page.reload();await page.locator('#cl-login-dialog').waitFor({state:'visible'});
+      await page.locator('[data-demo-account="'+id+'"]').click();
+      await assertRoute(page,role,expected);
+      await page.reload();await assertRoute(page,role,expected);
+      await home(page);
     }finally{await page.close()}
   }
+  const page=await caller.context().newPage();
+  try{
+    await page.goto(routeUrl('doctorPersona'));
+    await page.locator('#cl-login-dialog').waitFor();
+    await page.keyboard.press('Escape');await enter(page,'doctor');
+    await assertRoute(page,'doctor','doctor');await home(page);
+    await page.goBack();await page.waitForFunction(()=>CL.currentAccount()===null);
+    assert.equal(await page.locator('#view-doctor:visible').count(),0);
+  }finally{await page.close()}
 }
 async function navigation(page){
   await enter(page,'doctor');await page.locator('#platform-shell [data-platform-route=doctorFollow]').click();
@@ -142,22 +213,45 @@ async function native(page){
   const f=page;
   await page.goto(url);
   await f.locator('#po-home').waitFor({state:'visible'});
-  for(const width of [1440,390]){
-    await page.setViewportSize({width,height:920});
+  for(const width of [1440,390,320]){
+    await page.setViewportSize({width,height:920});await checkViewport(page);await horizontalLogos(page,'.cl-id-marks');
+    const picker=f.locator('#read-accounts');
+    await f.locator('#po-native-login').click();await picker.waitFor({state:'visible'});
+    assert.equal(await picker.locator('[data-sample-account]').count(),Object.keys(accounts).length);
     for(const [role,[label]] of Object.entries(roles)){
       const key='role'+role[0].toUpperCase()+role.slice(1);
-      const b=f.locator('#po-home [popovertarget="read-'+key+'"]:visible');
-      assert.equal(await b.count(),1,role+' native button');
+      const b=picker.locator('[data-sample-account="'+accounts[role]+'"]:visible');
+      assert.equal(await b.count(),1,role+' native sample');
       await b.click();const panel=f.locator('#read-'+key);await panel.waitFor({state:'visible'});
       assert.equal(await panel.getAttribute('data-native-role'),role);
       const txt=await panel.innerText();assert(txt.includes(({reviewer:'院方审核工作台',admin:'院方管理工作台'})[role]||label),role+' label');assert(txt.length>60,role+' role-specific data');
       assert.equal(await panel.locator('[data-role-entry],.nw-switch').count(),0,role+' cross-role switching');
       const details=panel.locator('details');assert(await details.count()>=2);const detail=details.nth(1);const wasOpen=await detail.evaluate(el=>el.open);await detail.locator('summary').click();assert.equal(await detail.evaluate(el=>el.open),!wasOpen);
       assert(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth+1));
-      await panel.getByRole('button',{name:'返回身份选择'}).click();assert(!(await panel.isVisible()));
+      await panel.getByRole('button',{name:'返回账号选择'}).click();await picker.waitFor({state:'visible'});assert(!(await panel.isVisible()));
       assert.equal(await f.locator('#static-'+key).count(),1);
     }
+    await page.keyboard.press('Escape');await picker.waitFor({state:'hidden'});
   }
+}
+async function packedPreview(page){
+  const html=fs.readFileSync(file,'utf8');
+  if(html.includes('href="styles.css"'))return;
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('about:blank');
+  await page.setContent('<style>body{margin:0}iframe{display:block;border:0;width:100vw;height:100vh}</style><iframe name="preview" sandbox></iframe>');
+  await page.locator('iframe').evaluate((frame,html)=>{frame.srcdoc=html},html);
+  const frame=page.frame({name:'preview'});
+  await frame.locator('#po-native-login').click();
+  const picker=frame.locator('#read-accounts');
+  await picker.locator('[data-sample-account="PT1001"]').click();
+  const patient=frame.locator('#read-rolePatient');
+  await patient.waitFor({state:'visible'});
+  assert.equal(await frame.locator('.role-preview:visible').count(),1);
+  assert.match(await patient.innerText(),/就诊准备|随访/);
+  await patient.getByRole('button',{name:'返回账号选择'}).click();
+  await picker.waitFor();assert.equal(await patient.isVisible(),false);
+  console.log('PASS patient account in script-blocked, sandboxed embedded preview.');
 }
 (async()=>{
  const options={executablePath,headless:true};
@@ -167,9 +261,9 @@ async function native(page){
  try{
   const context=await browser.newContext({viewport:{width:1440,height:900},reducedMotion:'reduce'});const page=await context.newPage();
   page.setDefaultTimeout(4500);page.on('pageerror',e=>errors.push(e.message));
-  if(!mode||mode==='entry'){await rolesAndMotion(page);console.log('PASS six separate role entries, refresh and mobile/desktop widths.')}
+  if(!mode||mode==='entry'){await rolesAndMotion(page);await accountInput(page);console.log('PASS one portal login, six accounts including patient, validation, refresh, logo order and responsive widths.')}
   await page.setViewportSize({width:1440,height:900});await page.goto(url);
-  if(!mode||mode==='scope'){await crossRoleBoundary(page);await navigation(page);await legacy(page);console.log('PASS role-scoped navigation, cross-role hash, history, refresh and legacy links.')}
+  if(!mode||mode==='scope'){await crossRoleBoundary(page);await navigation(page);await deepLinks(page);console.log('PASS guarded anonymous deep links, permitted destination, mismatched account, revoked session, persisted sign-in, history and scoped navigation.')}
   if(!mode||mode==='boards'){await boards(page);console.log('PASS director restricted metrics, physician drill, filter/reset consistency and hospital-wide leader data.')}
   if(!mode||mode==='review'){await permissionsAndAudit(page);console.log('PASS separate reviewer and doctor approval, patient only authorized release, administrator management.')}
 
@@ -179,8 +273,8 @@ async function native(page){
    const viewer=await chromium.launch(options);
    try{
      const page=await viewer.newPage({javaScriptEnabled:false});
-     await native(page);
-     console.log('PASS six isolated script-free role dashboards, actions, details and return.');
+     await native(page);await packedPreview(page);
+     console.log('PASS script-free account picker, six read-only workspaces, details and account return on three widths.');
    }finally{await viewer.close()}
  }
 })().catch(e=>{console.error(e.stack||e);process.exitCode=1});

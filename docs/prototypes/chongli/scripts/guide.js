@@ -15,9 +15,9 @@
   const tryButton=root.querySelector('.cg-try');
   const doctorSession=()=>typeof CL.currentRole==='function'&&CL.currentRole()==='doctor';
   movie.addEventListener('timeupdate',sync);
-  tryButton.addEventListener('click',()=>{movie.pause();CL.go(doctorSession()?media[index].target:'portal')});
+  tryButton.addEventListener('click',()=>{movie.pause();CL.go(media[index].target)});
   window.addEventListener('cl:view',event=>{
-    if(event.detail==='guide')tryButton.textContent=doctorSession()?'前往操作':'选择身份进入工作台';
+    if(event.detail==='guide')tryButton.textContent=doctorSession()?'前往操作':'登录并体验此步骤';
     else movie.pause();
   });
   select(0);

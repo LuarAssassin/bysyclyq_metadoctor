@@ -21,7 +21,7 @@
    if(next!=='patient'&&next!=='doctorPatientPreview')return;
    const preview=next==='doctorPatientPreview';
    at('context').textContent=preview?'患者视角预览 · 医生工作台':'患者服务 · Patient Services';
-   at('home').textContent=preview?'返回'+clinicalSources[previewReturn]:'选择其他身份';
+   at('home').textContent=preview?'返回'+clinicalSources[previewReturn]:'返回门户';
    render();
  });
  window.addEventListener('cl:change',render);render();

@@ -619,14 +619,14 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
 .role-preview dl>div+div{border-top:1px solid #edf1f1}.role-preview dt{color:#5b7378}.role-preview dd{margin:0;color:#263f4a}
 .role-preview .rp-hint{margin-top:13px;font-size:13px}
 @media(max-width:580px){.role-preview.cl-read-panel{inset-block-start:7px;width:calc(100vw - 12px);max-height:calc(100dvh - 14px);border-radius:10px}.role-preview .rp-inner{padding-top:14px}.role-preview dl>div{grid-template-columns:5em minmax(0,1fr);gap:7px}.role-preview .rp-stat small{font-size:12px}}
-/* Chongli portal. The campus photograph and the painted mountains share one field. */
+/* The portal blends a winter-sport landscape into the documentary image carousel. */
 #view-portal {
   --po-ink: #173849;
   --po-blue: #13637c;
   --po-muted: #526b76;
   --po-line: #d7e2e5;
   --po-paper: #fbfcfa;
-  --po-mountain-panorama: url("assets/chongli-four-seasons.webp");
+  --po-mountain-panorama: url("assets/chongli-snow-retreat.webp");
 }
 #po-home { background: var(--po-paper); }
 #view-portal .po-hero {
@@ -639,13 +639,12 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: 66%;
-  background: var(--po-mountain-panorama) left bottom / 100% auto no-repeat;
-  opacity: .62;
+  width: 61%;
+  background:
+    linear-gradient(94deg, rgba(243,249,251,.94) 0%, rgba(243,249,251,.87) 28%, rgba(243,249,251,.66) 42%, rgba(243,249,251,.16) 58%, transparent 70%),
+    var(--po-mountain-panorama) 50% 60% / cover no-repeat;
   pointer-events: none;
-  mask-image: linear-gradient(to bottom, transparent 6%, #0003 38%, #000a 71%, #000 86%, transparent),
-              linear-gradient(90deg,#000 42%,#000c 73%,transparent 100%);
-  mask-composite: intersect;
+  mask-image: linear-gradient(90deg, #000 82%, transparent 100%);
 }
 #view-portal .po-hero-in {
   position: relative;
@@ -709,7 +708,7 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   border-radius: 0;
   box-shadow: none;
   background: transparent;
-  mask-image: linear-gradient(90deg,transparent,#0003 4%,#000a 10%,#000f 19%);
+  mask-image: linear-gradient(90deg,transparent 0%,#0001 4%,#0005 10%,#000c 18%,#000 26%);
 }
 #view-portal .po-frame::after {
   content: "";
@@ -810,19 +809,25 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
 @media (max-width: 650px) {
   #view-portal .po-hero-in { display:flex; flex-direction:column; gap:0; padding:0; }
   #view-portal .po-hero::before {
-    top:0; bottom:auto; width:100%; height:245px;
-    background-size:auto 100%; background-position:70% bottom;
-    opacity:.68;
-    mask-image:linear-gradient(90deg,transparent,#0004 44%,#000 100%),
-               linear-gradient(to bottom,transparent 0%,#0006 22%,#000 65%,#0008 85%,transparent);
-    mask-composite:intersect;
+    width:100%;
+    height:calc(100% - 100vw / 2.35 + 34px);
+    background:
+      linear-gradient(100deg,rgba(241,249,251,.9) 0%,rgba(242,249,251,.75) 31%,rgba(242,249,251,.16) 64%,transparent 80%),
+      var(--po-mountain-panorama) 64% 70% / cover no-repeat;
+    mask-image:linear-gradient(to bottom,#000 calc(100% - 28px),transparent);
   }
   #view-portal .po-copy { align-self:stretch; padding:23px 18px 20px; }
   #view-portal .po-title { font-size:clamp(36px,8.8vw,48px); margin-top:9px; line-height:1.13; }
   #view-portal .po-en { font-size:14px; margin-top:7px; }
   #view-portal .po-actions { margin-top:13px; gap:16px; }
+  #view-portal .po-actions .po-text {
+    padding:6px 8px;
+    border-radius:4px;
+    background:rgba(244,250,252,.9);
+    color:#174b60;
+  }
   #view-portal .po-media { min-height:0; aspect-ratio:2.35; width:100%; }
-  #view-portal .po-frame { mask-image:linear-gradient(to bottom,transparent 0,#000 12%); }
+  #view-portal .po-frame { mask-image:linear-gradient(to bottom,transparent 0,#0008 10px,#000 32px); }
   #view-portal .po-caption { inset:auto 18px 9px; }
   #view-portal .po-credit { font-size:12px; }
   #view-portal .po-directory { padding-block:21px 23px; }
@@ -852,28 +857,39 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   #view-portal .po-caption { color:#fff; background:#163848; }
 }
 
-/* Hospital masthead. Keep the parent seal in color and both signatures on one field. */
+/* Paired institutional signatures retain their original proportions. */
 #cl-brandbar {
-  --header-inset: max(clamp(20px, 5vw, 86px), calc((100vw - 1550px) / 2 + 86px));
-  --parent-mark-width: clamp(117px, 9vw, 138px);
-  --campus-mark-width: clamp(176px, 14.2vw, 210px);
+  --header-inset: max(clamp(18px, 5vw, 86px), calc((100vw - 1550px) / 2 + 86px));
+  --parent-mark-width: clamp(108px, 10.6vw, 154px);
+  --campus-mark-width: clamp(151px, 14.9vw, 216px);
+  --mark-gap: clamp(8px, .85vw, 14px);
   min-height: 0;
-  padding: 9px var(--header-inset) 10px;
   align-items: center;
   flex-wrap: nowrap;
+  padding: 12px var(--header-inset);
   background: #fff;
-  border-bottom: 1px solid #dfe5e8;
+  border-bottom: 1px solid #dce6ea;
 }
-#cl-brandbar .cl-brand { gap: clamp(14px, 1.8vw, 28px); text-align: left; }
+#cl-brandbar .cl-brand {
+  flex: 0 0 auto;
+  gap: clamp(14px, 1.8vw, 28px);
+  text-align: left;
+}
 #cl-brandbar .cl-id-marks {
   display: grid;
-  grid-template-columns: var(--campus-mark-width);
-  grid-template-rows: auto auto;
+  grid-template-columns: var(--parent-mark-width) 1px var(--campus-mark-width);
   align-items: center;
   justify-items: start;
-  row-gap: 4px;
+  column-gap: var(--mark-gap);
   border: 0;
   padding: 0;
+}
+#cl-brandbar .cl-id-marks::before {
+  content: "";
+  grid-area: 1 / 2;
+  width: 1px;
+  height: 65%;
+  background: #c9d7dc;
 }
 #cl-brandbar .cl-id-marks .cl-parent-logo,
 #cl-brandbar .cl-id-marks::after {
@@ -883,8 +899,8 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   height: auto;
   aspect-ratio: 387 / 94;
 }
-/* The PNG's lettering is white. Retain the authentic red emblem at left and
-   render the original letter shapes at right in ink for this white background. */
+/* The parent PNG has a red seal and white lettering. Recolor only the original
+   letter shapes so both authentic marks can sit together on the light header. */
 #cl-brandbar .cl-parent-logo { clip-path: inset(0 73% 0 0); }
 #cl-brandbar .cl-id-marks::after {
   content: "";
@@ -894,7 +910,7 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   clip-path: inset(0 0 0 27%);
 }
 #cl-brandbar .cl-id-marks .cl-campus-logo {
-  grid-area: 2 / 1;
+  grid-area: 1 / 3;
   display: block;
   width: var(--campus-mark-width);
   height: auto;
@@ -907,86 +923,99 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
   font-size: 15px;
   font-weight: 630;
 }
-#cl-brandbar .cl-top-tools { gap: clamp(10px, 1.3vw, 22px); }
+body:has(#view-portal:not([hidden]) #po-home:not([hidden])) #cl-brandbar .cl-platform-name { display: none; }
+#cl-brandbar .cl-top-tools { gap: clamp(9px, 1.3vw, 22px); }
 #cl-brandbar .cl-topnav { gap: clamp(12px, 1.6vw, 25px); }
 #cl-brandbar .cl-topnav :is(a,button) {
   color: #455862;
   line-height: 1.45;
   font-weight: 520;
+  white-space: nowrap;
 }
 #cl-brandbar .cl-topnav [aria-current="page"] { color: #143e52; font-weight: 700; }
 #cl-brandbar .cl-demo { color: #596972; font-size: 12px; }
-#cl-brandbar .cl-brand:focus-visible { outline-offset: 2px; }
+#cl-brandbar .cl-brand:focus-visible { outline-offset: 3px; }
 body:has(#cl-main[data-workbench]) #cl-brandbar { --header-inset: clamp(16px, 2vw, 37px); }
 .ld-brand .ld-campus-mark {
   display: grid;
-  justify-items: start;
-  align-content: center;
-  width: clamp(112px, 8.3vw, 174px);
+  grid-template-columns: 1fr 1px 1.4fr;
+  align-items: center;
+  column-gap: clamp(6px, .65vw, 15px);
+  flex: 0 0 auto;
+  width: clamp(182px, 18vw, 412px);
   aspect-ratio: auto;
-  gap: 4px;
   overflow: visible;
   border-radius: 0;
   background: transparent;
 }
-.ld-campus-mark .ld-parent-logo { width: 74%; height: auto; }
+.ld-campus-mark::before {
+  content: "";
+  grid-area: 1 / 2;
+  width: 1px;
+  height: 65%;
+  background: #50808e;
+}
+.ld-campus-mark .ld-parent-logo,
 .ld-campus-mark .ld-chongli-logo {
+  display: block;
   width: 100%;
   height: auto;
+}
+.ld-campus-mark .ld-parent-logo { grid-area: 1 / 1; }
+.ld-campus-mark .ld-chongli-logo {
+  grid-area: 1 / 3;
   padding: 0;
   background: transparent;
   filter: grayscale(1) invert(1) contrast(1.32);
   mix-blend-mode: screen;
 }
+@media (max-width: 1100px) {
+  #cl-brandbar .cl-platform-name { display: none; }
+}
 @media (max-width: 840px) {
-  #cl-brandbar { --header-inset: 24px; }
+  #cl-brandbar { --header-inset: 20px; }
 }
 @media (max-width: 680px) {
   #cl-brandbar {
-    --parent-mark-width: clamp(102px, 27.5vw, 118px);
-    --campus-mark-width: clamp(140px, 37vw, 170px);
-    --header-inset: 18px;
-    gap: 5px;
-    padding-block: 7px 8px;
+    --parent-mark-width: clamp(94px, 22vw, 112px);
+    --campus-mark-width: clamp(132px, 31vw, 158px);
+    --mark-gap: 7px;
+    --header-inset: 15px;
+    padding-block: 9px;
+    gap: 8px;
   }
-  #cl-brandbar .cl-id-marks { row-gap: 3px; }
-  #cl-brandbar .cl-top-tools { gap: 5px; }
-  #cl-brandbar .cl-demo { display: block; font-size: 11px; }
-  body[data-role]:not([data-role="public"]) #cl-brandbar .cl-demo { display: none; }
-  body[data-role=admin] #cl-brandbar .cl-top-tools {
-    display: grid;
-    grid-template-columns: auto auto;
-    grid-template-rows: auto auto;
-    justify-items: end;
-    gap: 1px 4px;
-  }
-  body[data-role=admin] #cl-reset-open {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    min-height: 24px;
-    padding: 2px 0;
-    color: #586873;
-    background: transparent;
-  }
-  .ld-brand .ld-campus-mark { width: clamp(78px, 21vw, 110px); gap: 3px; }
-}
-@media (forced-colors: active) {
-  #cl-brandbar .cl-id-marks::after { forced-color-adjust: none; }
-}
-/* The platform title already heads the landing page. */
-body:has(#view-portal:not([hidden]) #po-home:not([hidden])) #cl-brandbar .cl-platform-name { display: none; }
-@media (max-width: 680px) {
-  body:not([data-role]),
-  body[data-role="public"] { --landing-nav-gap: clamp(6px, 2.6vw, 14px); }
+  #cl-brandbar .cl-demo { display: none; }
+  #cl-brandbar .cl-top-tools { gap: 8px; }
   body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-topnav {
     display: flex;
-    gap: var(--landing-nav-gap);
+    gap: 14px;
   }
   body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-topnav :is([data-nav="portal"],[popovertarget="read-overview"]) { display: none!important; }
   body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-topnav :is(button,a) {
-    padding: 7px 0;
-    font-size: 12px;
-    white-space: nowrap;
+    padding: 4px 0;
+    font-size: 13px;
   }
-  body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-demo { display: none; }
+  .ld-brand .ld-campus-mark { width: clamp(176px, 31vw, 205px); }
+}
+@media (max-width: 520px) {
+  /* Allow the account controls or links a second compact line. Never split the marks. */
+  #cl-brandbar {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+  #cl-brandbar .cl-top-tools { margin-left: auto; }
+  #cl-brandbar :is(#cl-role-change,#cl-reset-open) { min-height: 30px; }
+  #view-screen .ld-head {
+    display: grid;
+    grid-template-columns: minmax(0,1fr) auto;
+    align-items: center;
+    gap: 9px 8px;
+  }
+  #view-screen .ld-brand { display: contents; }
+  #view-screen .ld-campus-mark { grid-area: 1 / 1; width: clamp(175px, 50vw, 220px); }
+  #view-screen .ld-brand > div { grid-area: 2 / 1 / auto / -1; }
+  #view-screen .ld-headright { grid-area: 1 / 2; }
+}
+@media (forced-colors: active) {
+  #cl-brandbar .cl-id-marks::after { forced-color-adjust: none; }
 }

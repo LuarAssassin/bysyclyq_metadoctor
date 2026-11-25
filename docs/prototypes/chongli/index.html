@@ -3,18 +3,39 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none';style-src 'self' 'unsafe-inline';script-src 'self';img-src 'self' data: blob:;media-src 'self' data: blob:;connect-src 'none';form-action 'none';base-uri 'none'">
 <title>崇礼AI元医院智能化平台</title>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="account-entry.css">
 </head><body>
 <a href="#cl-main" class="cl-skip" id="cl-skip">跳至内容</a>
 <header class="cl-brandbar" id="cl-brandbar"><a class="cl-brand" data-nav="portal" href="#po-home" aria-label="返回崇礼AI元医院门户"><span class="cl-id-marks"><img class="cl-parent-logo" src="assets/pku-third-hospital.png" alt="北京大学第三医院" width="387" height="94"><img class="cl-campus-logo" src="assets/hospital-logo.png" alt="北京大学第三医院崇礼院区" width="373" height="64"></span><span class="cl-platform-name">崇礼AI元医院智能化平台</span></a><button type="button" data-static-control popovertarget="read-overview" class="cl-brand"  aria-label="返回崇礼AI元医院门户"><span class="cl-id-marks"><img class="cl-parent-logo" src="assets/pku-third-hospital.png" alt="北京大学第三医院" width="387" height="94"><img class="cl-campus-logo" src="assets/hospital-logo.png" alt="北京大学第三医院崇礼院区" width="373" height="64"></span><span class="cl-platform-name">崇礼AI元医院智能化平台</span></button>
 <div class="cl-top-tools">
 <nav class="cl-topnav" aria-label="平台导航"><a data-nav="portal" href="#po-home">门户首页</a><button type="button" data-static-control popovertarget="read-overview" >门户首页</button><a data-nav="about" href="#static-about">平台介绍</a><button type="button" data-static-control popovertarget="read-about" >平台介绍</button><a data-nav="guide" href="#static-guide">操作指南</a><button type="button" data-static-control popovertarget="read-guide" >操作指南</button>
-</nav><span class="cl-demo">身份演示</span><span id="cl-active-role" class="cl-role-tag" hidden></span><button type="button" id="cl-role-change" hidden>切换身份</button><button type="button" id="cl-reset-open" hidden>重置演示</button>
+</nav><span class="cl-demo">离线演示</span><span id="cl-active-role" class="cl-role-tag" hidden></span><button type="button" id="cl-role-change" hidden>切换账号</button><button type="button" id="cl-reset-open" hidden>重置演示</button>
 </div>
 </header>
 <dialog id="cl-reset-dialog" aria-labelledby="reset-head">
 <h2 id="reset-head">重新开始演示？</h2>
 <p>当前设备保存的演示记录将恢复为初始样本。</p><button id="cl-cancel">保留记录</button> <button id="cl-confirm">重置演示</button>
 </dialog>
+
+<dialog id="cl-login-dialog" class="ac-panel" aria-labelledby="ac-login-heading" aria-describedby="ac-login-intro">
+<div class="ac-head"><div><h2 id="ac-login-heading">账号登录</h2><p id="ac-login-intro">使用演示账号，即可进入对应的工作台或患者服务。</p></div><button class="ac-close" type="button" id="cl-login-close" aria-label="关闭登录"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
+<form id="cl-login-form" class="ac-form" novalidate method="dialog">
+<label for="cl-demo-account">演示账号</label>
+<div class="ac-field"><input id="cl-demo-account" type="text" placeholder="输入演示编号" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" aria-describedby="cl-login-error"><button type="submit">进入</button></div>
+<p id="cl-login-error" role="alert" hidden></p>
+</form>
+<div class="ac-examples"><h3>选择演示账号</h3><div class="ac-samples" id="cl-account-samples"></div></div>
+</dialog>
+<section popover id="read-accounts" class="ac-panel" aria-labelledby="ac-read-heading">
+<div class="ac-head"><div><h2 id="ac-read-heading">选择演示账号</h2><p>选择下方账号，预览对应的服务。当前为只读演示。</p></div><button type="button" class="ac-close" popovertarget="read-accounts" popovertargetaction="hide" aria-label="关闭账号选择"><svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>
+<div class="ac-samples"><button type="button" class="ac-sample" data-sample-account="PT1001" popovertarget="read-rolePatient"><span><strong>患者</strong><small>就诊准备与随访</small></span><span class="ac-sample-code">PT1001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL1001" popovertarget="read-roleDoctor"><span><strong>医生</strong><small>数字医生工作台</small></span><span class="ac-sample-code">CL1001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL2001" popovertarget="read-roleDirector"><span><strong>科主任</strong><small>本科室服务评价</small></span><span class="ac-sample-code">CL2001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL3001" popovertarget="read-roleLeader"><span><strong>院领导</strong><small>全院运行大屏</small></span><span class="ac-sample-code">CL3001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL4001" popovertarget="read-roleReviewer"><span><strong>院方审核人员</strong><small>版本审核</small></span><span class="ac-sample-code">CL4001</span></button>
+<button type="button" class="ac-sample" data-sample-account="CL5001" popovertarget="read-roleAdmin"><span><strong>院方管理员</strong><small>入驻与服务管理</small></span><span class="ac-sample-code">CL5001</span></button></div>
+</section>
+<div id="cl-account-notice" role="status" aria-live="polite"></div>
 <script src="scripts/model.js">
 </script>
 <main id="cl-main" tabindex="-1">
@@ -43,8 +64,11 @@
 <h1 class="po-title">崇礼AI元医院<span>智能化平台</span>
 </h1>
 <p class="po-en" lang="en">Chongli AI Meta-Hospital</p>
-<div class="po-actions"><a class="po-primary po-role-scroll" href="#po-role-entries">选择身份进入</a><a class="po-text" data-poroute="guide" href="#static-guide">数字医生搭建教程</a><button type="button" data-static-control popovertarget="read-guide" class="po-text" >数字医生搭建教程</button>
+<div class="po-actions">
+<button type="button" id="po-login-open" class="po-primary ac-enter" aria-haspopup="dialog" aria-controls="cl-login-dialog"><span>登录平台</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" id="po-native-login" class="po-primary ac-enter" data-static-control popovertarget="read-accounts"><span>登录平台</span><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12h15m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button><a id="po-fallback-login" class="po-primary ac-enter" href="#static-accounts">登录平台</a>
+<a class="po-text" data-poroute="guide" href="#static-guide">数字医生搭建教程</a><button type="button" data-static-control popovertarget="read-guide" class="po-text">数字医生搭建教程</button>
 </div>
+<p id="po-account-hint">支持患者与院内账号</p>
 </div>
   <figure class="po-media" aria-label="崇礼影像">
 <div class="po-frame">
@@ -53,23 +77,27 @@
 </div><figcaption class="po-caption"><span class="po-credit"><span class="po-caption-title">崇礼院区 · 门诊楼实景</span><a class="po-source" target="_blank" rel="noopener noreferrer" href="https://www.bjmu.edu.cn/bdyx110zn/bygs/ac64ab2442d54cc9a05b0eaee7029f2c.htm">来源</a></span><span class="po-playback" hidden><span class="po-page-track"></span><button type="button" class="po-pause" aria-label="暂停轮播"></button></span></figcaption></figure>
  </div>
 </div>
- <section class="po-wrap po-directory" id="po-role-entries" aria-labelledby="po-directory-title">
-  <header class="po-directory-intro">
-<h2 id="po-directory-title" tabindex="-1">身份入口</h2><span lang="en">Role directory</span>
-</header>
-  <nav class="po-functions" aria-label="选择身份">
-<section class="po-role-group po-service-roles" aria-label="医生与患者">
-<h3>医生与患者</h3>
-<div class="po-role-list"><a class="po-role-link po-doctor-role" data-role-entry="doctor" data-poroute="doctor" href="#static-roleDoctor"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3v4a5 5 0 0 0 10 0V3M4.5 3h3M14.5 3h3M11 12v3a4.5 4.5 0 0 0 9 0v-2"/><circle cx="20" cy="11" r="2"/></svg><span class="po-role-label"><strong>医生</strong><small>数字医生、随访与医学科研</small></span></a><button type="button" data-static-control popovertarget="read-roleDoctor" class="po-role-link po-doctor-role" data-role-entry="doctor" ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3v4a5 5 0 0 0 10 0V3M4.5 3h3M14.5 3h3M11 12v3a4.5 4.5 0 0 0 9 0v-2"/><circle cx="20" cy="11" r="2"/></svg><span class="po-role-label"><strong>医生</strong><small>数字医生、随访与医学科研</small></span></button><a class="po-role-link" data-role-entry="patient" data-poroute="patient" href="#static-rolePatient"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 3 6l-4 2 1.2-4.3"/><path d="M8 12h2l1.2-2.6 2 5.2 1.2-2.6h2.1"/></svg><span class="po-role-label"><strong>患者</strong><small>就诊准备、健康宣教与随访</small></span></a><button type="button" data-static-control popovertarget="read-rolePatient" class="po-role-link" data-role-entry="patient" ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 1 3 6l-4 2 1.2-4.3"/><path d="M8 12h2l1.2-2.6 2 5.2 1.2-2.6h2.1"/></svg><span class="po-role-label"><strong>患者</strong><small>就诊准备、健康宣教与随访</small></span></button>
+ <section class="po-wrap ac-services" aria-labelledby="po-services-title">
+<header class="ac-services-head"><h2 id="po-services-title">平台服务</h2><span lang="en">Platform services</span></header>
+<nav class="ac-service-grid" aria-label="平台服务">
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="doctorPersona" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v3H9zM7 5H5v16h14V5h-2M8 12h8m-8 4h5"/></svg></span><span class="ac-service-name"><small>数字医生构建平台</small><strong>搭建数字医生</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">设置专科、知识与回复方式</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v3H9zM7 5H5v16h14V5h-2M8 12h8m-8 4h5"/></svg></span><span class="ac-service-name"><small>数字医生构建平台</small><strong>搭建数字医生</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">设置专科、知识与回复方式</span></button>
 </div>
-</section>
-<section class="po-role-group po-management-roles" aria-label="科室与院方管理">
-<h3>科室与院方管理</h3>
-<div class="po-role-list"><a class="po-role-link" data-role-entry="director" data-poroute="director" href="#static-roleDirector"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="8" cy="7" r="2.7"/><path d="M2.5 18v-1a5.5 5.5 0 0 1 11 0v1M15.5 9h5m-5 4h5m-5 4h3"/></svg><span class="po-role-label"><strong>科主任</strong><small>本科室服务表现与随访质量</small></span></a><button type="button" data-static-control popovertarget="read-roleDirector" class="po-role-link" data-role-entry="director" ><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="8" cy="7" r="2.7"/><path d="M2.5 18v-1a5.5 5.5 0 0 1 11 0v1M15.5 9h5m-5 4h5m-5 4h3"/></svg><span class="po-role-label"><strong>科主任</strong><small>本科室服务表现与随访质量</small></span></button><a class="po-role-link" data-role-entry="leader" data-poroute="leader" href="#static-roleLeader"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="m6.5 13 3-3.4 3.3 1.9 4.2-4M8 21h8m-4-4v4"/></svg><span class="po-role-label"><strong>院领导</strong><small>全院服务评价与需求预测</small></span></a><button type="button" data-static-control popovertarget="read-roleLeader" class="po-role-link" data-role-entry="leader" ><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="m6.5 13 3-3.4 3.3 1.9 4.2-4M8 21h8m-4-4v4"/></svg><span class="po-role-label"><strong>院领导</strong><small>全院服务评价与需求预测</small></span></button><a class="po-role-link" data-role-entry="reviewer" data-poroute="reviewer" href="#static-roleReviewer"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v5.3c0 4.6-3.4 8-8 9.8-4.6-1.8-8-5.2-8-9.8V6l8-3Z"/><path d="m8.5 12 2.4 2.3 4.5-4.6"/></svg><span class="po-role-label"><strong>院方审核人员</strong><small>版本审查、意见与授权记录</small></span></a><button type="button" data-static-control popovertarget="read-roleReviewer" class="po-role-link" data-role-entry="reviewer" ><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 3v5.3c0 4.6-3.4 8-8 9.8-4.6-1.8-8-5.2-8-9.8V6l8-3Z"/><path d="m8.5 12 2.4 2.3 4.5-4.6"/></svg><span class="po-role-label"><strong>院方审核人员</strong><small>版本审查、意见与授权记录</small></span></button><a class="po-role-link po-admin-role" data-role-entry="admin" data-poroute="admin" href="#static-roleAdmin"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18m-13 4h3m-3 3h5"/></svg><span class="po-role-label"><strong>院方管理员</strong><small>医生名册、入驻与服务管理</small></span></a><button type="button" data-static-control popovertarget="read-roleAdmin" class="po-role-link po-admin-role" data-role-entry="admin" ><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18m-13 4h3m-3 3h5"/></svg><span class="po-role-label"><strong>院方管理员</strong><small>医生名册、入驻与服务管理</small></span></button>
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="serviceFollow" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.4c0 4.15-3.65 7.4-8.55 7.4a12 12 0 0 1-3.3-.45L4 20l1.25-4a6.1 6.1 0 0 1-1.7-4.6C3.55 7.25 7.2 4 12 4c4.8 0 8.5 3.25 8.5 7.4Z"/><path d="M7.3 11.8h2.3l1.5-2.3 1.8 4.2 1.4-2h2.4"/></svg></span><span class="ac-service-name"><small>患者服务与智能随访平台</small><strong>就诊与随访</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">就诊前准备与随访反馈</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.4c0 4.15-3.65 7.4-8.55 7.4a12 12 0 0 1-3.3-.45L4 20l1.25-4a6.1 6.1 0 0 1-1.7-4.6C3.55 7.25 7.2 4 12 4c4.8 0 8.5 3.25 8.5 7.4Z"/><path d="M7.3 11.8h2.3l1.5-2.3 1.8 4.2 1.4-2h2.4"/></svg></span><span class="ac-service-name"><small>患者服务与智能随访平台</small><strong>就诊与随访</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">就诊前准备与随访反馈</span></button>
 </div>
-</section>
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="doctorResearch" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8m-6 0v6L4.8 18a1.8 1.8 0 0 0 1.6 2.7h11.2a1.8 1.8 0 0 0 1.6-2.7L14 9V3M7.7 15h8.6"/></svg></span><span class="ac-service-name"><small>医学科研辅助平台</small><strong>整理科研病例</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">从多模态资料生成病例草稿</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3h8m-6 0v6L4.8 18a1.8 1.8 0 0 0 1.6 2.7h11.2a1.8 1.8 0 0 0 1.6-2.7L14 9V3M7.7 15h8.6"/></svg></span><span class="ac-service-name"><small>医学科研辅助平台</small><strong>整理科研病例</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">从多模态资料生成病例草稿</span></button>
+</div>
+<div class="ac-service-item">
+<a class="ac-service" data-poroute="serviceGovernance" href="#static-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5.3c0 4.7-3.6 8.1-8 9.9-4.4-1.8-8-5.2-8-9.9V6l8-3Z"/><path d="M7.8 14.1 11 11l2.4 1.4 3.4-4"/></svg></span><span class="ac-service-name"><small>数字医生治理与评价平台</small><strong>审查与评价</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">版本审查与院科服务成效</span></a>
+<button type="button" class="ac-service" data-static-control popovertarget="read-accounts"><span class="ac-service-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v5.3c0 4.7-3.6 8.1-8 9.9-4.4-1.8-8-5.2-8-9.9V6l8-3Z"/><path d="M7.8 14.1 11 11l2.4 1.4 3.4-4"/></svg></span><span class="ac-service-name"><small>数字医生治理与评价平台</small><strong>审查与评价</strong></span><span class="ac-service-arrow" aria-hidden="true">→</span><span class="ac-service-detail">版本审查与院科服务成效</span></button>
+</div>
 </nav>
- </section>
+</section>
 </div>
 <article class="po-about" id="po-about" hidden>
 <div class="po-wrap po-about-in">
@@ -527,7 +555,7 @@
 </script>
 </section>
 <section class="cl-view" id="view-patient" hidden>
-<div class="pt-wrap"><button type="button" class="pt-back" id="pt-home">选择其他身份</button>
+<div class="pt-wrap"><button type="button" class="pt-back" id="pt-home">返回门户</button>
 <section class="pt-panel">
 <header class="pt-banner"><span class="pt-avatar" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.65"><circle cx="16" cy="10" r="5"/><path d="M6 27c.6-6 4.4-9.1 10-9.1S25.4 21 26 27M12.8 18.8l3.2 4.1 3.2-4.1"/></svg></span>
 <div>
@@ -601,7 +629,7 @@
 <h1 id="ld-title">院领导工作台</h1>
 </div>
 </div>
-<div class="ld-headright"><button type="button" id="ld-back" class="ld-btn" aria-label="返回门户选择身份"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 9 7-6 7 6v8h-5v-5H8v5H3z"/></svg><span>选择身份</span></button><button type="button" id="ld-full" class="ld-btn" aria-label="全屏展示"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5m4 0h5v5M3 12v5h5m9-5v5h-5"/></svg><span>全屏展示</span></button>
+<div class="ld-headright"><button type="button" id="ld-back" class="ld-btn" aria-label="返回门户"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m3 9 7-6 7 6v8h-5v-5H8v5H3z"/></svg><span>返回门户</span></button><button type="button" id="ld-full" class="ld-btn" aria-label="全屏展示"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5m4 0h5v5M3 12v5h5m9-5v5h-5"/></svg><span>全屏展示</span></button>
 </div>
 </header>
 <div class="ld-tools">
@@ -704,6 +732,7 @@
 <section class="cl-static" aria-labelledby="static-title">
 <h2 id="static-title">平台导览</h2>
 <p>当前窗口使用只读预览。下载本页 HTML 后用浏览器打开，可操作工作台、院方后台和运行大屏。</p>
+<details id="static-accounts" open><summary>选择演示账号</summary><p>当前为只读预览。</p><ul><li><a href="#static-rolePatient">患者 · PT1001</a></li><li><a href="#static-roleDoctor">医生 · CL1001</a></li><li><a href="#static-roleDirector">科主任 · CL2001</a></li><li><a href="#static-roleLeader">院领导 · CL3001</a></li><li><a href="#static-roleReviewer">院方审核人员 · CL4001</a></li><li><a href="#static-roleAdmin">院方管理员 · CL5001</a></li></ul><a href="#po-home">返回首页</a></details>
 <details id="static-doctor" open><summary>医生工作台</summary>
 <p>陈医生的演示工作台有 2 份待复核随访。可查阅反馈、配置数字医生、选入专业资料，并将科研素材整理为病例草稿。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
 </details>
@@ -785,7 +814,7 @@
 </div>
 <div><dt>研究草稿</dt><dd>按情况记录、主要诉求和待补信息整理，并保留每条摘录的原始出处。</dd>
 </div></dl>
-</details><a href="#po-home">返回身份选择</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回身份选择</button>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
 </details>
 <details id="static-roleDirector" open><summary>科主任工作台</summary>
 <p>运动医学科 · 2026-11-13 至 2026-11-19</p>
@@ -809,7 +838,7 @@
 </div>
 <div><dt>估算口径</dt><dd>依据本范围近 28 天的服务记录，按同一星期几加权估算。</dd>
 </div></dl>
-</details><a href="#po-home">返回身份选择</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回身份选择</button>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
 </details>
 <details id="static-roleLeader" open><summary>院领导工作台</summary>
 <p>崇礼院区全院 · 2026-11-13 至 2026-11-19</p>
@@ -835,7 +864,7 @@
 </div>
 <div><dt>估算口径</dt><dd>依据本范围近 28 天的服务记录，按同一星期几加权估算。</dd>
 </div></dl>
-</details><a href="#po-home">返回身份选择</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回身份选择</button>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
 </details>
 <details id="static-roleReviewer" open><summary>院方审核工作台</summary>
 <p>崇礼院区 · 数字医生版本审查</p>
@@ -857,7 +886,7 @@
 </div>
 <div><dt>审查通过</dt><dd>记录通过意见，交由提交医生阅读审查报告并确认授权。</dd>
 </div></dl>
-</details><a href="#po-home">返回身份选择</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回身份选择</button>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
 </details>
 <details id="static-roleAdmin" open><summary>院方管理工作台</summary>
 <p>崇礼院区 · 数字医生运行管理</p>
@@ -881,7 +910,7 @@
 </div>
 <div><dt>操作留痕</dt><dd>查阅变更时间、经办身份和具体说明。</dd>
 </div></dl>
-</details><a href="#po-home">返回身份选择</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回身份选择</button>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
 </details>
 <details id="static-rolePatient" open><summary>患者服务</summary>
 <p>运动医学科 · 陈医生的数字医生</p>
@@ -903,7 +932,7 @@
 </div>
 <div><dt>就诊沟通</dt><dd>可记下疑问及原始出处，在就诊时与医生沟通。</dd>
 </div></dl>
-</details><a href="#po-home">返回身份选择</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回身份选择</button>
+</details><a href="#static-accounts">返回账号选择</a><button type="button" data-static-control popovertarget="read-accounts">返回账号选择</button>
 </details>
 <details id="static-screen" open><summary>AI 医生服务与成效大屏</summary>
 <p>院级总览展示服务患者、服务次数、沟通轮次及科室表现。进入科室后可按数字医生、主诉、病种、地区和渠道核对服务质量与成效。</p><a href="#po-home">返回首页</a><button type="button" data-static-control popovertarget="read-overview" href="#po-home">返回首页</button>
@@ -921,7 +950,7 @@
 </main>
 <section popover id="read-overview" class="cl-read-panel" aria-label="崇礼AI元医院智能化平台">
 <h2>崇礼AI元医院智能化平台</h2>
-<p>首页设有医生、患者、科主任、院领导、院方审核人员与院方管理员六个身份入口。</p>
+<p>患者与院内人员使用统一入口。选择演示账号后，可查看该账号对应的服务。</p>
 <p class="cl-read-tip">当前为只读预览。下载此 HTML 并用浏览器打开，即可体验完整交互。</p><button type="button" popovertarget="read-overview" popovertargetaction="hide">返回首页</button>
 </section>
 <section popover id="read-doctor" class="cl-read-panel" aria-label="医生工作台">
@@ -1638,7 +1667,7 @@
 </section>
 
 <section popover id="read-roleDoctor" data-native-role="doctor" class="cl-read-panel role-preview" aria-label="医生工作台">
-<header class="rp-bar"><span>崇礼院区 · 身份工作区</span><button type="button" popovertarget="read-roleDoctor" popovertargetaction="hide" autofocus>返回身份选择</button>
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleDoctor" popovertargetaction="hide" autofocus>返回账号选择</button>
 </header>
 <div class="rp-inner">
 <h2>医生工作台</h2>
@@ -1674,12 +1703,12 @@
 </div></dl>
 </details>
 </div>
-<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本目录的 index.html 可体验完整流程。</p>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
 </div>
 </section>
 
 <section popover id="read-roleDirector" data-native-role="director" class="cl-read-panel role-preview" aria-label="科主任工作台">
-<header class="rp-bar"><span>崇礼院区 · 身份工作区</span><button type="button" popovertarget="read-roleDirector" popovertargetaction="hide" autofocus>返回身份选择</button>
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleDirector" popovertargetaction="hide" autofocus>返回账号选择</button>
 </header>
 <div class="rp-inner">
 <h2>科主任工作台</h2>
@@ -1715,12 +1744,12 @@
 </div></dl>
 </details>
 </div>
-<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本目录的 index.html 可体验完整流程。</p>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
 </div>
 </section>
 
 <section popover id="read-roleLeader" data-native-role="leader" class="cl-read-panel role-preview" aria-label="院领导工作台">
-<header class="rp-bar"><span>崇礼院区 · 身份工作区</span><button type="button" popovertarget="read-roleLeader" popovertargetaction="hide" autofocus>返回身份选择</button>
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleLeader" popovertargetaction="hide" autofocus>返回账号选择</button>
 </header>
 <div class="rp-inner">
 <h2>院领导工作台</h2>
@@ -1758,12 +1787,12 @@
 </div></dl>
 </details>
 </div>
-<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本目录的 index.html 可体验完整流程。</p>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
 </div>
 </section>
 
 <section popover id="read-roleReviewer" data-native-role="reviewer" class="cl-read-panel role-preview" aria-label="院方审核工作台">
-<header class="rp-bar"><span>崇礼院区 · 身份工作区</span><button type="button" popovertarget="read-roleReviewer" popovertargetaction="hide" autofocus>返回身份选择</button>
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleReviewer" popovertargetaction="hide" autofocus>返回账号选择</button>
 </header>
 <div class="rp-inner">
 <h2>院方审核工作台</h2>
@@ -1797,12 +1826,12 @@
 </div></dl>
 </details>
 </div>
-<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本目录的 index.html 可体验完整流程。</p>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
 </div>
 </section>
 
 <section popover id="read-roleAdmin" data-native-role="admin" class="cl-read-panel role-preview" aria-label="院方管理工作台">
-<header class="rp-bar"><span>崇礼院区 · 身份工作区</span><button type="button" popovertarget="read-roleAdmin" popovertargetaction="hide" autofocus>返回身份选择</button>
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-roleAdmin" popovertargetaction="hide" autofocus>返回账号选择</button>
 </header>
 <div class="rp-inner">
 <h2>院方管理工作台</h2>
@@ -1838,12 +1867,12 @@
 </div></dl>
 </details>
 </div>
-<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本目录的 index.html 可体验完整流程。</p>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
 </div>
 </section>
 
 <section popover id="read-rolePatient" data-native-role="patient" class="cl-read-panel role-preview" aria-label="患者服务">
-<header class="rp-bar"><span>崇礼院区 · 身份工作区</span><button type="button" popovertarget="read-rolePatient" popovertargetaction="hide" autofocus>返回身份选择</button>
+<header class="rp-bar"><span>崇礼院区 · 账号预览</span><button type="button" popovertarget="read-rolePatient" popovertargetaction="hide" autofocus>返回账号选择</button>
 </header>
 <div class="rp-inner">
 <h2>患者服务</h2>
@@ -1877,7 +1906,7 @@
 </div></dl>
 </details>
 </div>
-<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本目录的 index.html 可体验完整流程。</p>
+<p class="rp-hint">演示数据 · 只读预览。在浏览器中打开本页的离线文件可体验完整流程。</p>
 </div>
 </section>
 
