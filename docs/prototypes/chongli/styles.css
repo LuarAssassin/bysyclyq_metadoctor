@@ -619,3 +619,168 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
 .role-preview dl>div+div{border-top:1px solid #edf1f1}.role-preview dt{color:#5b7378}.role-preview dd{margin:0;color:#263f4a}
 .role-preview .rp-hint{margin-top:13px;font-size:13px}
 @media(max-width:580px){.role-preview.cl-read-panel{inset-block-start:7px;width:calc(100vw - 12px);max-height:calc(100dvh - 14px);border-radius:10px}.role-preview .rp-inner{padding-top:14px}.role-preview dl>div{grid-template-columns:5em minmax(0,1fr);gap:7px}.role-preview .rp-stat small{font-size:12px}}
+/* Chongli's terrain recedes behind the portal; the clinical workspaces keep a clear field. */
+#view-portal {
+  --po-mountain-panorama: url("assets/chongli-four-seasons.webp");
+}
+#view-portal .po-hero {
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(116deg, #fafbf8 3%, #f2f7f5 39%, #eaf3f4 69%, #edf3f7);
+}
+#view-portal .po-hero::before,
+#view-portal .po-foot::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  pointer-events: none;
+  background: var(--po-mountain-panorama) center bottom / 100% 100% no-repeat;
+}
+#view-portal .po-hero::before {
+  right: 51%;
+  width: min(49%, 990px);
+  height: clamp(88px, 9vw, 150px);
+  opacity: .82;
+  background-size: 100% 128%;
+  mask-image: linear-gradient(to bottom, transparent, #0004 23%, #000b 58%, #000 96%),
+              linear-gradient(to right, transparent, #000 4%, #000 85%, transparent 100%);
+  mask-composite: intersect;
+}
+#view-portal .po-hero-in,
+#view-portal .po-foot-in {
+  position: relative;
+}
+#view-portal .po-foot {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #f5f8f8;
+}
+#view-portal .po-foot::before {
+  right: max(0px, calc(50% - 840px));
+  width: min(46%, 610px);
+  height: 100%;
+  opacity: .22;
+  mask-image: linear-gradient(90deg, transparent, #0009 36%, #000);
+}
+@media (max-width: 650px) {
+  #view-portal .po-hero::before { content: none; }
+  #view-portal .po-copy {
+    position: relative;
+    isolation: isolate;
+    padding-bottom: clamp(28px, 6vw, 36px);
+  }
+  #view-portal .po-copy::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    bottom: -8px;
+    left: -18px;
+    width: calc(100% + 36px);
+    height: clamp(59px, 15vw, 84px);
+    pointer-events: none;
+    background: var(--po-mountain-panorama) center bottom / 100% 100% no-repeat;
+    opacity: .78;
+    background-size: 100% 120%;
+    mask-image: linear-gradient(to bottom, transparent, #0007 43%, #000);
+  }
+  #view-portal .po-foot::before {
+    width: 76%;
+    opacity: .17;
+  }
+}
+@media (max-width: 480px) {
+  #view-portal .po-title span { display: block; }
+}
+@media (prefers-contrast: more), (forced-colors: active), print {
+  #view-portal .po-hero::before,
+  #view-portal .po-copy::before,
+  #view-portal .po-foot::before { content: none; }
+  #view-portal .po-hero, #view-portal .po-foot { background: #fff; }
+  #view-portal .po-copy { padding-bottom: 0; }
+}
+
+/* Hospital masthead. Each original mark sits on its intended field. */
+#cl-brandbar {
+  --ribbon-height: 38px;
+  --campus-row: 51px;
+  --header-inset: clamp(18px, 4.3vw, 86px);
+  min-height: 0;
+  padding: 0 var(--header-inset);
+  align-items: flex-end;
+  background: linear-gradient(to bottom, #19394a 0 var(--ribbon-height), #fff var(--ribbon-height) 100%);
+}
+#cl-brandbar .cl-id-marks {
+  display: grid;
+  grid-template-rows: var(--ribbon-height) var(--campus-row);
+  align-items: center;
+  justify-items: start;
+  border: 0;
+  padding: 0;
+}
+#cl-brandbar .cl-parent-logo {
+  display: block;
+  width: auto;
+  height: calc(var(--ribbon-height) - 7px);
+}
+#cl-brandbar .cl-campus-logo {
+  display: block;
+  width: clamp(178px, 16.5vw, 233px);
+  height: auto;
+}
+#cl-brandbar .cl-platform-name { align-self: flex-end; margin-bottom: calc((var(--campus-row) - 22px) / 2); }
+#cl-brandbar .cl-top-tools { min-height: var(--campus-row); }
+#cl-brandbar .cl-demo {
+  position: absolute;
+  top: 0;
+  right: var(--header-inset);
+  line-height: var(--ribbon-height);
+  color: #d6e3e8;
+}
+#cl-brandbar .cl-brand:focus-visible { outline-offset: 0; }
+body:has(#cl-main[data-workbench]) #cl-brandbar { --header-inset: clamp(16px, 2vw, 37px); }
+.ld-brand .ld-campus-mark {
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  width: clamp(105px, 8.3vw, 185px);
+  aspect-ratio: auto;
+  gap: 4px;
+  overflow: visible;
+  background: transparent;
+}
+.ld-campus-mark .ld-parent-logo { width: 80%; height: auto; }
+.ld-campus-mark .ld-chongli-logo {
+  width: 100%;
+  height: auto;
+  padding: 3px 4px;
+  background: #fff;
+  border-radius: 2px;
+}
+@media (max-width: 1000px) {
+  #cl-brandbar { --header-inset: 20px; }
+}
+@media (max-width: 680px) {
+  #cl-brandbar {
+    --ribbon-height: 32px;
+    --campus-row: 42px;
+    --header-inset: 14px;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  #cl-brandbar .cl-campus-logo { width: clamp(142px, 43vw, 185px); }
+  #cl-brandbar .cl-demo { display: block; font-size: 11px; }
+  body[data-role=admin] #cl-brandbar .cl-demo { display: none; }
+  #cl-brandbar #cl-reset-open {
+    position: absolute;
+    top: 0;
+    right: var(--header-inset);
+    min-height: var(--ribbon-height);
+    color: #edf5f8;
+    background: transparent;
+  }
+  .ld-brand .ld-campus-mark { width: clamp(79px, 21vw, 110px); gap: 3px; }
+}
+@media (forced-colors: active) {
+  #cl-brandbar .cl-parent-logo, .ld-parent-logo { forced-color-adjust: none; background-color: #19394a; }
+}
