@@ -1,151 +1,78 @@
-import { useState } from 'react'
-import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/auth'
-import { cn } from '@/lib/cn'
-import {
-  BookOpen,
-  BrainCircuit,
-  ClipboardCheck,
-  LogOut,
-  Menu,
-  MessageSquareText,
-  Mountain,
-  Snowflake,
-  UserRound,
-  Video,
-  X,
-} from 'lucide-react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { BookOpen, CheckCheck, ChevronRight, CircleHelp, Home, LogOut, Menu, MessageSquareText, SlidersHorizontal, UserRound, Video, X } from 'lucide-react'
+import '@/shell.css'
 
-const navItems = [
-  { path: '/knowledge', label: '知识库与索引', icon: BookOpen },
-  { path: '/digital-human', label: '数字人素材', icon: Video },
-  { path: '/narrative-kernel', label: '叙事底座', icon: BrainCircuit },
-  { path: '/rehearsal', label: 'AI 问诊演练', icon: MessageSquareText },
-  { path: '/consult-review', label: '患者问诊审核', icon: ClipboardCheck },
-  { path: '/profile', label: '个人资料', icon: UserRound },
+const groups = [
+  { title: '日常工作', items: [
+    { path: '/workspace', label: '医生工作台', icon: Home, chapter: '' },
+    { path: '/consult-review', label: '服务记录复核', icon: CheckCheck, chapter: 'review' },
+  ] },
+  { title: '我的数字医生', items: [
+    { path: '/narrative-kernel', label: '专业与表达', icon: SlidersHorizontal, chapter: 'expression' },
+    { path: '/knowledge', label: '专业知识库', icon: BookOpen, chapter: 'knowledge' },
+    { path: '/digital-human', label: '形象与声音', icon: Video, chapter: 'avatar' },
+    { path: '/rehearsal', label: '试聊与校准', icon: MessageSquareText, chapter: 'rehearsal' },
+  ] },
+  { title: '学习与设置', items: [
+    { path: '/guide', label: '使用指南', icon: CircleHelp, chapter: '' },
+    { path: '/profile', label: '个人资料', icon: UserRound, chapter: 'profile' },
+  ] },
 ]
 
-const routeTitles: Record<string, string> = {
-  '/knowledge': '知识库与索引中心',
-  '/digital-human': '数字人素材中心',
-  '/narrative-kernel': '医生叙事底座中心',
-  '/rehearsal': 'AI 问诊演练场',
-  '/consult-review': '患者问诊审核中心',
-  '/profile': '个人资料管理',
-}
-
-export default function MainLayout() {
-  const isAuth = useAuthStore((s) => s.isAuthenticated)
-  const username = useAuthStore((s) => s.username)
-  const logout = useAuthStore((s) => s.logout)
+export default function MainLayout({ demo = false }: { demo?: boolean }) {
+  const isAuth = useAuthStore(s => s.isAuthenticated)
+  const logout = useAuthStore(s => s.logout)
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const menuRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => { setMobileOpen(false) }, [location.pathname, location.search])
+  useEffect(() => {
+    if (!mobileOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setMobileOpen(false); menuRef.current?.focus() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mobileOpen])
+  if (!demo && !isAuth) return <Navigate to={`/auth/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />
 
-  if (!isAuth) return <Navigate to="/auth/login" replace />
-
-  const pageTitle = routeTitles[location.pathname] || '工作台'
-
+  const routeTitle = location.pathname.includes('guide') ? '使用指南' : demo ? '医生工作台' : groups.flatMap(g => g.items).find(i => i.path === location.pathname)?.label || '医生工作台'
+  const home = demo ? '/preview' : '/workspace'
   return (
-    <div className="app-bg flex min-h-screen">
-      {/* ── Sidebar ─────────────────────── */}
-      <aside className={cn(
-        'sidebar-gradient fixed inset-y-0 left-0 z-40 w-[260px] flex flex-col transition-transform duration-300 ease-out',
-        'lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:z-auto',
-        mobileOpen ? 'translate-x-0' : '-translate-x-full',
-      )}>
-        {/* Brand */}
-        <div className="px-5 pt-6 pb-4">
-          <div className="flex items-center gap-2.5 mb-1">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-ice-400 to-ice-600 flex items-center justify-center">
-              <Mountain className="w-4 h-4 text-white" />
-            </div>
-            <Snowflake className="w-4 h-4 text-ice-400/50" />
-          </div>
-          <p className="text-[10px] tracking-[0.15em] uppercase text-ice-400/40 mt-2 font-medium">
-            Doctor Agent Console
-          </p>
-          <h2 className="text-lg font-bold text-white mt-0.5 tracking-tight">北医三院崇礼</h2>
+    <div className="cl-shell">
+      <a className="cl-skip" href="#main-content">跳到主要内容</a>
+      <header className="cl-topbar">
+        <button ref={menuRef} className="cl-menu-toggle" aria-label={mobileOpen ? '关闭功能导航' : '打开功能导航'} aria-controls="workspace-navigation" aria-expanded={mobileOpen} onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X size={21} /> : <Menu size={21} />}</button>
+        <Link className="cl-brand" to={home} aria-label="崇礼院区医生工作台"><img src={`${import.meta.env.BASE_URL}brand/chongli-logo.png`} alt="北京大学第三医院崇礼院区" width="373" height="64" /></Link>
+        <div className="cl-platform-name"><strong>崇礼AI元医院</strong><span>智能化平台</span></div>
+        <div className="cl-topbar-actions">
+          {demo ? <><span className="cl-demo-badge">交互演示</span><Link className="cl-login-link" to="/auth/login">医生登录 <ChevronRight size={15} /></Link></> : <><Link className="cl-top-help" to="/guide"><CircleHelp size={17} />使用指南</Link><Link className="cl-account" to="/profile" aria-label="打开个人资料"><UserRound size={18} /><span>我的账号</span></Link></>}
         </div>
-
-        {/* Nav */}
-        <nav className="flex-1 min-h-0 overflow-y-auto px-3 space-y-1 mt-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setMobileOpen(false)}
-              className={({ isActive }) => cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
-                isActive
-                  ? 'sidebar-item-active text-white'
-                  : 'text-alpine-300 hover:text-white hover:bg-white/[0.06]',
-              )}
-            >
-              <item.icon className="w-[18px] h-[18px] flex-shrink-0" />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* User */}
-        <div className="px-4 pb-5">
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-ice-500/20 flex items-center justify-center">
-                <UserRound className="w-4 h-4 text-ice-300" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-alpine-400 truncate">当前账号</p>
-                <p className="text-sm font-semibold text-white truncate">{username || '医生'}</p>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="mt-3 w-full flex items-center justify-center gap-2 text-xs text-red-400/80 hover:text-red-300 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              退出登录
-            </button>
-          </div>
+      </header>
+      <div className="cl-workspace-body">
+        {mobileOpen && <button className="cl-nav-backdrop" aria-label="关闭功能导航遮罩" onClick={() => { setMobileOpen(false); menuRef.current?.focus() }} />}
+        <aside id="workspace-navigation" className={`cl-sidebar ${mobileOpen ? 'is-open' : ''}`}>
+          <div className="cl-space-title"><span className="cl-campus-dot" />崇礼院区<span>医生工作空间</span></div>
+          <nav aria-label="医生工作台功能导航">
+            {groups.map(group => <div className="cl-nav-group" key={group.title}>
+              <p>{group.title}</p>
+              {group.items.map(item => {
+                const target = demo ? item.path === '/workspace' ? '/preview' : item.path === '/guide' ? '/preview/guide' : `/preview/guide?chapter=${item.chapter}` : item.path
+                // Demo configuration links teach the workflow without exposing authenticated pages.
+                const active = demo ? item.path === '/workspace' && location.pathname === '/preview' || item.path === '/guide' && location.pathname === '/preview/guide' : location.pathname === item.path
+                return <Link key={item.path} to={target} className={`cl-nav-item ${active ? 'is-active' : ''}`} aria-current={active ? 'page' : undefined}><item.icon size={18} strokeWidth={1.7} /><span>{item.label}</span>{active && <span className="cl-nav-indicator" />}</Link>
+              })}
+            </div>)}
+          </nav>
+          <div className="cl-sidebar-footer"><p>北京大学第三医院</p><span>崇礼院区 · 医生端</span>{!demo && <button onClick={logout}><LogOut size={15} />退出登录</button>}</div>
+        </aside>
+        <div className="cl-main-column">
+          <div className="cl-breadcrumb"><span>我的工作空间</span><ChevronRight size={14} /><span>{routeTitle}</span>{demo && <span className="cl-preview-notice">仅合成数据 · 不连接患者服务</span>}</div>
+          <main id="main-content" className="cl-main" tabIndex={-1}><Outlet /></main>
+          <footer className="cl-main-footer"><span>崇礼AI元医院智能化平台</span><span>Chongli AI Meta-Hospital</span></footer>
         </div>
-      </aside>
-
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
-            onClick={() => setMobileOpen(false)}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* ── Main ────────────────────────── */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar */}
-        <header className="sticky top-0 z-20 flex items-center gap-3 px-4 lg:px-6 h-[60px] border-b border-alpine-900/[0.06] bg-white/60 backdrop-blur-lg">
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="lg:hidden p-2 -ml-1 rounded-lg hover:bg-alpine-100 transition-colors"
-          >
-            {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-alpine-900 truncate">{pageTitle}</h3>
-            <p className="text-[11px] text-alpine-400 truncate hidden sm:block">
-              医生智能体工作台 · 状态驱动联调
-            </p>
-          </div>
-        </header>
-
-        {/* Content */}
-        <main className="flex-1 p-4 lg:p-6">
-          <Outlet />
-        </main>
       </div>
     </div>
   )

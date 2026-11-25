@@ -466,7 +466,7 @@ export default function DigitalHumanPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="数字人素材中心" subtitle="音色创建后可直接用于演练场；视频任务异步生成并返回签名播放地址">
+      <PageHeader title="形象与声音" subtitle="配置数字医生的形象和声音，完成后前往试聊查看效果">
         <button onClick={() => refreshAll()} className="inline-flex items-center gap-1.5 text-xs font-medium text-ice-600 hover:text-ice-700 bg-ice-50 hover:bg-ice-100 px-3 py-2 rounded-lg transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 刷新素材
         </button>
