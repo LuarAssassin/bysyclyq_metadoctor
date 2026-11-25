@@ -25,6 +25,15 @@ function snapshots() {
       for(const doctor of data.doctorsByDept[dept]) variants.push({days,dept,doctor});
     }
   }
+  // Read-only snapshots all show the same hospital marks. Keep the original
+  // image elements, dimensions and accessible attributes, and share their
+  // two embedded originals through CSS replaced-image content.
+  const logoSelectors=['.ld-parent-logo','.ld-chongli-logo'];
+  const logoRules=logoSelectors.map(selector=>{
+    const src=host.querySelector('.ld-campus-mark '+selector)?.getAttribute('src');
+    if(!src?.startsWith('data:image/')) throw Error('Expected a bundled hospital logo: '+selector);
+    return '.ld-snapshot .ld-campus-mark '+selector+'{content:url("'+src+'")}';
+  }).join('\n');
   const ids=new Set(['view-screen']);
   const crossIds = (days,dept,doctor)=>variants.findIndex(s=>s.days===days && s.dept===dept && s.doctor===doctor);
   function makeNative(old,tag) {
@@ -51,6 +60,9 @@ function snapshots() {
     if(explanation){explanation.click();host.querySelector('#ld-methodbox [data-ld-close]')?.click();}
     const clone=host.cloneNode(true);
     clone.querySelectorAll('style,script,#ld-hospital[hidden],#ld-detail[hidden]').forEach(el=>el.remove());
+    for(const selector of logoSelectors) {
+      clone.querySelector('.ld-campus-mark '+selector).removeAttribute('src');
+    }
     clone.removeAttribute('hidden');
     clone.classList.remove('cl-view');
     clone.classList.add('ld-snapshot');clone.dataset.readKey='v'+index;
@@ -135,7 +147,7 @@ function snapshots() {
     return copied.join('\n');
   }
   const css=[...document.querySelectorAll('style')].map(element=>snapshotRules(element.sheet.cssRules)).join('\n');
-  return {sections,css,variants};
+  return {sections,css:css+'\n'+logoRules,variants};
 }
 
 async function run(){
