@@ -619,168 +619,374 @@ body:has(#view-doctor:not([hidden])) .cl-brandbar{min-height:56px;padding-block:
 .role-preview dl>div+div{border-top:1px solid #edf1f1}.role-preview dt{color:#5b7378}.role-preview dd{margin:0;color:#263f4a}
 .role-preview .rp-hint{margin-top:13px;font-size:13px}
 @media(max-width:580px){.role-preview.cl-read-panel{inset-block-start:7px;width:calc(100vw - 12px);max-height:calc(100dvh - 14px);border-radius:10px}.role-preview .rp-inner{padding-top:14px}.role-preview dl>div{grid-template-columns:5em minmax(0,1fr);gap:7px}.role-preview .rp-stat small{font-size:12px}}
-/* Chongli's terrain recedes behind the portal; the clinical workspaces keep a clear field. */
+/* Chongli portal. The campus photograph and the painted mountains share one field. */
 #view-portal {
+  --po-ink: #173849;
+  --po-blue: #13637c;
+  --po-muted: #526b76;
+  --po-line: #d7e2e5;
+  --po-paper: #fbfcfa;
   --po-mountain-panorama: url("assets/chongli-four-seasons.webp");
 }
+#po-home { background: var(--po-paper); }
 #view-portal .po-hero {
-  isolation: isolate;
   overflow: hidden;
-  background: linear-gradient(116deg, #fafbf8 3%, #f2f7f5 39%, #eaf3f4 69%, #edf3f7);
-}
-#view-portal .po-hero::before,
-#view-portal .po-foot::before {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  pointer-events: none;
-  background: var(--po-mountain-panorama) center bottom / 100% 100% no-repeat;
+  isolation: isolate;
+  border: 0;
+  background: var(--po-paper);
 }
 #view-portal .po-hero::before {
-  right: 51%;
-  width: min(49%, 990px);
-  height: clamp(88px, 9vw, 150px);
-  opacity: .82;
-  background-size: 100% 128%;
-  mask-image: linear-gradient(to bottom, transparent, #0004 23%, #000b 58%, #000 96%),
-              linear-gradient(to right, transparent, #000 4%, #000 85%, transparent 100%);
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 66%;
+  background: var(--po-mountain-panorama) left bottom / 100% auto no-repeat;
+  opacity: .62;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent 6%, #0003 38%, #000a 71%, #000 86%, transparent),
+              linear-gradient(90deg,#000 42%,#000c 73%,transparent 100%);
   mask-composite: intersect;
 }
-#view-portal .po-hero-in,
-#view-portal .po-foot-in {
+#view-portal .po-hero-in {
   position: relative;
+  width: 100%;
+  max-width: none;
+  display: grid;
+  grid-template-columns: minmax(260px,.77fr) minmax(0,1.23fr);
+  gap: 0;
+  align-items: stretch;
+  padding: 0 0 0 max(clamp(20px,5vw,86px), calc((100% - 1550px) / 2 + clamp(20px,5vw,86px)));
 }
-#view-portal .po-foot {
+#view-portal .po-copy {
   position: relative;
+  z-index: 1;
+  align-self: center;
+  padding: clamp(30px,3.15vw,55px) 12px clamp(46px,4.2vw,76px) 0;
+}
+#view-portal .po-kicker {
+  color: var(--po-blue);
+  font-size: clamp(12px,.98vw,15px);
+  font-weight: 610;
+  letter-spacing: .04em;
+  gap: 0;
+}
+#view-portal .po-kicker::before { content: none; }
+#view-portal .po-title {
+  margin-top: 13px;
+  font-size: clamp(42px,4.16vw,67px);
+  letter-spacing: -.045em;
+  line-height: 1.12;
+  font-weight: 680;
+  color: var(--po-ink);
+}
+#view-portal .po-title span { display:block; }
+#view-portal .po-en {
+  margin-top: 12px;
+  font-size: clamp(14px,1.15vw,19px);
+  letter-spacing: .025em;
+  color: var(--po-muted);
+}
+#view-portal .po-actions { gap: clamp(13px,1.8vw,28px); margin-top: clamp(21px,1.9vw,32px); }
+#view-portal .po-primary {
+  border-radius: 5px;
+  background: var(--po-blue);
+  padding: 10px 16px;
+  font-size: 15px;
+  box-shadow: none;
+}
+#view-portal .po-primary:hover { background: #0d5066; }
+#view-portal .po-actions .po-text { color: #25566a; }
+#view-portal .po-media {
+  align-self: stretch;
+  min-height: clamp(332px,27.5vw,453px);
   isolation: isolate;
-  overflow: hidden;
-  background: #f5f8f8;
+  margin: 0;
 }
-#view-portal .po-foot::before {
-  right: max(0px, calc(50% - 840px));
-  width: min(46%, 610px);
-  height: 100%;
-  opacity: .22;
-  mask-image: linear-gradient(90deg, transparent, #0009 36%, #000);
+#view-portal .po-frame {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  mask-image: linear-gradient(90deg,transparent,#0003 4%,#000a 10%,#000f 19%);
+}
+#view-portal .po-frame::after {
+  content: "";
+  position: absolute;
+  inset: 56% 0 0;
+  pointer-events: none;
+  background: linear-gradient(to bottom,transparent,rgba(12,35,48,.15) 38%,rgba(12,35,48,.7) 100%);
+}
+#view-portal .po-image { object-position: center 44%; }
+#view-portal .po-caption {
+  position: absolute;
+  inset: auto max(clamp(16px,4.2vw,68px),calc((100vw - 1550px) / 2 + 42px)) 14px 18%;
+  z-index:1;
+  min-height: 30px;
+  padding: 0;
+  gap: 8px;
+  color: #fff;
+  align-items: center;
+}
+#view-portal .po-credit { color:#fff; font-size:14px; gap:8px; }
+#view-portal .po-credit a { color:#f3f8fb; font-size:12px; text-underline-offset:3px; }
+#view-portal .po-pip::after { background:#e3edf0a6; }
+#view-portal .po-pip[aria-current=true]::after { background:#fff; }
+#view-portal .po-pause { color:#fff; border:1px solid #e5eff3a3; background:#153e4c55; }
+#view-portal .po-caption :focus-visible { outline-color: #fff; }
+#view-portal .po-directory {
+  position: relative;
+  padding-top: clamp(22px,2vw,35px);
+  padding-bottom: clamp(26px,2.7vw,46px);
+}
+#view-portal .po-directory-intro {
+  gap: 12px;
+  margin-bottom: clamp(14px,1.4vw,22px);
+}
+#view-portal .po-directory-intro h2 { color:var(--po-ink); font-weight:670; }
+#view-portal .po-directory-intro span { color: var(--po-muted); font-size:13px; }
+#view-portal .po-functions { grid-template-columns: minmax(0,1fr) minmax(0,2fr); gap:clamp(24px,3.2vw,54px); }
+#view-portal .po-role-group h3 { font-size:13px; color:var(--po-muted); letter-spacing:.04em; margin-bottom:8px; }
+#view-portal .po-role-list,
+#view-portal .po-service-roles .po-role-list {
+  grid-template-rows: auto;
+  align-content: start;
+  border-top: 1px solid #96b4be;
+}
+#view-portal .po-management-roles .po-role-list {
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  column-gap:clamp(16px,2.3vw,36px);
+}
+#view-portal .po-role-link,
+#view-portal .po-role-link.po-doctor-role,
+#view-portal .po-role-link.po-admin-role,
+#view-portal .po-service-roles .po-role-link:not(.po-doctor-role) {
+  padding: 13px 4px 13px 0;
+  margin: 0;
+  min-height: 73px;
+  gap: 12px;
+  background: transparent;
+  color: var(--po-ink);
+  border: 0;
+  border-bottom: 1px solid var(--po-line);
+  border-radius: 0;
+}
+#view-portal .po-role-link .po-role-label { display:block; }
+#view-portal .po-role-link .po-role-label strong { display:block; font-size:clamp(16px,1.24vw,19px); font-weight:650; }
+#view-portal .po-role-link .po-role-label small { display:block; margin:2px 0 0; font-size:13px; color:var(--po-muted); }
+#view-portal .po-role-link svg { color:var(--po-blue); flex:0 0 25px; width:25px; height:25px; }
+#view-portal .po-role-link.po-doctor-role strong { color:var(--po-blue); }
+#view-portal .po-role-link::after {
+  content:"";
+  width:6px;
+  height:6px;
+  flex:0 0 6px;
+  margin:0 8px;
+  border:solid #6b8b98;
+  border-width:1.4px 1.4px 0 0;
+  transform:rotate(45deg);
+}
+#view-portal .po-role-link:hover,
+#view-portal .po-role-link:focus-visible { background:#eaf1f2; }
+#view-portal .po-foot { background:var(--po-paper); border-top:1px solid var(--po-line); }
+#view-portal .po-foot-in { padding-block:16px; color:var(--po-muted); }
+@media (max-width: 1000px) {
+  #view-portal .po-hero-in { grid-template-columns:minmax(245px,.84fr) minmax(0,1.16fr); padding-left:24px; }
+  #view-portal .po-copy { padding-block:32px 44px; }
+  #view-portal .po-media { min-height:310px; }
+  #view-portal .po-caption { inset-inline:16% 20px; }
+  #view-portal .po-role-link { gap:8px; }
+}
+@media (min-width:651px) and (max-width:880px) {
+  #view-portal .po-functions { grid-template-columns:1fr; gap:16px; }
+  #view-portal .po-service-roles .po-role-list,
+  #view-portal .po-management-roles .po-role-list { grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:24px; }
+  #view-portal .po-role-link,
+  #view-portal .po-role-link.po-doctor-role,
+  #view-portal .po-role-link.po-admin-role,
+  #view-portal .po-service-roles .po-role-link:not(.po-doctor-role) { min-height:60px; padding-block:8px; }
 }
 @media (max-width: 650px) {
-  #view-portal .po-hero::before { content: none; }
-  #view-portal .po-copy {
-    position: relative;
-    isolation: isolate;
-    padding-bottom: clamp(28px, 6vw, 36px);
+  #view-portal .po-hero-in { display:flex; flex-direction:column; gap:0; padding:0; }
+  #view-portal .po-hero::before {
+    top:0; bottom:auto; width:100%; height:245px;
+    background-size:auto 100%; background-position:70% bottom;
+    opacity:.68;
+    mask-image:linear-gradient(90deg,transparent,#0004 44%,#000 100%),
+               linear-gradient(to bottom,transparent 0%,#0006 22%,#000 65%,#0008 85%,transparent);
+    mask-composite:intersect;
   }
-  #view-portal .po-copy::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    bottom: -8px;
-    left: -18px;
-    width: calc(100% + 36px);
-    height: clamp(59px, 15vw, 84px);
-    pointer-events: none;
-    background: var(--po-mountain-panorama) center bottom / 100% 100% no-repeat;
-    opacity: .78;
-    background-size: 100% 120%;
-    mask-image: linear-gradient(to bottom, transparent, #0007 43%, #000);
+  #view-portal .po-copy { align-self:stretch; padding:23px 18px 20px; }
+  #view-portal .po-title { font-size:clamp(36px,8.8vw,48px); margin-top:9px; line-height:1.13; }
+  #view-portal .po-en { font-size:14px; margin-top:7px; }
+  #view-portal .po-actions { margin-top:13px; gap:16px; }
+  #view-portal .po-media { min-height:0; aspect-ratio:2.35; width:100%; }
+  #view-portal .po-frame { mask-image:linear-gradient(to bottom,transparent 0,#000 12%); }
+  #view-portal .po-caption { inset:auto 18px 9px; }
+  #view-portal .po-credit { font-size:12px; }
+  #view-portal .po-directory { padding-block:21px 23px; }
+  #view-portal .po-directory-intro { margin-bottom:13px; }
+  #view-portal .po-functions { grid-template-columns:1fr; gap:16px; }
+  #view-portal .po-role-group h3 { margin-bottom:5px; }
+  #view-portal .po-management-roles .po-role-list { grid-template-columns:1fr; }
+  #view-portal .po-role-link,
+  #view-portal .po-role-link.po-doctor-role,
+  #view-portal .po-role-link.po-admin-role,
+  #view-portal .po-service-roles .po-role-link:not(.po-doctor-role) {
+    min-height:49px; padding:9px 0; gap:9px;
   }
-  #view-portal .po-foot::before {
-    width: 76%;
-    opacity: .17;
-  }
+  #view-portal .po-role-link .po-role-label { display:flex; align-items:center; gap:9px; }
+  #view-portal .po-role-link .po-role-label strong { font-size:15px; }
+  #view-portal .po-role-link .po-role-label small { margin:0; font-size:12px; }
+  #view-portal .po-role-link svg { flex-basis:19px; width:19px; height:19px; }
+  #view-portal .po-role-link::after { margin-inline:0 3px; }
 }
-@media (max-width: 480px) {
-  #view-portal .po-title span { display: block; }
+@media (max-width:360px) {
+  #view-portal .po-role-link .po-role-label { display:block; }
+  #view-portal .po-role-link .po-role-label small { margin-top:1px; }
 }
 @media (prefers-contrast: more), (forced-colors: active), print {
-  #view-portal .po-hero::before,
-  #view-portal .po-copy::before,
-  #view-portal .po-foot::before { content: none; }
-  #view-portal .po-hero, #view-portal .po-foot { background: #fff; }
-  #view-portal .po-copy { padding-bottom: 0; }
+  #view-portal .po-hero::before { content:none; }
+  #view-portal .po-copy { background:#fff; }
+  #view-portal .po-caption { color:#fff; background:#163848; }
 }
 
-/* Hospital masthead. Each original mark sits on its intended field. */
+/* Hospital masthead. Keep the parent seal in color and both signatures on one field. */
 #cl-brandbar {
-  --ribbon-height: 38px;
-  --campus-row: 51px;
-  --header-inset: clamp(18px, 4.3vw, 86px);
+  --header-inset: max(clamp(20px, 5vw, 86px), calc((100vw - 1550px) / 2 + 86px));
+  --parent-mark-width: clamp(117px, 9vw, 138px);
+  --campus-mark-width: clamp(176px, 14.2vw, 210px);
   min-height: 0;
-  padding: 0 var(--header-inset);
-  align-items: flex-end;
-  background: linear-gradient(to bottom, #19394a 0 var(--ribbon-height), #fff var(--ribbon-height) 100%);
+  padding: 9px var(--header-inset) 10px;
+  align-items: center;
+  flex-wrap: nowrap;
+  background: #fff;
+  border-bottom: 1px solid #dfe5e8;
 }
+#cl-brandbar .cl-brand { gap: clamp(14px, 1.8vw, 28px); text-align: left; }
 #cl-brandbar .cl-id-marks {
   display: grid;
-  grid-template-rows: var(--ribbon-height) var(--campus-row);
+  grid-template-columns: var(--campus-mark-width);
+  grid-template-rows: auto auto;
   align-items: center;
   justify-items: start;
+  row-gap: 4px;
   border: 0;
   padding: 0;
 }
-#cl-brandbar .cl-parent-logo {
+#cl-brandbar .cl-id-marks .cl-parent-logo,
+#cl-brandbar .cl-id-marks::after {
+  grid-area: 1 / 1;
   display: block;
-  width: auto;
-  height: calc(var(--ribbon-height) - 7px);
+  width: var(--parent-mark-width);
+  height: auto;
+  aspect-ratio: 387 / 94;
 }
-#cl-brandbar .cl-campus-logo {
+/* The PNG's lettering is white. Retain the authentic red emblem at left and
+   render the original letter shapes at right in ink for this white background. */
+#cl-brandbar .cl-parent-logo { clip-path: inset(0 73% 0 0); }
+#cl-brandbar .cl-id-marks::after {
+  content: "";
+  pointer-events: none;
+  background: url("assets/pku-third-hospital.png") left top / 100% 100% no-repeat;
+  filter: brightness(0) saturate(100%) invert(19%) sepia(16%) saturate(928%) hue-rotate(162deg);
+  clip-path: inset(0 0 0 27%);
+}
+#cl-brandbar .cl-id-marks .cl-campus-logo {
+  grid-area: 2 / 1;
   display: block;
-  width: clamp(178px, 16.5vw, 233px);
+  width: var(--campus-mark-width);
   height: auto;
 }
-#cl-brandbar .cl-platform-name { align-self: flex-end; margin-bottom: calc((var(--campus-row) - 22px) / 2); }
-#cl-brandbar .cl-top-tools { min-height: var(--campus-row); }
-#cl-brandbar .cl-demo {
-  position: absolute;
-  top: 0;
-  right: var(--header-inset);
-  line-height: var(--ribbon-height);
-  color: #d6e3e8;
+#cl-brandbar .cl-platform-name {
+  align-self: center;
+  padding-left: clamp(14px, 1.7vw, 24px);
+  border-color: #d5dee0;
+  color: #263f4a;
+  font-size: 15px;
+  font-weight: 630;
 }
-#cl-brandbar .cl-brand:focus-visible { outline-offset: 0; }
+#cl-brandbar .cl-top-tools { gap: clamp(10px, 1.3vw, 22px); }
+#cl-brandbar .cl-topnav { gap: clamp(12px, 1.6vw, 25px); }
+#cl-brandbar .cl-topnav :is(a,button) {
+  color: #455862;
+  line-height: 1.45;
+  font-weight: 520;
+}
+#cl-brandbar .cl-topnav [aria-current="page"] { color: #143e52; font-weight: 700; }
+#cl-brandbar .cl-demo { color: #596972; font-size: 12px; }
+#cl-brandbar .cl-brand:focus-visible { outline-offset: 2px; }
 body:has(#cl-main[data-workbench]) #cl-brandbar { --header-inset: clamp(16px, 2vw, 37px); }
 .ld-brand .ld-campus-mark {
   display: grid;
   justify-items: start;
   align-content: center;
-  width: clamp(105px, 8.3vw, 185px);
+  width: clamp(112px, 8.3vw, 174px);
   aspect-ratio: auto;
   gap: 4px;
   overflow: visible;
+  border-radius: 0;
   background: transparent;
 }
-.ld-campus-mark .ld-parent-logo { width: 80%; height: auto; }
+.ld-campus-mark .ld-parent-logo { width: 74%; height: auto; }
 .ld-campus-mark .ld-chongli-logo {
   width: 100%;
   height: auto;
-  padding: 3px 4px;
-  background: #fff;
-  border-radius: 2px;
+  padding: 0;
+  background: transparent;
+  filter: grayscale(1) invert(1) contrast(1.32);
+  mix-blend-mode: screen;
 }
-@media (max-width: 1000px) {
-  #cl-brandbar { --header-inset: 20px; }
+@media (max-width: 840px) {
+  #cl-brandbar { --header-inset: 24px; }
 }
 @media (max-width: 680px) {
   #cl-brandbar {
-    --ribbon-height: 32px;
-    --campus-row: 42px;
-    --header-inset: 14px;
-    flex-wrap: nowrap;
-    gap: 6px;
+    --parent-mark-width: clamp(102px, 27.5vw, 118px);
+    --campus-mark-width: clamp(140px, 37vw, 170px);
+    --header-inset: 18px;
+    gap: 5px;
+    padding-block: 7px 8px;
   }
-  #cl-brandbar .cl-campus-logo { width: clamp(142px, 43vw, 185px); }
+  #cl-brandbar .cl-id-marks { row-gap: 3px; }
+  #cl-brandbar .cl-top-tools { gap: 5px; }
   #cl-brandbar .cl-demo { display: block; font-size: 11px; }
-  body[data-role=admin] #cl-brandbar .cl-demo { display: none; }
-  #cl-brandbar #cl-reset-open {
-    position: absolute;
-    top: 0;
-    right: var(--header-inset);
-    min-height: var(--ribbon-height);
-    color: #edf5f8;
+  body[data-role]:not([data-role="public"]) #cl-brandbar .cl-demo { display: none; }
+  body[data-role=admin] #cl-brandbar .cl-top-tools {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: auto auto;
+    justify-items: end;
+    gap: 1px 4px;
+  }
+  body[data-role=admin] #cl-reset-open {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    min-height: 24px;
+    padding: 2px 0;
+    color: #586873;
     background: transparent;
   }
-  .ld-brand .ld-campus-mark { width: clamp(79px, 21vw, 110px); gap: 3px; }
+  .ld-brand .ld-campus-mark { width: clamp(78px, 21vw, 110px); gap: 3px; }
 }
 @media (forced-colors: active) {
-  #cl-brandbar .cl-parent-logo, .ld-parent-logo { forced-color-adjust: none; background-color: #19394a; }
+  #cl-brandbar .cl-id-marks::after { forced-color-adjust: none; }
+}
+/* The platform title already heads the landing page. */
+body:has(#view-portal:not([hidden]) #po-home:not([hidden])) #cl-brandbar .cl-platform-name { display: none; }
+@media (max-width: 680px) {
+  body:not([data-role]),
+  body[data-role="public"] { --landing-nav-gap: clamp(6px, 2.6vw, 14px); }
+  body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-topnav {
+    display: flex;
+    gap: var(--landing-nav-gap);
+  }
+  body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-topnav :is([data-nav="portal"],[popovertarget="read-overview"]) { display: none!important; }
+  body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-topnav :is(button,a) {
+    padding: 7px 0;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  body:is(:not([data-role]),[data-role="public"]) #cl-brandbar .cl-demo { display: none; }
 }

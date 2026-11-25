@@ -30,7 +30,8 @@
  function controls(){const label=paused?'播放轮播':'暂停轮播';toggle.setAttribute('aria-label',label);toggle.title=label;toggle.innerHTML=paused?'<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 2.5 13 8l-9 5.5z"/></svg>':'<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M4 3h2.5v10H4zm5.5 0H12v10H9.5z"/></svg>'}
  function showSlide(i){
   if(!slides.length)return;active=i%slides.length;const o=slides[active];
-  art.hidden=false;photo.hidden=true;
+  // Keep the current photograph in place while the next slide loads.
+  if(!photo.naturalWidth){art.hidden=false;photo.hidden=true}
   photo.onload=()=>{photo.hidden=false;art.hidden=true};
   photo.onerror=()=>{art.hidden=false;photo.hidden=true;caption.textContent='崇礼山形意象';source.hidden=true};
   caption.textContent=o.title||'院区影像';photo.alt=o.title||'崇礼院区影像';photo.src=o.src;
