@@ -2,6 +2,12 @@ const ACCESS_KEY = 'md_access_token'
 const REFRESH_KEY = 'md_refresh_token'
 const USERNAME_KEY = 'md_last_username'
 const PENDING_MESSAGE_KEY = 'md_doctor_pending_message'
+const tokenListeners = new Set<() => void>()
+
+export const subscribeToTokenChanges = (listener: () => void) => {
+  tokenListeners.add(listener)
+  return () => tokenListeners.delete(listener)
+}
 
 export const getAccessToken = (): string => localStorage.getItem(ACCESS_KEY) ?? ''
 export const getRefreshToken = (): string => localStorage.getItem(REFRESH_KEY) ?? ''
@@ -10,6 +16,7 @@ export const getLastUsername = (): string => localStorage.getItem(USERNAME_KEY) 
 export const setTokens = (access: string, refresh: string) => {
   localStorage.setItem(ACCESS_KEY, access)
   localStorage.setItem(REFRESH_KEY, refresh)
+  tokenListeners.forEach(listener => listener())
 }
 
 export const setLastUsername = (username: string) => {
@@ -30,4 +37,5 @@ export const setPendingMessage = (message: string) => {
 export const clearTokens = () => {
   localStorage.removeItem(ACCESS_KEY)
   localStorage.removeItem(REFRESH_KEY)
+  tokenListeners.forEach(listener => listener())
 }

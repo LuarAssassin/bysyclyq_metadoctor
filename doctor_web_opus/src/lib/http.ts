@@ -48,16 +48,27 @@ const flushQueue = (token: string | null, error?: unknown) => {
 
 const doRefresh = async (): Promise<string> => {
   const refresh = getRefreshToken()
-  if (!refresh) throw new Error('登录已失效，请重新登录')
-  const res = await refreshAxios.post<ApiEnvelope<{ access: string }>>(
-    '/auth/token/refresh/',
-    { refresh },
-  )
-  const env = resolveEnvelope<{ access: string }>(res.data)
-  const access = env.data?.access
-  if (!access) throw new Error('刷新 token 失败')
-  setTokens(access, refresh)
-  return access
+  if (!refresh) {
+    clearTokens()
+    throw new Error('登录已失效，请重新登录')
+  }
+  try {
+    const res = await refreshAxios.post<ApiEnvelope<{ access: string }>>(
+      '/auth/token/refresh/',
+      { refresh },
+    )
+    const access = resolveEnvelope<{ access: string }>(res.data).data?.access
+    if (!access) throw new Error('刷新 token 失败')
+    if (getRefreshToken() !== refresh) throw new Error('登录状态已变化，请重试')
+    setTokens(access, refresh)
+    return access
+  } catch (error) {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined
+    if ((status === 400 || status === 401 || status === 403) && getRefreshToken() === refresh) {
+      clearTokens()
+    }
+    throw error
+  }
 }
 
 export const forceRefreshAccessToken = () => doRefresh()
@@ -85,6 +96,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status !== 401 || !original || original._retry || skip)
       throw error
 
+    original._retry = true
     if (refreshing) {
       return new Promise((resolve, reject) => {
         queue.push({
@@ -98,7 +110,6 @@ apiClient.interceptors.response.use(
       })
     }
 
-    original._retry = true
     refreshing = true
     try {
       const token = await doRefresh()
@@ -108,7 +119,6 @@ apiClient.interceptors.response.use(
       return apiClient(original)
     } catch (e) {
       flushQueue(null, e)
-      clearTokens()
       throw e
     } finally {
       refreshing = false

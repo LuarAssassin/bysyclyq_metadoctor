@@ -9,6 +9,7 @@ import {
   setLastUsername,
   setPendingMessage as persistPendingMessage,
   setTokens,
+  subscribeToTokenChanges,
 } from '@/lib/storage'
 
 interface AuthState {
@@ -86,3 +87,5 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ pendingMessage: msg })
   },
 }))
+
+subscribeToTokenChanges(() => useAuthStore.getState().syncFromStorage())
